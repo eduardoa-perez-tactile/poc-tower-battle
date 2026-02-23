@@ -1,4 +1,6 @@
-import type { Link, Owner, Tower } from "../sim/World";
+import { parseTowerArchetype } from "../sim/DepthConfig";
+import { TowerArchetype } from "../sim/DepthTypes";
+import type { LinkSeed, Owner, Tower } from "../sim/World";
 import type { SimulationRules } from "../sim/Simulation";
 
 export interface AiRules {
@@ -14,7 +16,7 @@ export interface LevelRules extends SimulationRules {
 
 export interface LoadedLevel {
   towers: Tower[];
-  initialLinks: Link[];
+  initialLinks: LinkSeed[];
   rules: LevelRules;
   ai: AiRules;
 }
@@ -63,11 +65,43 @@ function parseTower(value: unknown, index: number): Tower {
   const owner = asOwner(value.owner, `towers[${index}].owner`);
   const maxHp = asNumber(value.maxHp, `towers[${index}].maxHp`);
   const hp = asNumber(value.hp, `towers[${index}].hp`);
-  const troopCount = asNumber(value.troopCount, `towers[${index}].troopCount`);
-  const regenRatePerSec = asNumber(value.regenRatePerSec, `towers[${index}].regenRatePerSec`);
+  const troops = asNumberWithFallback(
+    value.troops,
+    value.troopCount,
+    `towers[${index}].troops|troopCount`,
+  );
+  const regenRate = asNumberWithFallback(
+    value.regenRate,
+    value.regenRatePerSec,
+    `towers[${index}].regenRate|regenRatePerSec`,
+  );
   const maxTroops = asNumber(value.maxTroops, `towers[${index}].maxTroops`);
+  const archetype = parseTowerArchetype(value.archetype, TowerArchetype.STRONGHOLD);
 
-  return { id, x, y, owner, maxHp, hp, troopCount, regenRatePerSec, maxTroops };
+  return {
+    id,
+    x,
+    y,
+    owner,
+    maxHp,
+    hp,
+    troops,
+    maxTroops,
+    regenRate,
+    baseMaxTroops: maxTroops,
+    baseRegenRate: regenRate,
+    archetype,
+    defenseMultiplier: 1,
+    packetDamageMultiplier: 1,
+    linkSpeedBonus: 0,
+    extraOutgoingLinks: 0,
+    auraRadius: 0,
+    auraRegenBonusPct: 0,
+    captureSpeedTakenMultiplier: 1,
+    goldPerSecond: 0,
+    recaptureBonusGold: 0,
+    archetypeIcon: "",
+  };
 }
 
 function parseRules(value: Record<string, unknown>): LevelRules {
@@ -105,7 +139,7 @@ function parseAi(value: unknown): AiRules {
   };
 }
 
-function parseInitialLinks(value: unknown, towers: Tower[]): Link[] {
+function parseInitialLinks(value: unknown, towers: Tower[]): LinkSeed[] {
   if (value === undefined) {
     return [];
   }
@@ -118,7 +152,7 @@ function parseInitialLinks(value: unknown, towers: Tower[]): Link[] {
     towersById.set(tower.id, tower);
   }
 
-  const linksBySource = new Map<string, Link>();
+  const parsedLinks: LinkSeed[] = [];
   for (let i = 0; i < value.length; i += 1) {
     const entry = value[i];
     if (!isObject(entry)) {
@@ -137,11 +171,13 @@ function parseInitialLinks(value: unknown, towers: Tower[]): Link[] {
       throw new Error(`initialLinks[${i}] references unknown tower id`);
     }
 
-    linksBySource.set(fromTowerId, {
+    const level = asOptionalNumber(entry.level, `initialLinks[${i}].level`) ?? 1;
+    parsedLinks.push({
       id: `${fromTowerId}->${toTowerId}`,
       fromTowerId,
       toTowerId,
       owner: fromTower.owner,
+      level,
       points: [
         { x: fromTower.x, y: fromTower.y },
         { x: toTower.x, y: toTower.y },
@@ -149,7 +185,7 @@ function parseInitialLinks(value: unknown, towers: Tower[]): Link[] {
     });
   }
 
-  return Array.from(linksBySource.values());
+  return parsedLinks;
 }
 
 function asString(value: unknown, fieldName: string): string {
@@ -164,6 +200,27 @@ function asNumber(value: unknown, fieldName: string): number {
     throw new Error(`${fieldName} must be a finite number`);
   }
   return value;
+}
+
+function asOptionalNumber(value: unknown, fieldName: string): number | null {
+  if (value === undefined) {
+    return null;
+  }
+  return asNumber(value, fieldName);
+}
+
+function asNumberWithFallback(
+  preferred: unknown,
+  fallback: unknown,
+  fieldName: string,
+): number {
+  if (typeof preferred === "number" && Number.isFinite(preferred)) {
+    return preferred;
+  }
+  if (typeof fallback === "number" && Number.isFinite(fallback)) {
+    return fallback;
+  }
+  throw new Error(`${fieldName} must be a finite number`);
 }
 
 function asOwner(value: unknown, fieldName: string): Owner {

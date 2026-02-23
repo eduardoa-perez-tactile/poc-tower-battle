@@ -35,10 +35,11 @@
       "x": 200,
       "y": 420,
       "owner": "player",
+      "archetype": "STRONGHOLD",
       "maxHp": 60,
       "hp": 60,
-      "troopCount": 40,
-      "regenRatePerSec": 3,
+      "troops": 40,
+      "regenRate": 3,
       "maxTroops": 120
     },
     {
@@ -46,10 +47,11 @@
       "x": 380,
       "y": 300,
       "owner": "player",
+      "archetype": "BARRACKS",
       "maxHp": 50,
       "hp": 50,
-      "troopCount": 20,
-      "regenRatePerSec": 2,
+      "troops": 20,
+      "regenRate": 2,
       "maxTroops": 90
     },
     {
@@ -57,10 +59,11 @@
       "x": 520,
       "y": 420,
       "owner": "neutral",
+      "archetype": "OBELISK",
       "maxHp": 40,
       "hp": 40,
-      "troopCount": 15,
-      "regenRatePerSec": 1,
+      "troops": 15,
+      "regenRate": 1,
       "maxTroops": 70
     },
     {
@@ -68,10 +71,11 @@
       "x": 640,
       "y": 280,
       "owner": "neutral",
+      "archetype": "RELAY",
       "maxHp": 40,
       "hp": 40,
-      "troopCount": 15,
-      "regenRatePerSec": 1,
+      "troops": 15,
+      "regenRate": 1,
       "maxTroops": 70
     },
     {
@@ -79,10 +83,11 @@
       "x": 860,
       "y": 220,
       "owner": "enemy",
+      "archetype": "FORTRESS",
       "maxHp": 60,
       "hp": 60,
-      "troopCount": 40,
-      "regenRatePerSec": 3,
+      "troops": 40,
+      "regenRate": 3,
       "maxTroops": 120
     },
     {
@@ -90,10 +95,11 @@
       "x": 740,
       "y": 420,
       "owner": "enemy",
+      "archetype": "BANK",
       "maxHp": 50,
       "hp": 50,
-      "troopCount": 20,
-      "regenRatePerSec": 2,
+      "troops": 20,
+      "regenRate": 2,
       "maxTroops": 90
     }
   ]

@@ -1,5 +1,12 @@
 import type { DragPreview } from "../input/InputController";
-import { TOWER_RADIUS_PX, type Link, type Owner, type Vec2, type World } from "../sim/World";
+import {
+  TOWER_RADIUS_PX,
+  type Link,
+  type Owner,
+  type UnitPacket,
+  type Vec2,
+  type World,
+} from "../sim/World";
 import type { WaveRenderState } from "../waves/WaveDirector";
 
 const OWNER_COLORS: Record<Owner, string> = {
@@ -35,6 +42,7 @@ export class Renderer2D {
     overlayText: string | null,
     waveRenderState: WaveRenderState | null,
     bossBar: { name: string; hp01: number } | null,
+    linkBreakBursts: ReadonlyArray<{ x: number; y: number; ttlSec: number; radiusPx: number }>,
   ): void {
     const viewport = this.getViewportSize();
     this.ctx.clearRect(0, 0, viewport.width, viewport.height);
@@ -43,19 +51,30 @@ export class Renderer2D {
       this.drawLink(link);
     }
 
+    this.drawLinkBreakBursts(linkBreakBursts);
+
     if (waveRenderState) {
       this.drawTelegraphs(waveRenderState);
     }
 
     for (const packet of world.packets) {
-      const link = world.getLinkById(packet.linkId);
-      if (link) {
-        this.drawPacket(link, packet.progress01, packet.owner, packet.count, packet.sizeScale, packet.colorTint, packet.isElite, packet.icon);
+      const position = getPacketRenderPos(world, packet);
+      if (!position) {
+        continue;
       }
+      this.drawPacket(
+        position,
+        packet.owner,
+        packet.count,
+        packet.sizeScale,
+        packet.colorTint,
+        packet.isElite,
+        packet.icon,
+      );
     }
 
     for (const tower of world.towers) {
-      this.drawTower(tower.x, tower.y, tower.owner, tower.troopCount, tower.id);
+      this.drawTower(tower.x, tower.y, tower.owner, tower.troops, tower.id, tower.archetypeIcon);
     }
 
     if (preview) {
@@ -75,8 +94,9 @@ export class Renderer2D {
     x: number,
     y: number,
     owner: Owner,
-    troopCount: number,
+    troops: number,
     id: string,
+    archetypeIcon: string,
   ): void {
     this.ctx.beginPath();
     this.ctx.fillStyle = OWNER_COLORS[owner];
@@ -91,11 +111,23 @@ export class Renderer2D {
     this.ctx.font = "bold 18px Arial";
     this.ctx.textAlign = "center";
     this.ctx.textBaseline = "middle";
-    this.ctx.fillText(String(Math.round(troopCount)), x, y);
+    this.ctx.fillText(String(Math.round(troops)), x, y);
 
     this.ctx.font = "12px Arial";
     this.ctx.textBaseline = "alphabetic";
     this.ctx.fillText(id, x, y - TOWER_RADIUS_PX - 8);
+
+    if (archetypeIcon) {
+      this.ctx.fillStyle = "#111418";
+      this.ctx.beginPath();
+      this.ctx.arc(x + 16, y - 16, 9, 0, Math.PI * 2);
+      this.ctx.fill();
+      this.ctx.fillStyle = "#f8f9fa";
+      this.ctx.font = "bold 10px Arial";
+      this.ctx.textAlign = "center";
+      this.ctx.textBaseline = "middle";
+      this.ctx.fillText(archetypeIcon, x + 16, y - 16.5);
+    }
   }
 
   private drawLink(link: Link): void {
@@ -122,6 +154,26 @@ export class Renderer2D {
     const fromPoint = link.points[link.points.length - 2];
     const toPoint = link.points[link.points.length - 1];
     this.drawArrowHead(fromPoint.x, fromPoint.y, toPoint.x, toPoint.y, LINK_COLORS[link.owner]);
+
+    const midpoint = samplePointOnPolyline(link.points, 0.5);
+    if (midpoint) {
+      this.ctx.fillStyle = "rgba(11, 12, 13, 0.8)";
+      this.ctx.fillRect(midpoint.x - 8, midpoint.y - 18, 16, 12);
+      this.ctx.fillStyle = "#f8f9fa";
+      this.ctx.font = "bold 10px Arial";
+      this.ctx.textAlign = "center";
+      this.ctx.textBaseline = "middle";
+      this.ctx.fillText(String(link.level), midpoint.x, midpoint.y - 12);
+
+      if (link.underAttackTimerSec > 0 && link.integrity < link.maxIntegrity) {
+        const hp01 = clamp01(link.integrity / Math.max(1, link.maxIntegrity));
+        this.ctx.fillStyle = "rgba(0, 0, 0, 0.7)";
+        this.ctx.fillRect(midpoint.x - 22, midpoint.y - 4, 44, 6);
+        this.ctx.fillStyle = hp01 > 0.35 ? "#63e6be" : "#ff6b6b";
+        this.ctx.fillRect(midpoint.x - 21, midpoint.y - 3, 42 * hp01, 4);
+      }
+    }
+
     this.ctx.restore();
   }
 
@@ -138,8 +190,7 @@ export class Renderer2D {
   }
 
   private drawPacket(
-    link: Link,
-    progress01: number,
+    position: Vec2,
     owner: Owner,
     count: number,
     sizeScale: number,
@@ -147,11 +198,6 @@ export class Renderer2D {
     isElite: boolean,
     icon: string,
   ): void {
-    const position = samplePointOnPolyline(link.points, progress01);
-    if (!position) {
-      return;
-    }
-
     this.ctx.save();
     const packetRadius = Math.max(4, 8 * sizeScale);
     this.ctx.fillStyle = colorTint || PACKET_COLORS[owner];
@@ -192,6 +238,22 @@ export class Renderer2D {
       this.ctx.textAlign = "center";
       this.ctx.textBaseline = "middle";
       this.ctx.fillText(marker.label, marker.x, marker.y);
+      this.ctx.restore();
+    }
+  }
+
+  private drawLinkBreakBursts(
+    bursts: ReadonlyArray<{ x: number; y: number; ttlSec: number; radiusPx: number }>,
+  ): void {
+    for (const burst of bursts) {
+      const life01 = clamp01(burst.ttlSec / 0.45);
+      const radius = burst.radiusPx * (1.2 - life01 * 0.45);
+      this.ctx.save();
+      this.ctx.strokeStyle = `rgba(255, 208, 102, ${0.7 * life01})`;
+      this.ctx.lineWidth = 2;
+      this.ctx.beginPath();
+      this.ctx.arc(burst.x, burst.y, radius, 0, Math.PI * 2);
+      this.ctx.stroke();
       this.ctx.restore();
     }
   }
@@ -289,6 +351,21 @@ export class Renderer2D {
 
 function clamp01(value: number): number {
   return Math.max(0, Math.min(1, value));
+}
+
+function getPacketRenderPos(world: World, packet: UnitPacket): Vec2 | null {
+  if (packet.hasWorldPosition) {
+    return {
+      x: packet.worldX,
+      y: packet.worldY,
+    };
+  }
+
+  const link = world.getLinkById(packet.linkId);
+  if (!link) {
+    return null;
+  }
+  return samplePointOnPolyline(link.points, packet.progress01);
 }
 
 function samplePointOnPolyline(points: Vec2[], progress01: number): Vec2 | null {

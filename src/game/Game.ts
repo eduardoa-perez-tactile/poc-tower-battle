@@ -15,6 +15,13 @@ export interface GameAiRules {
 
 export type MatchResult = "win" | "lose" | null;
 
+interface LinkBreakBurst {
+  x: number;
+  y: number;
+  ttlSec: number;
+  radiusPx: number;
+}
+
 export class Game {
   private readonly world: World;
   private readonly renderer: Renderer2D;
@@ -22,6 +29,7 @@ export class Game {
   private readonly rules: SimulationRules;
   private readonly aiRules: GameAiRules;
   private readonly waveDirector: WaveDirector | null;
+  private readonly linkBreakBursts: LinkBreakBurst[];
   private accumulatorSec: number;
   private aiAccumulatorSec: number;
   private matchResult: MatchResult;
@@ -40,6 +48,7 @@ export class Game {
     this.rules = rules;
     this.aiRules = aiRules;
     this.waveDirector = waveDirector;
+    this.linkBreakBursts = [];
     this.accumulatorSec = 0;
     this.aiAccumulatorSec = 0;
     this.matchResult = null;
@@ -93,6 +102,11 @@ export class Game {
       this.waveDirector?.updatePreStep(FIXED_STEP_SEC);
       updateWorld(this.world, FIXED_STEP_SEC, this.rules);
       this.waveDirector?.updatePostStep(FIXED_STEP_SEC);
+      if (!this.waveDirector) {
+        this.world.drainTowerCapturedEvents();
+      }
+      this.collectLinkBreakBursts();
+      this.updateLinkBreakBursts(FIXED_STEP_SEC);
       this.aiAccumulatorSec += FIXED_STEP_SEC;
       this.runAiIfReady();
       this.evaluateMatchResult();
@@ -120,7 +134,30 @@ export class Game {
       overlayText,
       this.waveDirector?.getRenderState() ?? null,
       bossBar,
+      this.linkBreakBursts,
     );
+  }
+
+  private collectLinkBreakBursts(): void {
+    const events = this.world.drainLinkDestroyedEvents();
+    for (const event of events) {
+      this.linkBreakBursts.push({
+        x: event.x,
+        y: event.y,
+        ttlSec: 0.45,
+        radiusPx: 18,
+      });
+    }
+  }
+
+  private updateLinkBreakBursts(dtSec: number): void {
+    for (let i = this.linkBreakBursts.length - 1; i >= 0; i -= 1) {
+      const burst = this.linkBreakBursts[i];
+      burst.ttlSec = Math.max(0, burst.ttlSec - dtSec);
+      if (burst.ttlSec <= 0) {
+        this.linkBreakBursts.splice(i, 1);
+      }
+    }
   }
 
   private runAiIfReady(): void {
@@ -144,7 +181,7 @@ export class Game {
 
     const candidateSources = this.world.towers.filter(
       (tower) =>
-        tower.owner === "enemy" && tower.troopCount >= this.aiRules.aiMinTroopsToAttack,
+        tower.owner === "enemy" && tower.troops >= this.aiRules.aiMinTroopsToAttack,
     );
     if (candidateSources.length === 0) {
       return;
@@ -163,7 +200,7 @@ export class Game {
 
         const score =
           Math.hypot(target.x - source.x, target.y - source.y) +
-          AI_DEFENSE_WEIGHT * (target.troopCount + target.hp);
+          AI_DEFENSE_WEIGHT * (target.troops + target.hp);
         const key = `${source.id}->${target.id}`;
         if (score < bestScore || (score === bestScore && (bestKey === "" || key < bestKey))) {
           bestScore = score;
