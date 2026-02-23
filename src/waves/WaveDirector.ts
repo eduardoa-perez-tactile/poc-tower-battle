@@ -157,15 +157,17 @@ export class WaveDirector {
         if (tower.owner !== "player") {
           continue;
         }
-        tower.troopCount = Math.min(tower.maxTroops, tower.troopCount + regenBonus * dtSec);
+        tower.troops = Math.min(tower.maxTroops, tower.troops + regenBonus * dtSec);
       }
     }
 
+    this.generateBankGold(dtSec);
     this.advanceWaveSpawner(dtSec);
     this.updateTelegraphs();
   }
 
   updatePostStep(dtSec: number): void {
+    this.processTowerCaptureEvents();
     this.processPacketDeaths();
     this.updateBossState(dtSec);
     this.cleanupStaleScriptedLinks();
@@ -217,7 +219,7 @@ export class WaveDirector {
       totalWaveCount: this.totalWaveCount,
       activeModifierNames,
       nextWavePreview,
-      missionGold: this.missionGold,
+      missionGold: Math.max(0, Math.round(this.missionGold)),
       activeBuffId: this.activeBuffId,
       activeBuffRemainingSec: this.activeBuffRemainingSec,
       bossName,
@@ -546,7 +548,38 @@ export class WaveDirector {
 
       tower.owner = "enemy";
       tower.hp = tower.maxHp * 0.55;
-      tower.troopCount = Math.min(tower.maxTroops, 10);
+      tower.troops = Math.min(tower.maxTroops, 10);
+    }
+  }
+
+  private generateBankGold(dtSec: number): void {
+    if (!this.runtimeWave) {
+      return;
+    }
+
+    for (const tower of this.world.towers) {
+      if (tower.owner !== "player" || tower.goldPerSecond <= 0) {
+        continue;
+      }
+      this.missionGold += tower.goldPerSecond * dtSec;
+    }
+  }
+
+  private processTowerCaptureEvents(): void {
+    const captureEvents = this.world.drainTowerCapturedEvents();
+    if (captureEvents.length === 0) {
+      return;
+    }
+
+    for (const event of captureEvents) {
+      if (event.newOwner !== "player" || event.previousOwner === "player") {
+        continue;
+      }
+      const tower = this.world.getTowerById(event.towerId);
+      if (!tower || tower.recaptureBonusGold <= 0) {
+        continue;
+      }
+      this.missionGold += tower.recaptureBonusGold;
     }
   }
 

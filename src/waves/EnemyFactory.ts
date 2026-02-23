@@ -96,6 +96,11 @@ export class EnemyFactory {
       splitChildArchetypeId: behavior.splitChildArchetypeId ?? null,
       splitChildCount: behavior.splitChildCount ?? 0,
       canStopToShoot: Boolean(behavior.rangedStopToShoot),
+      isLinkCutter: Boolean(behavior.linkCutter),
+      linkIntegrityDamagePerSec: behavior.linkIntegrityDamagePerSec ?? 0,
+      hasWorldPosition: false,
+      worldX: 0,
+      worldY: 0,
       sizeScale:
         archetype.visuals.sizeScale *
         (request.isElite ? this.content.balance.elite.sizeScaleMultiplier : 1),

@@ -1,0 +1,28 @@
+{
+  "levels": [
+    {
+      "level": 1,
+      "speedMultiplier": 0,
+      "armorBonus": 0,
+      "damageBonus": 0,
+      "integrity": 100,
+      "overchargeDrain": 0
+    },
+    {
+      "level": 2,
+      "speedMultiplier": 0.2,
+      "armorBonus": 0.15,
+      "damageBonus": 0,
+      "integrity": 160,
+      "overchargeDrain": 0
+    },
+    {
+      "level": 3,
+      "speedMultiplier": 0.35,
+      "armorBonus": 0,
+      "damageBonus": 0.25,
+      "integrity": 220,
+      "overchargeDrain": 0.02
+    }
+  ]
+}

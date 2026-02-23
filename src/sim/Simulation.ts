@@ -1,4 +1,4 @@
-import type { Owner, UnitPacket, Vec2, World } from "./World";
+import type { Link, Owner, Tower, UnitPacket, Vec2, World } from "./World";
 
 export interface UnitRuleSet {
   speedPxPerSec: number;
@@ -17,6 +17,8 @@ const PACKET_MERGE_PROGRESS_THRESHOLD = 0.15;
 let packetSequence = 0;
 
 export function updateWorld(world: World, dtSec: number, rules: SimulationRules): void {
+  world.tickLinkRuntime(dtSec);
+  applyOverchargeDrain(world, dtSec);
   regenTowers(world, dtSec);
   sendTroops(world, dtSec, rules);
   preparePacketRuntime(world, dtSec);
@@ -26,14 +28,62 @@ export function updateWorld(world: World, dtSec: number, rules: SimulationRules)
   removeDestroyedPackets(world);
 }
 
+function applyOverchargeDrain(world: World, dtSec: number): void {
+  for (const link of world.links) {
+    if (link.overchargeDrain <= 0) {
+      continue;
+    }
+
+    const originTower = world.getTowerById(link.fromTowerId);
+    if (!originTower || originTower.owner === "neutral") {
+      continue;
+    }
+
+    const drainAmount = link.overchargeDrain * dtSec;
+    originTower.troops = Math.max(0, originTower.troops - drainAmount);
+  }
+}
+
 function regenTowers(world: World, dtSec: number): void {
+  const auraBonuses = computeTowerAuraBonuses(world);
+
   for (const tower of world.towers) {
     if (tower.owner === "neutral") {
       continue;
     }
 
-    tower.troopCount = Math.min(tower.maxTroops, tower.troopCount + tower.regenRatePerSec * dtSec);
+    const auraBonus = auraBonuses.get(tower.id) ?? 0;
+    const regenRate = tower.regenRate * (1 + auraBonus);
+    tower.troops = Math.min(tower.maxTroops, tower.troops + regenRate * dtSec);
   }
+}
+
+function computeTowerAuraBonuses(world: World): Map<string, number> {
+  const auraBonuses = new Map<string, number>();
+
+  for (const auraTower of world.towers) {
+    if (auraTower.owner === "neutral" || auraTower.auraRadius <= 0 || auraTower.auraRegenBonusPct <= 0) {
+      continue;
+    }
+
+    for (const targetTower of world.towers) {
+      if (targetTower.id === auraTower.id || targetTower.owner !== auraTower.owner) {
+        continue;
+      }
+
+      const dist = Math.hypot(auraTower.x - targetTower.x, auraTower.y - targetTower.y);
+      if (dist > auraTower.auraRadius) {
+        continue;
+      }
+
+      auraBonuses.set(
+        targetTower.id,
+        (auraBonuses.get(targetTower.id) ?? 0) + auraTower.auraRegenBonusPct,
+      );
+    }
+  }
+
+  return auraBonuses;
 }
 
 function sendTroops(world: World, dtSec: number, rules: SimulationRules): void {
@@ -43,26 +93,33 @@ function sendTroops(world: World, dtSec: number, rules: SimulationRules): void {
   }
 
   for (const tower of world.towers) {
-    const outgoingLink = world.getOutgoingLink(tower.id);
-    if (!outgoingLink) {
+    const outgoingLinks = world.getOutgoingLinks(tower.id);
+    if (outgoingLinks.length === 0) {
       continue;
     }
 
-    const sendAmount = Math.min(desiredSend, tower.troopCount);
-    if (sendAmount <= 0) {
+    const sendBudget = Math.min(desiredSend, tower.troops);
+    if (sendBudget <= 0) {
       continue;
     }
 
-    tower.troopCount -= sendAmount;
-
-    const mergeTarget = findMergeTarget(world.packets, outgoingLink.id, tower.owner);
-    if (mergeTarget) {
-      mergeTarget.count += sendAmount;
-      mergeTarget.baseCount += sendAmount;
+    const sendPerLink = sendBudget / outgoingLinks.length;
+    if (sendPerLink <= 0) {
       continue;
     }
 
-    world.packets.push(createPacket(world, outgoingLink.id, tower.owner, sendAmount, rules.defaultUnit));
+    tower.troops -= sendBudget;
+
+    for (const link of outgoingLinks) {
+      const mergeTarget = findMergeTarget(world.packets, link.id, tower.owner);
+      if (mergeTarget) {
+        mergeTarget.count += sendPerLink;
+        mergeTarget.baseCount += sendPerLink;
+        continue;
+      }
+
+      world.packets.push(createPacket(world, link, tower, sendPerLink, rules.defaultUnit));
+    }
   }
 }
 
@@ -105,8 +162,8 @@ function applySupportAuras(world: World): void {
         continue;
       }
 
-      const distance = Math.hypot(supportPos.x - allyPos.x, supportPos.y - allyPos.y);
-      if (distance > supportPacket.supportAuraRadiusPx) {
+      const dist = Math.hypot(supportPos.x - allyPos.x, supportPos.y - allyPos.y);
+      if (dist > supportPacket.supportAuraRadiusPx) {
         continue;
       }
 
@@ -180,6 +237,12 @@ function resolvePacketCombat(world: World, dtSec: number, rules: SimulationRules
 function movePackets(world: World, dtSec: number, rules: SimulationRules): void {
   for (let i = world.packets.length - 1; i >= 0; i -= 1) {
     const packet = world.packets[i];
+
+    if (packet.isLinkCutter) {
+      moveLinkCutterPacket(world, packet, dtSec, rules);
+      continue;
+    }
+
     const link = world.getLinkById(packet.linkId);
     if (!link) {
       world.removePacketAt(i);
@@ -200,13 +263,138 @@ function movePackets(world: World, dtSec: number, rules: SimulationRules): void 
       continue;
     }
 
-    const effectiveSpeed = packet.speedPxPerSec * packet.tempSpeedMultiplier;
+    const originTower = world.getTowerById(link.fromTowerId);
+    const originSpeedBonus = originTower ? originTower.linkSpeedBonus : 0;
+    const effectiveSpeed =
+      packet.speedPxPerSec *
+      packet.tempSpeedMultiplier *
+      (1 + link.speedMultiplier) *
+      (1 + originSpeedBonus);
+
     packet.progress01 += (effectiveSpeed / linkLengthPx) * dtSec;
     if (packet.progress01 >= 1) {
       resolveArrival(world, packet, rules);
       world.removePacketAt(i);
     }
   }
+}
+
+function moveLinkCutterPacket(
+  world: World,
+  packet: UnitPacket,
+  dtSec: number,
+  rules: SimulationRules,
+): void {
+  if (!packet.hasWorldPosition) {
+    const start = getPacketPosFromLink(world, packet) ?? { x: 0, y: 0 };
+    packet.worldX = start.x;
+    packet.worldY = start.y;
+    packet.hasWorldPosition = true;
+  }
+
+  if (packet.holdRemainingSec > 0) {
+    return;
+  }
+
+  const currentPos = { x: packet.worldX, y: packet.worldY };
+  const targetLink = findNearestTargetLink(world, packet.owner, currentPos);
+  const stepDistance = packet.speedPxPerSec * packet.tempSpeedMultiplier * dtSec;
+
+  if (targetLink) {
+    const linkMid = samplePointOnPolyline(targetLink.points, 0.5) ?? targetLink.points[targetLink.points.length - 1];
+    if (!linkMid) {
+      return;
+    }
+
+    movePacketTowards(packet, linkMid, stepDistance);
+
+    if (distance({ x: packet.worldX, y: packet.worldY }, linkMid) <= packet.attackRangePx) {
+      const integrityDamage = packet.linkIntegrityDamagePerSec * packet.count * dtSec;
+      world.damageLinkIntegrity(targetLink.id, integrityDamage);
+      packet.holdRemainingSec = Math.max(packet.holdRemainingSec, packet.attackCooldownSec * 0.4);
+    }
+    return;
+  }
+
+  const fallbackTower = pickNearestTower(world.towers, currentPos, packet.owner);
+  if (!fallbackTower) {
+    return;
+  }
+
+  movePacketTowards(packet, fallbackTower, stepDistance);
+
+  if (distance({ x: packet.worldX, y: packet.worldY }, fallbackTower) > packet.attackRangePx) {
+    return;
+  }
+
+  if (packet.attackCooldownRemainingSec > 0) {
+    packet.holdRemainingSec = Math.max(packet.holdRemainingSec, 0.08);
+    return;
+  }
+
+  const damage = packet.count * packet.dpsPerUnit * dtSec;
+  applyDamageToTower(fallbackTower, damage);
+  packet.attackCooldownRemainingSec = positiveOrOne(packet.attackCooldownSec);
+  packet.holdRemainingSec = Math.max(packet.holdRemainingSec, packet.attackCooldownSec * 0.45);
+
+  if (fallbackTower.hp <= 0) {
+    captureTower(world, fallbackTower, packet.owner, rules.captureSeedTroops);
+  }
+}
+
+function findNearestTargetLink(world: World, owner: Owner, origin: Vec2): Link | null {
+  let best: Link | null = null;
+  let bestDist = Number.POSITIVE_INFINITY;
+
+  for (const link of world.links) {
+    if (link.isScripted || link.owner === owner) {
+      continue;
+    }
+
+    const midpoint = samplePointOnPolyline(link.points, 0.5) ?? link.points[link.points.length - 1];
+    if (!midpoint) {
+      continue;
+    }
+
+    const dist = distance(origin, midpoint);
+    if (dist < bestDist || (dist === bestDist && best && link.id < best.id)) {
+      bestDist = dist;
+      best = link;
+    }
+  }
+
+  return best;
+}
+
+function pickNearestTower(towers: Tower[], origin: Vec2, packetOwner: Owner): Tower | null {
+  let best: Tower | null = null;
+  let bestDist = Number.POSITIVE_INFINITY;
+
+  for (const tower of towers) {
+    if (tower.owner === packetOwner) {
+      continue;
+    }
+    const dist = Math.hypot(tower.x - origin.x, tower.y - origin.y);
+    if (dist < bestDist || (dist === bestDist && best && tower.id < best.id)) {
+      bestDist = dist;
+      best = tower;
+    }
+  }
+
+  return best;
+}
+
+function movePacketTowards(packet: UnitPacket, target: Vec2, distanceStep: number): void {
+  const dx = target.x - packet.worldX;
+  const dy = target.y - packet.worldY;
+  const len = Math.hypot(dx, dy);
+  if (len <= 0.001) {
+    return;
+  }
+
+  const t = Math.min(1, distanceStep / len);
+  packet.worldX += dx * t;
+  packet.worldY += dy * t;
 }
 
 function resolveRangedSiege(
@@ -241,7 +429,7 @@ function resolveRangedSiege(
   }
 
   const damage = packet.count * packet.dpsPerUnit * dtSec;
-  targetTower.hp -= damage;
+  applyDamageToTower(targetTower, damage);
   packet.attackCooldownRemainingSec = positiveOrOne(packet.attackCooldownSec);
   packet.holdRemainingSec = Math.max(packet.holdRemainingSec, packet.attackCooldownSec * 0.65);
 
@@ -249,10 +437,7 @@ function resolveRangedSiege(
     return true;
   }
 
-  targetTower.owner = packet.owner;
-  targetTower.hp = targetTower.maxHp;
-  targetTower.troopCount = Math.min(targetTower.maxTroops, rules.captureSeedTroops);
-  world.clearOutgoingLink(targetTower.id);
+  captureTower(world, targetTower, packet.owner, rules.captureSeedTroops);
   return false;
 }
 
@@ -268,50 +453,66 @@ function resolveArrival(world: World, packet: UnitPacket, rules: SimulationRules
   }
 
   if (targetTower.owner === packet.owner) {
-    targetTower.troopCount = Math.min(targetTower.maxTroops, targetTower.troopCount + packet.count);
+    targetTower.troops = Math.min(targetTower.maxTroops, targetTower.troops + packet.count);
     return;
   }
 
-  const defendersRemaining = targetTower.troopCount - packet.count;
+  const incomingStrength = packet.count * targetTower.captureSpeedTakenMultiplier;
+  const defendersRemaining = targetTower.troops - incomingStrength;
   if (defendersRemaining >= 0) {
-    targetTower.troopCount = defendersRemaining;
+    targetTower.troops = defendersRemaining;
     return;
   }
 
   const overflow = -defendersRemaining;
-  targetTower.troopCount = 0;
-  targetTower.hp -= overflow * packet.dpsPerUnit;
+  targetTower.troops = 0;
+  applyDamageToTower(targetTower, overflow * packet.dpsPerUnit);
 
   if (targetTower.hp > 0) {
     return;
   }
 
-  targetTower.owner = packet.owner;
-  targetTower.hp = targetTower.maxHp;
-  targetTower.troopCount = Math.min(targetTower.maxTroops, rules.captureSeedTroops);
-  world.clearOutgoingLink(targetTower.id);
+  captureTower(world, targetTower, packet.owner, rules.captureSeedTroops);
+}
+
+function captureTower(world: World, tower: Tower, newOwner: Owner, captureSeedTroops: number): void {
+  const previousOwner = tower.owner;
+  tower.owner = newOwner;
+  tower.hp = tower.maxHp;
+  tower.troops = Math.min(tower.maxTroops, captureSeedTroops);
+  world.clearOutgoingLink(tower.id);
+
+  if (previousOwner !== newOwner) {
+    world.notifyTowerCaptured(tower, previousOwner, newOwner);
+  }
+}
+
+function applyDamageToTower(tower: Tower, rawDamage: number): void {
+  tower.hp -= rawDamage / positiveOrOne(tower.defenseMultiplier);
 }
 
 function createPacket(
   world: World,
-  linkId: string,
-  owner: Owner,
+  link: Link,
+  originTower: Tower,
   count: number,
   unit: UnitRuleSet,
 ): UnitPacket {
   packetSequence += 1;
 
+  const packetDamageMultiplier = originTower.packetDamageMultiplier * (1 + link.damageBonus);
+
   const packet: UnitPacket = {
     id: `pkt-${packetSequence}`,
-    owner,
+    owner: originTower.owner,
     count,
     baseCount: count,
     speedPxPerSec: unit.speedPxPerSec,
     baseSpeedMultiplier: 1,
-    dpsPerUnit: unit.dpsPerUnit,
-    baseDpsPerUnit: unit.dpsPerUnit,
+    dpsPerUnit: unit.dpsPerUnit * packetDamageMultiplier,
+    baseDpsPerUnit: unit.dpsPerUnit * packetDamageMultiplier,
     hpPerUnit: unit.hpPerUnit,
-    linkId,
+    linkId: link.id,
     progress01: 0,
     archetypeId: "basic",
     tags: [],
@@ -327,6 +528,11 @@ function createPacket(
     splitChildArchetypeId: null,
     splitChildCount: 0,
     canStopToShoot: false,
+    isLinkCutter: false,
+    linkIntegrityDamagePerSec: 0,
+    hasWorldPosition: false,
+    worldX: 0,
+    worldY: 0,
     sizeScale: 1,
     colorTint: "",
     vfxHook: "",
@@ -338,7 +544,7 @@ function createPacket(
     isBoss: false,
     bossEnraged: false,
     ageSec: 0,
-    baseArmorMultiplier: 1,
+    baseArmorMultiplier: 1 + link.armorBonus,
     tempSpeedMultiplier: 1,
     tempArmorMultiplier: 1,
     sourceLane: -1,
@@ -415,12 +621,22 @@ function samplePointOnPolyline(points: Vec2[], progress01: number): Vec2 | null 
   return points[points.length - 1];
 }
 
-function getPacketPos(world: World, packet: UnitPacket): Vec2 | null {
+function getPacketPosFromLink(world: World, packet: UnitPacket): Vec2 | null {
   const link = world.getLinkById(packet.linkId);
   if (!link) {
     return null;
   }
   return samplePointOnPolyline(link.points, packet.progress01);
+}
+
+function getPacketPos(world: World, packet: UnitPacket): Vec2 | null {
+  if (packet.hasWorldPosition) {
+    return {
+      x: packet.worldX,
+      y: packet.worldY,
+    };
+  }
+  return getPacketPosFromLink(world, packet);
 }
 
 function removeDestroyedPackets(world: World): void {

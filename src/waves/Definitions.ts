@@ -15,6 +15,8 @@ export interface EnemyBehaviorDefinition {
   supportAuraRadius?: number;
   supportSpeedMultiplier?: number;
   supportArmorMultiplier?: number;
+  linkCutter?: boolean;
+  linkIntegrityDamagePerSec?: number;
 }
 
 export interface EnemyVisualDefinition {
@@ -180,7 +182,7 @@ export interface WaveGeneratorInputs {
 
 export async function loadWaveContent(): Promise<LoadedWaveContent> {
   const [enemyCatalog, modifierCatalog, handcraftedWaves, balance] = await Promise.all([
-    fetchJson<EnemyCatalog>("/data/enemies.json"),
+    fetchJson<EnemyCatalog>("/data/enemyArchetypes.json"),
     fetchJson<WaveModifierCatalog>("/data/wave-modifiers.json"),
     fetchJson<HandcraftedWaveCatalog>("/data/waves-handcrafted.json"),
     fetchJson<WaveBalanceConfig>("/data/wave-balance.json"),

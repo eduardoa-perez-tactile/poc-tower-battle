@@ -1,0 +1,102 @@
+{
+  "baseline": {
+    "icon": "S",
+    "regenRateBonusPct": 0,
+    "maxTroopsBonusPct": 0,
+    "defenseMultiplierAdd": 0,
+    "packetDamageBonusPct": 0,
+    "linkSpeedBonusPct": 0,
+    "extraOutgoingLinks": 0,
+    "auraRadius": 0,
+    "auraRegenBonusPct": 0,
+    "captureSpeedTakenMultiplierAdd": 0,
+    "goldPerSecond": 0,
+    "recaptureBonusGold": 0
+  },
+  "archetypes": {
+    "STRONGHOLD": {
+      "icon": "S",
+      "regenRateBonusPct": 0.1,
+      "maxTroopsBonusPct": 0.2,
+      "defenseMultiplierAdd": 0,
+      "packetDamageBonusPct": 0,
+      "linkSpeedBonusPct": 0,
+      "extraOutgoingLinks": 0,
+      "auraRadius": 0,
+      "auraRegenBonusPct": 0,
+      "captureSpeedTakenMultiplierAdd": 0,
+      "goldPerSecond": 0,
+      "recaptureBonusGold": 0
+    },
+    "BARRACKS": {
+      "icon": "B",
+      "regenRateBonusPct": 0.35,
+      "maxTroopsBonusPct": -0.2,
+      "defenseMultiplierAdd": 0,
+      "packetDamageBonusPct": 0.1,
+      "linkSpeedBonusPct": 0,
+      "extraOutgoingLinks": 0,
+      "auraRadius": 0,
+      "auraRegenBonusPct": 0,
+      "captureSpeedTakenMultiplierAdd": 0,
+      "goldPerSecond": 0,
+      "recaptureBonusGold": 0
+    },
+    "FORTRESS": {
+      "icon": "F",
+      "regenRateBonusPct": -0.2,
+      "maxTroopsBonusPct": 0,
+      "defenseMultiplierAdd": 0.5,
+      "packetDamageBonusPct": 0,
+      "linkSpeedBonusPct": 0,
+      "extraOutgoingLinks": 0,
+      "auraRadius": 0,
+      "auraRegenBonusPct": 0,
+      "captureSpeedTakenMultiplierAdd": -0.25,
+      "goldPerSecond": 0,
+      "recaptureBonusGold": 0
+    },
+    "RELAY": {
+      "icon": "R",
+      "regenRateBonusPct": 0,
+      "maxTroopsBonusPct": 0,
+      "defenseMultiplierAdd": 0,
+      "packetDamageBonusPct": 0,
+      "linkSpeedBonusPct": 0.4,
+      "extraOutgoingLinks": 1,
+      "auraRadius": 0,
+      "auraRegenBonusPct": 0,
+      "captureSpeedTakenMultiplierAdd": 0,
+      "goldPerSecond": 0,
+      "recaptureBonusGold": 0
+    },
+    "BANK": {
+      "icon": "$",
+      "regenRateBonusPct": -0.4,
+      "maxTroopsBonusPct": 0,
+      "defenseMultiplierAdd": 0,
+      "packetDamageBonusPct": 0,
+      "linkSpeedBonusPct": 0,
+      "extraOutgoingLinks": 0,
+      "auraRadius": 0,
+      "auraRegenBonusPct": 0,
+      "captureSpeedTakenMultiplierAdd": 0,
+      "goldPerSecond": 2.5,
+      "recaptureBonusGold": 25
+    },
+    "OBELISK": {
+      "icon": "O",
+      "regenRateBonusPct": 0,
+      "maxTroopsBonusPct": 0,
+      "defenseMultiplierAdd": -0.15,
+      "packetDamageBonusPct": 0,
+      "linkSpeedBonusPct": 0,
+      "extraOutgoingLinks": 0,
+      "auraRadius": 190,
+      "auraRegenBonusPct": 0.1,
+      "captureSpeedTakenMultiplierAdd": 0,
+      "goldPerSecond": 0,
+      "recaptureBonusGold": 0
+    }
+  }
+}

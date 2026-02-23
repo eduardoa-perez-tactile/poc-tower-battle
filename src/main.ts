@@ -29,7 +29,9 @@ import {
   saveMetaProfile,
   saveRunState,
 } from "./save/Storage";
+import { applyTowerArchetypeModifiers, loadDepthContent } from "./sim/DepthConfig";
 import { World } from "./sim/World";
+import type { TowerArchetypeCatalog } from "./sim/DepthTypes";
 import { loadWaveContent } from "./waves/Definitions";
 import { WaveDirector } from "./waves/WaveDirector";
 
@@ -62,10 +64,11 @@ async function bootstrap(): Promise<void> {
   window.addEventListener("resize", resize);
   resize();
 
-  const [missionTemplates, upgradeCatalog, waveContent] = await Promise.all([
+  const [missionTemplates, upgradeCatalog, waveContent, depthContent] = await Promise.all([
     loadMissionCatalog(),
     loadMetaUpgradeCatalog(),
     loadWaveContent(),
+    loadDepthContent(),
   ]);
 
   const app: AppState = {
@@ -169,10 +172,16 @@ async function bootstrap(): Promise<void> {
 
     stopMission();
     const baseLevel = await getLevelByPath(mission.levelPath, levelCache);
-    const tunedLevel = createMissionLevel(baseLevel, mission, app.runState.startingBonuses);
+    const tunedLevel = createMissionLevel(
+      baseLevel,
+      mission,
+      app.runState.startingBonuses,
+      depthContent.towerArchetypes,
+    );
     const world = new World(
       tunedLevel.towers,
       tunedLevel.rules.maxOutgoingLinksPerTower,
+      depthContent.linkLevels,
       tunedLevel.initialLinks,
     );
     const waveDirector = new WaveDirector(world, waveContent, {
@@ -801,8 +810,13 @@ function createMissionLevel(
   baseLevel: LoadedLevel,
   mission: RunMissionNode,
   bonuses: RunState["startingBonuses"],
+  towerArchetypes: TowerArchetypeCatalog,
 ): LoadedLevel {
   const level = cloneLoadedLevel(baseLevel);
+  for (const tower of level.towers) {
+    applyTowerArchetypeModifiers(tower, towerArchetypes);
+    tower.troops = Math.min(tower.maxTroops, tower.troops);
+  }
   const playerTowers = level.towers.filter((tower) => tower.owner === "player");
   const enemyTowers = level.towers.filter((tower) => tower.owner === "enemy");
 
@@ -815,7 +829,7 @@ function createMissionLevel(
   if (troopBonus > 0 && playerTowers.length > 0) {
     const perTowerBonus = troopBonus / playerTowers.length;
     for (const tower of playerTowers) {
-      tower.troopCount = Math.min(tower.maxTroops, tower.troopCount + perTowerBonus);
+      tower.troops = Math.min(tower.maxTroops, tower.troops + perTowerBonus);
     }
   }
 
@@ -823,15 +837,16 @@ function createMissionLevel(
     const stronghold = playerTowers[0];
     stronghold.maxHp *= 1.15;
     stronghold.hp = Math.min(stronghold.maxHp, stronghold.hp + stronghold.maxHp * 0.1);
-    stronghold.troopCount = Math.min(stronghold.maxTroops, stronghold.troopCount + 8);
-    stronghold.regenRatePerSec += 0.5;
+    stronghold.troops = Math.min(stronghold.maxTroops, stronghold.troops + 8);
+    stronghold.regenRate += 0.5;
   }
 
   for (const tower of enemyTowers) {
     tower.maxHp *= mission.difficulty;
     tower.hp = Math.min(tower.maxHp, tower.hp * mission.difficulty);
-    tower.troopCount = Math.min(tower.maxTroops * mission.difficulty, tower.troopCount * mission.difficulty);
-    tower.regenRatePerSec *= 1 + (mission.difficulty - 1) * 0.4;
+    tower.maxTroops *= mission.difficulty;
+    tower.troops = Math.min(tower.maxTroops, tower.troops * mission.difficulty);
+    tower.regenRate *= 1 + (mission.difficulty - 1) * 0.4;
   }
 
   level.ai.aiMinTroopsToAttack = Math.max(5, level.ai.aiMinTroopsToAttack / mission.difficulty);
