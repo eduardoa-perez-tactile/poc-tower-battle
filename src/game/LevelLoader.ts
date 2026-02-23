@@ -120,9 +120,17 @@ function parseRules(value: Record<string, unknown>): LevelRules {
     collisionDistancePx: asNumber(value.collisionDistancePx, "rules.collisionDistancePx"),
     captureSeedTroops: asNumber(value.captureSeedTroops, "rules.captureSeedTroops"),
     captureRateMultiplier: asOptionalNumber(value.captureRateMultiplier, "rules.captureRateMultiplier") ?? 1,
+    playerCaptureEfficiencyMul:
+      asOptionalNumber(value.playerCaptureEfficiencyMul, "rules.playerCaptureEfficiencyMul") ?? 1,
     regenMinPerSec: asOptionalNumber(value.regenMinPerSec, "rules.regenMinPerSec") ?? 0,
     regenMaxPerSec: asOptionalNumber(value.regenMaxPerSec, "rules.regenMaxPerSec") ?? 8,
+    playerRegenMultiplier: asOptionalNumber(value.playerRegenMultiplier, "rules.playerRegenMultiplier") ?? 1,
+    enemyRegenMultiplier: asOptionalNumber(value.enemyRegenMultiplier, "rules.enemyRegenMultiplier") ?? 1,
     defaultPacketArmor: asOptionalNumber(value.defaultPacketArmor, "rules.defaultPacketArmor") ?? 1,
+    playerPacketArmorAdd: asOptionalNumber(value.playerPacketArmorAdd, "rules.playerPacketArmorAdd") ?? 0,
+    playerPacketArmorMul: asOptionalNumber(value.playerPacketArmorMul, "rules.playerPacketArmorMul") ?? 1,
+    linkDecayPerSec: asOptionalNumber(value.linkDecayPerSec, "rules.linkDecayPerSec") ?? 0,
+    linkDecayCanBreak: value.linkDecayCanBreak === true,
     packetStatCaps: {
       speedMin: asOptionalNumber(packetCaps.speedMin, "rules.packetStatCaps.speedMin") ?? 25,
       speedMax: asOptionalNumber(packetCaps.speedMax, "rules.packetStatCaps.speedMax") ?? 420,

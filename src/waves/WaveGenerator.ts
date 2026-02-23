@@ -24,11 +24,13 @@ export class WaveGenerator {
   private readonly content: LoadedWaveContent;
   private readonly handcraftedByWave: Map<number, WavePlan>;
   private readonly modifiersById: Map<string, WaveModifierDefinition>;
+  private readonly allowedEnemyIds: Set<string> | null;
 
-  constructor(content: LoadedWaveContent) {
+  constructor(content: LoadedWaveContent, allowedEnemyIds: Set<string> | null = null) {
     this.content = content;
     this.handcraftedByWave = new Map<number, WavePlan>();
     this.modifiersById = new Map<string, WaveModifierDefinition>();
+    this.allowedEnemyIds = allowedEnemyIds;
 
     for (const modifier of content.modifierCatalog.modifiers) {
       this.modifiersById.set(modifier.id, modifier);
@@ -60,15 +62,20 @@ export class WaveGenerator {
         Math.max(0, inputs.missionDifficultyScalar - 1) *
           this.content.balanceBaselines.calibration.waveGeneration.budgetPerMissionDifficultyMul;
       const spawnCountMul = tier.enemy.spawnCountMul * tier.wave.intensityMul * waveRamp * missionDifficultyScale;
-      return {
-        waveIndex: handcrafted.waveIndex,
-        modifiers: [...handcrafted.modifiers],
-        spawnEntries: handcrafted.spawnEntries.map((entry) => ({
+      const fallbackEnemyId = this.getFallbackEnemyId();
+      const spawnEntries = handcrafted.spawnEntries
+        .map((entry) => ({
           ...entry,
+          enemyId: this.resolveEnemyId(entry.enemyId, fallbackEnemyId),
           count: Math.max(1, Math.round(entry.count * spawnCountMul)),
           eliteChance: clamp(entry.eliteChance * tier.wave.eliteChanceMul, 0, 0.95),
           laneIndex: normalizeLane(entry.laneIndex, inputs.laneCount),
-        })),
+        }))
+        .filter((entry) => entry.enemyId.length > 0);
+      return {
+        waveIndex: handcrafted.waveIndex,
+        modifiers: [...handcrafted.modifiers],
+        spawnEntries,
         hasMiniBossEscort: handcrafted.hasMiniBossEscort,
         isBossWave: handcrafted.isBossWave,
       };
@@ -146,23 +153,24 @@ export class WaveGenerator {
     if (hasMiniBossEscort) {
       const escortLane = Math.floor(rng() * Math.max(1, inputs.laneCount));
       const escortScale = Math.max(1, Math.round(spawnCountMul));
+      const fallbackEnemyId = this.getFallbackEnemyId();
       spawnEntries.push({
         timeOffsetSec: round2(timeOffsetSec + 0.7),
-        enemyId: this.content.balance.boss.minibossArchetypeId,
+        enemyId: this.resolveEnemyId(this.content.balance.boss.minibossArchetypeId, fallbackEnemyId),
         count: 1,
         eliteChance: 0,
         laneIndex: escortLane,
       });
       spawnEntries.push({
         timeOffsetSec: round2(timeOffsetSec + 0.3),
-        enemyId: "support",
+        enemyId: this.resolveEnemyId("support", fallbackEnemyId),
         count: Math.max(1, Math.min(6, 2 + escortScale)),
         eliteChance,
         laneIndex: escortLane,
       });
       spawnEntries.push({
         timeOffsetSec: round2(timeOffsetSec + 1.6),
-        enemyId: "tank",
+        enemyId: this.resolveEnemyId("tank", fallbackEnemyId),
         count: Math.max(1, Math.min(5, 1 + Math.floor(escortScale * 0.7))),
         eliteChance,
         laneIndex: escortLane,
@@ -188,34 +196,40 @@ export class WaveGenerator {
     const intensityMul = tier.wave.intensityMul;
     const spawnMul = Math.max(1, Math.round(tier.enemy.spawnCountMul * intensityMul));
 
+    const fallbackEnemyId = this.getFallbackEnemyId();
+    const bossId = this.resolveEnemyId(this.content.balance.boss.id, fallbackEnemyId);
+    const minibossId = this.resolveEnemyId(this.content.balance.boss.minibossArchetypeId, fallbackEnemyId);
+    const supportId = this.resolveEnemyId("support", fallbackEnemyId);
+    const rangedId = this.resolveEnemyId("ranged", fallbackEnemyId);
+
     return {
       waveIndex: inputs.waveIndex,
       modifiers: ["elite-wave", "mini-boss-escort"],
       spawnEntries: [
         {
           timeOffsetSec: 0,
-          enemyId: this.content.balance.boss.id,
+          enemyId: bossId,
           count: 1,
           eliteChance: 0,
           laneIndex: centerLane,
         },
         {
           timeOffsetSec: 0.7,
-          enemyId: this.content.balance.boss.minibossArchetypeId,
+          enemyId: minibossId,
           count: 1,
           eliteChance: 0,
           laneIndex: summonLane,
         },
         {
           timeOffsetSec: 1.2,
-          enemyId: "support",
+          enemyId: supportId,
           count: clampNumber(2 + spawnMul, 2, 8),
           eliteChance: clamp(0.55 * tier.wave.eliteChanceMul, 0, 0.95),
           laneIndex: centerLane,
         },
         {
           timeOffsetSec: 2.3,
-          enemyId: "ranged",
+          enemyId: rangedId,
           count: clampNumber(3 + spawnMul, 3, 9),
           eliteChance: clamp(0.5 * tier.wave.eliteChanceMul, 0, 0.95),
           laneIndex: summonLane,
@@ -310,6 +324,9 @@ export class WaveGenerator {
       if (archetype.spawnWeight <= 0) {
         return false;
       }
+      if (this.allowedEnemyIds && !this.allowedEnemyIds.has(archetype.id)) {
+        return false;
+      }
       if (archetype.tags.includes("boss") || archetype.tags.includes("miniboss")) {
         return false;
       }
@@ -319,6 +336,26 @@ export class WaveGenerator {
       const multiplier = getTagMultiplier(archetype.tags, tagWeightMultipliers);
       return archetype.spawnWeight * multiplier > 0;
     });
+  }
+
+  private resolveEnemyId(enemyId: string, fallbackEnemyId: string): string {
+    if (!this.allowedEnemyIds || this.allowedEnemyIds.has(enemyId)) {
+      return enemyId;
+    }
+    return fallbackEnemyId;
+  }
+
+  private getFallbackEnemyId(): string {
+    const fallback = this.content.enemyCatalog.archetypes.find((entry) => {
+      if (entry.spawnWeight <= 0) {
+        return false;
+      }
+      if (this.allowedEnemyIds && !this.allowedEnemyIds.has(entry.id)) {
+        return false;
+      }
+      return true;
+    });
+    return fallback?.id ?? "swarm";
   }
 }
 

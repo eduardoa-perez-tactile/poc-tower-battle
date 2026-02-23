@@ -29,23 +29,43 @@ export interface SimulationRules {
   collisionDistancePx: number;
   captureSeedTroops: number;
   captureRateMultiplier: number;
+  playerCaptureEfficiencyMul: number;
   regenMinPerSec: number;
   regenMaxPerSec: number;
+  playerRegenMultiplier: number;
+  enemyRegenMultiplier: number;
   defaultPacketArmor: number;
+  playerPacketArmorAdd: number;
+  playerPacketArmorMul: number;
+  linkDecayPerSec: number;
+  linkDecayCanBreak: boolean;
   packetStatCaps: SimulationPacketStatCaps;
   fightModel: SimulationFightModel;
   defaultUnit: UnitRuleSet;
 }
 
+export interface SimulationTemporaryModifiers {
+  playerPacketSpeedMul: number;
+}
+
 const PACKET_MERGE_PROGRESS_THRESHOLD = 0.15;
 let packetSequence = 0;
 
-export function updateWorld(world: World, dtSec: number, rules: SimulationRules): void {
-  world.tickLinkRuntime(dtSec);
+const DEFAULT_TEMPORARY_MODIFIERS: SimulationTemporaryModifiers = {
+  playerPacketSpeedMul: 1,
+};
+
+export function updateWorld(
+  world: World,
+  dtSec: number,
+  rules: SimulationRules,
+  temporaryModifiers: SimulationTemporaryModifiers = DEFAULT_TEMPORARY_MODIFIERS,
+): void {
+  world.tickLinkRuntime(dtSec, rules.linkDecayPerSec, rules.linkDecayCanBreak);
   applyOverchargeDrain(world, dtSec);
   regenTowers(world, dtSec, rules);
   sendTroops(world, dtSec, rules);
-  preparePacketRuntime(world, dtSec, rules);
+  preparePacketRuntime(world, dtSec, rules, temporaryModifiers);
   applySupportAuras(world);
   resolvePacketCombat(world, dtSec, rules);
   movePackets(world, dtSec, rules);
@@ -81,7 +101,8 @@ function regenTowers(world: World, dtSec: number, rules: SimulationRules): void 
     }
 
     const auraBonus = auraBonuses.get(tower.id) ?? 0;
-    const regenRate = tower.regenRate * (1 + auraBonus);
+    const ownerRegenMul = tower.owner === "player" ? rules.playerRegenMultiplier : rules.enemyRegenMultiplier;
+    const regenRate = tower.regenRate * ownerRegenMul * (1 + auraBonus);
     const clampedRegenRate = clamp(regenRate, rules.regenMinPerSec, rules.regenMaxPerSec);
     tower.troops = Math.min(tower.maxTroops, tower.troops + clampedRegenRate * dtSec);
   }
@@ -152,12 +173,18 @@ function sendTroops(world: World, dtSec: number, rules: SimulationRules): void {
   }
 }
 
-function preparePacketRuntime(world: World, dtSec: number, rules: SimulationRules): void {
+function preparePacketRuntime(
+  world: World,
+  dtSec: number,
+  rules: SimulationRules,
+  temporaryModifiers: SimulationTemporaryModifiers,
+): void {
   for (const packet of world.packets) {
     packet.ageSec += dtSec;
     packet.attackCooldownRemainingSec = Math.max(0, packet.attackCooldownRemainingSec - dtSec);
     packet.holdRemainingSec = Math.max(0, packet.holdRemainingSec - dtSec);
-    packet.tempSpeedMultiplier = packet.baseSpeedMultiplier;
+    packet.tempSpeedMultiplier =
+      packet.baseSpeedMultiplier * (packet.owner === "player" ? temporaryModifiers.playerPacketSpeedMul : 1);
     packet.tempArmorMultiplier = packet.baseArmorMultiplier;
     packet.dpsPerUnit = packet.baseDpsPerUnit;
 
@@ -501,8 +528,9 @@ function resolveArrival(world: World, packet: UnitPacket, rules: SimulationRules
     return;
   }
 
+  const captureMul = packet.owner === "player" ? rules.playerCaptureEfficiencyMul : 1;
   const incomingStrength =
-    packet.count * targetTower.captureSpeedTakenMultiplier * rules.captureRateMultiplier;
+    packet.count * captureMul * targetTower.captureSpeedTakenMultiplier * rules.captureRateMultiplier;
   const defendersRemaining = targetTower.troops - incomingStrength;
   if (defendersRemaining >= 0) {
     targetTower.troops = defendersRemaining;
@@ -551,8 +579,10 @@ function createPacket(
   const speedPxPerSec = clamp(unit.speedPxPerSec, caps.speedMin, caps.speedMax);
   const dpsPerUnit = clamp(unit.dpsPerUnit * packetDamageMultiplier, caps.damageMin, caps.damageMax);
   const hpPerUnit = clamp(unit.hpPerUnit, caps.hpMin, caps.hpMax);
+  const armorMul = originTower.owner === "player" ? rules.playerPacketArmorMul : 1;
+  const armorAdd = originTower.owner === "player" ? rules.playerPacketArmorAdd : 0;
   const baseArmorMultiplier = clamp(
-    rules.defaultPacketArmor + link.armorBonus,
+    (rules.defaultPacketArmor + armorAdd + link.armorBonus) * armorMul,
     caps.armorMin,
     caps.armorMax,
   );

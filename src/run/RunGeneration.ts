@@ -1,4 +1,12 @@
-import { createDefaultMetaModifiers, RUN_SCHEMA_VERSION, type MetaModifiers, type RunMissionNode, type RunState } from "../save/Schema";
+import {
+  createDefaultMetaModifiers,
+  createDefaultRunUnlockSnapshot,
+  RUN_SCHEMA_VERSION,
+  type MetaModifiers,
+  type RunMissionNode,
+  type RunState,
+  type RunUnlockSnapshot,
+} from "../save/Schema";
 import { DEFAULT_DIFFICULTY_TIER } from "../config/Difficulty";
 
 export interface MissionTemplate {
@@ -12,6 +20,14 @@ export interface MissionCatalog {
   templates: MissionTemplate[];
 }
 
+export interface CreateRunStateOptions {
+  seed: number;
+  templates: MissionTemplate[];
+  bonuses: MetaModifiers;
+  unlockSnapshot: RunUnlockSnapshot;
+  selectedAscensionIds: string[];
+}
+
 export async function loadMissionCatalog(path = "/data/missions.json"): Promise<MissionTemplate[]> {
   const response = await fetch(path);
   if (!response.ok) {
@@ -22,22 +38,30 @@ export async function loadMissionCatalog(path = "/data/missions.json"): Promise<
   return parseMissionCatalog(data);
 }
 
-export function createRunState(seed: number, templates: MissionTemplate[], bonuses: MetaModifiers): RunState {
+export function createRunState(options: CreateRunStateOptions): RunState {
   const normalizedBonuses = {
     ...createDefaultMetaModifiers(),
-    ...bonuses,
+    ...options.bonuses,
   };
-  const missions = generateRunMissions(seed, templates);
+  const missions = generateRunMissions(options.seed, options.templates);
 
   return {
     schemaVersion: RUN_SCHEMA_VERSION,
-    runId: `run-${Date.now()}-${seed}`,
-    seed,
+    runId: `run-${Date.now()}-${options.seed}`,
+    seed: options.seed,
     currentMissionIndex: 0,
     missions,
     runModifiers: {
       difficulty: 1,
       tier: DEFAULT_DIFFICULTY_TIER,
+    },
+    runAscensionIds: [...options.selectedAscensionIds].sort((a, b) => a.localeCompare(b)),
+    runUnlockSnapshot: {
+      ...createDefaultRunUnlockSnapshot(),
+      towerTypes: [...options.unlockSnapshot.towerTypes].sort((a, b) => a.localeCompare(b)),
+      enemyTypes: [...options.unlockSnapshot.enemyTypes].sort((a, b) => a.localeCompare(b)),
+      mapMutators: [...options.unlockSnapshot.mapMutators].sort((a, b) => a.localeCompare(b)),
+      ascensionIds: [...options.unlockSnapshot.ascensionIds].sort((a, b) => a.localeCompare(b)),
     },
     inventory: {
       relics: [],

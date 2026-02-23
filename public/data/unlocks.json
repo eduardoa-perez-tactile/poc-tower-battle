@@ -1,0 +1,53 @@
+{
+  "version": 1,
+  "unlocks": [
+    {
+      "id": "UNLOCK_TOWER_OBELISK",
+      "type": "TOWER_TYPE",
+      "value": "OBELISK",
+      "requires": [
+        { "kind": "GLORY_SPENT_TOTAL", "op": ">=", "value": 200 }
+      ]
+    },
+    {
+      "id": "UNLOCK_TOWER_BANK",
+      "type": "TOWER_TYPE",
+      "value": "BANK",
+      "requires": [
+        { "kind": "RUNS_WON", "op": ">=", "value": 2 }
+      ]
+    },
+    {
+      "id": "UNLOCK_ENEMY_LINK_CUTTER",
+      "type": "ENEMY_TYPE",
+      "value": "link_cutter",
+      "requires": [
+        { "kind": "RUNS_COMPLETED", "op": ">=", "value": 2 }
+      ]
+    },
+    {
+      "id": "UNLOCK_ASC_LINK_DECAY",
+      "type": "ASCENSION",
+      "value": "LINKS_DECAY_OVER_TIME",
+      "requires": [
+        { "kind": "RUNS_WON", "op": ">=", "value": 1 }
+      ]
+    },
+    {
+      "id": "UNLOCK_ASC_BOSS_EXTRA",
+      "type": "ASCENSION",
+      "value": "BOSS_EXTRA_PHASE",
+      "requires": [
+        { "kind": "ASCENSION_CLEAR_COUNT", "ascensionId": "ENEMY_REGEN_PLUS_25", "op": ">=", "value": 1 }
+      ]
+    },
+    {
+      "id": "UNLOCK_MAP_MUTATOR_PRESSURE",
+      "type": "MAP_MUTATOR",
+      "value": "PRESSURE_STORM",
+      "requires": [
+        { "kind": "BOSSES_DEFEATED", "op": ">=", "value": 1 }
+      ]
+    }
+  ]
+}

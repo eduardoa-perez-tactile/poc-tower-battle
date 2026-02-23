@@ -15,12 +15,19 @@ export interface EnemySpawnRequest {
   isBoss: boolean;
 }
 
+export interface EnemyFactoryOptions {
+  allowedEnemyIds?: Set<string>;
+  bossHpMul?: number;
+}
+
 export class EnemyFactory {
   private readonly archetypesById: Map<string, EnemyArchetypeDefinition>;
   private readonly content: LoadedWaveContent;
+  private readonly options: EnemyFactoryOptions;
 
-  constructor(content: LoadedWaveContent) {
+  constructor(content: LoadedWaveContent, options: EnemyFactoryOptions = {}) {
     this.content = content;
+    this.options = options;
     this.archetypesById = new Map<string, EnemyArchetypeDefinition>();
     for (const archetype of content.enemyCatalog.archetypes) {
       this.archetypesById.set(archetype.id, archetype);
@@ -28,11 +35,24 @@ export class EnemyFactory {
   }
 
   listSpawnableArchetypes(): EnemyArchetypeDefinition[] {
-    return this.content.enemyCatalog.archetypes.filter((archetype) => archetype.spawnWeight > 0);
+    return this.content.enemyCatalog.archetypes.filter((archetype) => {
+      if (archetype.spawnWeight <= 0) {
+        return false;
+      }
+      if (this.options.allowedEnemyIds && !this.options.allowedEnemyIds.has(archetype.id)) {
+        return false;
+      }
+      return true;
+    });
   }
 
   listAllArchetypes(): EnemyArchetypeDefinition[] {
-    return this.content.enemyCatalog.archetypes;
+    if (!this.options.allowedEnemyIds) {
+      return this.content.enemyCatalog.archetypes;
+    }
+    return this.content.enemyCatalog.archetypes.filter((archetype) =>
+      Boolean(this.options.allowedEnemyIds?.has(archetype.id)),
+    );
   }
 
   getArchetype(archetypeId: string): EnemyArchetypeDefinition {
@@ -59,7 +79,7 @@ export class EnemyFactory {
     const eliteScale = request.isElite ? this.content.balance.elite.hpMultiplier : 1;
     const eliteDamageScale = request.isElite ? this.content.balance.elite.damageMultiplier : 1;
     const bossHpScale = request.isBoss
-      ? this.content.balance.boss.hpMultiplier * tierConfig.wave.bossHpMul
+      ? this.content.balance.boss.hpMultiplier * tierConfig.wave.bossHpMul * Math.max(0.5, this.options.bossHpMul ?? 1)
       : 1;
     const bossDamageScale = request.isBoss ? this.content.balance.boss.damageMultiplier : 1;
 

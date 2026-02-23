@@ -1,0 +1,296 @@
+{
+  "version": 1,
+  "trees": [
+    {
+      "id": "OFFENSE",
+      "name": "Offense",
+      "nodes": [
+        {
+          "id": "OFF_PKT_DMG_1",
+          "name": "Sharpened Payloads I",
+          "desc": "+5% packet damage per rank",
+          "costGloryPerRank": [50, 75, 110],
+          "maxRank": 3,
+          "prereqs": [],
+          "effects": [
+            { "type": "PLAYER_PACKET_DAMAGE_MUL", "op": "ADD_MUL", "valuePerRank": 0.05 }
+          ]
+        },
+        {
+          "id": "OFF_PKT_DMG_2",
+          "name": "Sharpened Payloads II",
+          "desc": "+7% packet damage per rank",
+          "costGlory": 130,
+          "costGrowth": 1.45,
+          "maxRank": 2,
+          "prereqs": [
+            { "nodeId": "OFF_PKT_DMG_1", "minRank": 2 }
+          ],
+          "effects": [
+            { "type": "PLAYER_PACKET_DAMAGE_MUL", "op": "ADD_MUL", "valuePerRank": 0.07 }
+          ]
+        },
+        {
+          "id": "OFF_PKT_SPEED_1",
+          "name": "Routing Burst I",
+          "desc": "+4% packet speed per rank",
+          "costGloryPerRank": [55, 85, 125],
+          "maxRank": 3,
+          "prereqs": [],
+          "effects": [
+            { "type": "PLAYER_PACKET_SPEED_MUL", "op": "ADD_MUL", "valuePerRank": 0.04 }
+          ]
+        },
+        {
+          "id": "OFF_PKT_SPEED_2",
+          "name": "Routing Burst II",
+          "desc": "+6% packet speed per rank",
+          "costGlory": 120,
+          "costGrowth": 1.4,
+          "maxRank": 2,
+          "prereqs": [
+            { "nodeId": "OFF_PKT_SPEED_1", "minRank": 2 }
+          ],
+          "effects": [
+            { "type": "PLAYER_PACKET_SPEED_MUL", "op": "ADD_MUL", "valuePerRank": 0.06 }
+          ]
+        },
+        {
+          "id": "OFF_CAPTURE_EFF",
+          "name": "Boarding Doctrine",
+          "desc": "+8% capture efficiency per rank",
+          "costGlory": 95,
+          "costGrowth": 1.5,
+          "maxRank": 2,
+          "prereqs": [
+            { "nodeId": "OFF_PKT_DMG_1", "minRank": 1 }
+          ],
+          "effects": [
+            { "type": "PLAYER_CAPTURE_EFFICIENCY_MUL", "op": "ADD_MUL", "valuePerRank": 0.08 }
+          ]
+        },
+        {
+          "id": "OFF_PKT_ARMOR",
+          "name": "Plated Packets",
+          "desc": "+5% packet armor per rank",
+          "costGlory": 105,
+          "costGrowth": 1.5,
+          "maxRank": 2,
+          "prereqs": [
+            { "nodeId": "OFF_PKT_DMG_2", "minRank": 1 }
+          ],
+          "effects": [
+            { "type": "PLAYER_PACKET_ARMOR_MUL", "op": "ADD_MUL", "valuePerRank": 0.05 }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "ECONOMY",
+      "name": "Economy",
+      "nodes": [
+        {
+          "id": "ECO_REGEN_1",
+          "name": "Field Medics I",
+          "desc": "+8% tower regen per rank",
+          "costGloryPerRank": [45, 70, 100],
+          "maxRank": 3,
+          "prereqs": [],
+          "effects": [
+            { "type": "PLAYER_TOWER_REGEN_MUL", "op": "ADD_MUL", "valuePerRank": 0.08 }
+          ]
+        },
+        {
+          "id": "ECO_REGEN_2",
+          "name": "Field Medics II",
+          "desc": "+12% tower regen per rank",
+          "costGlory": 125,
+          "costGrowth": 1.4,
+          "maxRank": 2,
+          "prereqs": [
+            { "nodeId": "ECO_REGEN_1", "minRank": 2 }
+          ],
+          "effects": [
+            { "type": "PLAYER_TOWER_REGEN_MUL", "op": "ADD_MUL", "valuePerRank": 0.12 }
+          ]
+        },
+        {
+          "id": "ECO_TROOPS_CAP_1",
+          "name": "Expanded Quarters I",
+          "desc": "+6% max troops per rank",
+          "costGloryPerRank": [60, 90, 130],
+          "maxRank": 3,
+          "prereqs": [],
+          "effects": [
+            { "type": "PLAYER_TOWER_MAX_TROOPS_MUL", "op": "ADD_MUL", "valuePerRank": 0.06 }
+          ]
+        },
+        {
+          "id": "ECO_TROOPS_CAP_2",
+          "name": "Expanded Quarters II",
+          "desc": "+10% max troops per rank",
+          "costGlory": 140,
+          "costGrowth": 1.45,
+          "maxRank": 2,
+          "prereqs": [
+            { "nodeId": "ECO_TROOPS_CAP_1", "minRank": 2 }
+          ],
+          "effects": [
+            { "type": "PLAYER_TOWER_MAX_TROOPS_MUL", "op": "ADD_MUL", "valuePerRank": 0.1 }
+          ]
+        },
+        {
+          "id": "ECO_START_TROOPS",
+          "name": "Ready Reserves",
+          "desc": "+5% starting troops per rank",
+          "costGlory": 95,
+          "costGrowth": 1.4,
+          "maxRank": 2,
+          "prereqs": [
+            { "nodeId": "ECO_REGEN_1", "minRank": 1 }
+          ],
+          "effects": [
+            { "type": "PLAYER_STARTING_TROOPS_MUL", "op": "ADD_MUL", "valuePerRank": 0.05 }
+          ]
+        },
+        {
+          "id": "ECO_GLORY",
+          "name": "War Treasury",
+          "desc": "+5% Glory gains per rank",
+          "costGlory": 110,
+          "costGrowth": 1.45,
+          "maxRank": 3,
+          "prereqs": [
+            { "nodeId": "ECO_TROOPS_CAP_1", "minRank": 1 }
+          ],
+          "effects": [
+            { "type": "GLORY_REWARD_MUL", "op": "ADD_MUL", "valuePerRank": 0.05 }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "TACTICAL",
+      "name": "Tactical",
+      "nodes": [
+        {
+          "id": "TAC_LINK_INTEGRITY_1",
+          "name": "Reinforced Links I",
+          "desc": "+8% link integrity per rank",
+          "costGloryPerRank": [55, 85, 120],
+          "maxRank": 3,
+          "prereqs": [],
+          "effects": [
+            { "type": "PLAYER_LINK_INTEGRITY_MUL", "op": "ADD_MUL", "valuePerRank": 0.08 }
+          ]
+        },
+        {
+          "id": "TAC_EXTRA_LINK",
+          "name": "Expanded Relay Grid",
+          "desc": "+1 outgoing link cap",
+          "costGlory": 180,
+          "maxRank": 1,
+          "prereqs": [
+            { "nodeId": "TAC_LINK_INTEGRITY_1", "minRank": 2 }
+          ],
+          "effects": [
+            { "type": "PLAYER_EXTRA_OUTGOING_LINKS", "op": "ADD", "valuePerRank": 1 }
+          ]
+        },
+        {
+          "id": "TAC_LINK_DISCOUNT",
+          "name": "Link Blueprint Cache",
+          "desc": "-5% link upgrade cost per rank",
+          "costGlory": 90,
+          "costGrowth": 1.45,
+          "maxRank": 2,
+          "prereqs": [
+            { "nodeId": "TAC_LINK_INTEGRITY_1", "minRank": 1 }
+          ],
+          "effects": [
+            { "type": "PLAYER_LINK_COST_DISCOUNT", "op": "ADD", "valuePerRank": 0.05 }
+          ]
+        },
+        {
+          "id": "TAC_SKILL_HASTE_UNLOCK",
+          "name": "Skill: Global Haste",
+          "desc": "Unlock the Global Haste skill",
+          "costGlory": 95,
+          "maxRank": 1,
+          "prereqs": [],
+          "effects": [
+            { "type": "SKILL_UNLOCK", "op": "UNLOCK", "skillId": "GLOBAL_HASTE" }
+          ]
+        },
+        {
+          "id": "TAC_SKILL_SHIELD_UNLOCK",
+          "name": "Skill: Tower Shield",
+          "desc": "Unlock the Tower Shield skill",
+          "costGlory": 130,
+          "maxRank": 1,
+          "prereqs": [
+            { "nodeId": "TAC_SKILL_HASTE_UNLOCK", "minRank": 1 }
+          ],
+          "effects": [
+            { "type": "SKILL_UNLOCK", "op": "UNLOCK", "skillId": "TOWER_SHIELD" }
+          ]
+        },
+        {
+          "id": "TAC_SKILL_PURGE_UNLOCK",
+          "name": "Skill: Link Purge",
+          "desc": "Unlock the Link Purge skill",
+          "costGlory": 165,
+          "maxRank": 1,
+          "prereqs": [
+            { "nodeId": "TAC_SKILL_SHIELD_UNLOCK", "minRank": 1 }
+          ],
+          "effects": [
+            { "type": "SKILL_UNLOCK", "op": "UNLOCK", "skillId": "LINK_PURGE" }
+          ]
+        },
+        {
+          "id": "TAC_SKILL_COOLDOWN",
+          "name": "Signal Compression",
+          "desc": "-7% skill cooldown per rank",
+          "costGlory": 100,
+          "costGrowth": 1.45,
+          "maxRank": 3,
+          "prereqs": [
+            { "nodeId": "TAC_SKILL_HASTE_UNLOCK", "minRank": 1 }
+          ],
+          "effects": [
+            { "type": "SKILL_COOLDOWN_MUL", "op": "ADD_MUL", "valuePerRank": -0.07 }
+          ]
+        },
+        {
+          "id": "TAC_SKILL_DURATION",
+          "name": "Extended Windows",
+          "desc": "+10% skill duration per rank",
+          "costGlory": 120,
+          "costGrowth": 1.5,
+          "maxRank": 3,
+          "prereqs": [
+            { "nodeId": "TAC_SKILL_SHIELD_UNLOCK", "minRank": 1 }
+          ],
+          "effects": [
+            { "type": "SKILL_DURATION_MUL", "op": "ADD_MUL", "valuePerRank": 0.1 }
+          ]
+        },
+        {
+          "id": "TAC_SKILL_POTENCY",
+          "name": "Amplified Protocols",
+          "desc": "+12% skill potency per rank",
+          "costGlory": 145,
+          "costGrowth": 1.5,
+          "maxRank": 2,
+          "prereqs": [
+            { "nodeId": "TAC_SKILL_PURGE_UNLOCK", "minRank": 1 }
+          ],
+          "effects": [
+            { "type": "SKILL_POTENCY_MUL", "op": "ADD_MUL", "valuePerRank": 0.12 }
+          ]
+        }
+      ]
+    }
+  ]
+}
