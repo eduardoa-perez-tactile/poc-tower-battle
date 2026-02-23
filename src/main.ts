@@ -1,5 +1,5 @@
 import { Game } from "./game/Game";
-import { loadLevel } from "./game/LevelLoader";
+import { loadLevel, type LoadedLevel } from "./game/LevelLoader";
 import { InputController } from "./input/InputController";
 import { Renderer2D } from "./render/Renderer2D";
 import { World } from "./sim/World";
@@ -11,33 +11,70 @@ void bootstrap();
 async function bootstrap(): Promise<void> {
   const canvas = getCanvas();
   const ctx = getContext(canvas);
+  const renderer = new Renderer2D(canvas, ctx);
+  const restartBtn = getRestartButton();
 
   const resize = () => resizeCanvas(canvas, ctx);
   window.addEventListener("resize", resize);
   resize();
 
-  try {
-    const level = await loadLevel(LEVEL_PATH);
-    const world = new World(level.towers, level.rules.maxOutgoingLinksPerTower);
-    const renderer = new Renderer2D(canvas, ctx);
-    const inputController = new InputController(canvas, world);
-    const game = new Game(world, renderer, inputController, level.rules);
+  let game: Game | null = null;
+  let inputController: InputController | null = null;
+  let loadRequestId = 0;
 
-    let lastTimeSec = performance.now() / 1000;
+  const loadGame = async (): Promise<void> => {
+    const requestId = loadRequestId + 1;
+    loadRequestId = requestId;
+    const previousInputController = inputController;
+    inputController = null;
+    game = null;
+    previousInputController?.dispose();
 
-    const loop = (timeMs: number) => {
-      const nowSec = timeMs / 1000;
-      const dtSec = nowSec - lastTimeSec;
-      lastTimeSec = nowSec;
+    try {
+      const level = await loadLevel(LEVEL_PATH);
+      if (requestId !== loadRequestId) {
+        return;
+      }
+
+      const world = createWorldFromLevel(level);
+      inputController = new InputController(canvas, world);
+      game = new Game(world, renderer, inputController, level.rules);
+    } catch (error) {
+      if (requestId !== loadRequestId) {
+        return;
+      }
+
+      game = null;
+      const message = error instanceof Error ? error.message : "Unknown error";
+      drawError(ctx, `Failed to load level: ${message}`);
+    }
+  };
+
+  restartBtn.addEventListener("click", () => {
+    void loadGame();
+  });
+
+  await loadGame();
+
+  let lastTimeSec = performance.now() / 1000;
+
+  const loop = (timeMs: number) => {
+    const nowSec = timeMs / 1000;
+    const dtSec = nowSec - lastTimeSec;
+    lastTimeSec = nowSec;
+
+    if (game) {
       game.frame(dtSec);
-      requestAnimationFrame(loop);
-    };
+    }
 
     requestAnimationFrame(loop);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown error";
-    drawError(ctx, `Failed to load level: ${message}`);
-  }
+  };
+
+  requestAnimationFrame(loop);
+}
+
+function createWorldFromLevel(level: LoadedLevel): World {
+  return new World(level.towers, level.rules.maxOutgoingLinksPerTower, level.initialLinks);
 }
 
 function getCanvas(): HTMLCanvasElement {
@@ -54,6 +91,14 @@ function getContext(canvas: HTMLCanvasElement): CanvasRenderingContext2D {
     throw new Error("2D rendering context is unavailable");
   }
   return ctx;
+}
+
+function getRestartButton(): HTMLButtonElement {
+  const element = document.getElementById("restartBtn");
+  if (!(element instanceof HTMLButtonElement)) {
+    throw new Error('Button "#restartBtn" was not found');
+  }
+  return element;
 }
 
 function resizeCanvas(canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D): void {

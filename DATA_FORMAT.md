@@ -9,6 +9,7 @@
 - `meta`: { id: string, name: string }
 - `rules`: tuning constants
 - `ai`: tuning constants
+- `initialLinks` (optional): InitialLink[]
 - `towers`: Tower[]
 
 ### Tower
@@ -33,3 +34,7 @@
 - aiThinkIntervalSec: number
 - aiMinTroopsToAttack: number
 
+### InitialLink
+- fromTowerId: string
+- toTowerId: string
+- If multiple links share the same `fromTowerId`, the last one wins.

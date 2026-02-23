@@ -42,11 +42,15 @@ export class World {
   readonly packets: UnitPacket[];
   private readonly maxOutgoingLinksPerTower: number;
 
-  constructor(towers: Tower[], maxOutgoingLinksPerTower: number) {
+  constructor(towers: Tower[], maxOutgoingLinksPerTower: number, initialLinks: Link[] = []) {
     this.towers = towers.map((tower) => ({ ...tower }));
     this.links = [];
     this.packets = [];
     this.maxOutgoingLinksPerTower = Math.max(0, Math.floor(maxOutgoingLinksPerTower));
+
+    for (const link of initialLinks) {
+      this.setOutgoingLink(link.fromTowerId, link.toTowerId);
+    }
   }
 
   getTowerAtPoint(x: number, y: number): Tower | null {

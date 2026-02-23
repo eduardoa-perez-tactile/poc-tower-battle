@@ -30,6 +30,15 @@ export class InputController {
     this.canvas.addEventListener("contextmenu", this.onContextMenu);
   }
 
+  dispose(): void {
+    this.canvas.removeEventListener("mousedown", this.onMouseDown);
+    window.removeEventListener("mousemove", this.onMouseMove);
+    window.removeEventListener("mouseup", this.onMouseUp);
+    window.removeEventListener("keydown", this.onKeyDown);
+    this.canvas.removeEventListener("contextmenu", this.onContextMenu);
+    this.cancelDrag();
+  }
+
   getPreviewLine(): DragPreview | null {
     if (!this.dragState) {
       return null;

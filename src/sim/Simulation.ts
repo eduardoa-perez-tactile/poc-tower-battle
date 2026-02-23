@@ -76,8 +76,25 @@ function movePackets(world: World, dtSec: number): void {
 
     packet.progress01 += (packet.speedPxPerSec / linkLengthPx) * dtSec;
     if (packet.progress01 >= 1) {
+      resolveArrival(world, packet);
       world.packets.splice(i, 1);
     }
+  }
+}
+
+function resolveArrival(world: World, packet: UnitPacket): void {
+  const link = world.getLinkById(packet.linkId);
+  if (!link) {
+    return;
+  }
+
+  const targetTower = world.getTowerById(link.toTowerId);
+  if (!targetTower) {
+    return;
+  }
+
+  if (targetTower.owner === packet.owner) {
+    targetTower.troopCount = Math.min(targetTower.maxTroops, targetTower.troopCount + packet.count);
   }
 }
 

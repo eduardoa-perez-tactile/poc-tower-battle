@@ -19,6 +19,16 @@
     "aiThinkIntervalSec": 2.5,
     "aiMinTroopsToAttack": 25
   },
+  "initialLinks": [
+    {
+      "fromTowerId": "E1",
+      "toTowerId": "N2"
+    },
+    {
+      "fromTowerId": "E2",
+      "toTowerId": "N1"
+    }
+  ],
   "towers": [
     {
       "id": "P1",

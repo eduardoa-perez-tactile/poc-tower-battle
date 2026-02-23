@@ -1,4 +1,4 @@
-import type { Owner, Tower } from "../sim/World";
+import type { Link, Owner, Tower } from "../sim/World";
 import type { SimulationRules } from "../sim/Simulation";
 
 export interface LevelRules extends SimulationRules {
@@ -7,6 +7,7 @@ export interface LevelRules extends SimulationRules {
 
 export interface LoadedLevel {
   towers: Tower[];
+  initialLinks: Link[];
   rules: LevelRules;
 }
 
@@ -34,8 +35,10 @@ function parseLevel(data: unknown): LoadedLevel {
     throw new Error("Level JSON must include a towers array");
   }
 
+  const parsedTowers = towers.map((tower, index) => parseTower(tower, index));
   return {
-    towers: towers.map((tower, index) => parseTower(tower, index)),
+    towers: parsedTowers,
+    initialLinks: parseInitialLinks(data.initialLinks, parsedTowers),
     rules: parseRules(data.rules),
   };
 }
@@ -76,6 +79,53 @@ function parseRules(value: Record<string, unknown>): LevelRules {
       hpPerUnit: asNumber(value.defaultUnit.hpPerUnit, "rules.defaultUnit.hpPerUnit"),
     },
   };
+}
+
+function parseInitialLinks(value: unknown, towers: Tower[]): Link[] {
+  if (value === undefined) {
+    return [];
+  }
+  if (!Array.isArray(value)) {
+    throw new Error("initialLinks must be an array when provided");
+  }
+
+  const towersById = new Map<string, Tower>();
+  for (const tower of towers) {
+    towersById.set(tower.id, tower);
+  }
+
+  const linksBySource = new Map<string, Link>();
+  for (let i = 0; i < value.length; i += 1) {
+    const entry = value[i];
+    if (!isObject(entry)) {
+      throw new Error(`initialLinks[${i}] must be an object`);
+    }
+
+    const fromTowerId = asString(entry.fromTowerId, `initialLinks[${i}].fromTowerId`);
+    const toTowerId = asString(entry.toTowerId, `initialLinks[${i}].toTowerId`);
+    if (fromTowerId === toTowerId) {
+      throw new Error(`initialLinks[${i}] cannot link a tower to itself`);
+    }
+
+    const fromTower = towersById.get(fromTowerId);
+    const toTower = towersById.get(toTowerId);
+    if (!fromTower || !toTower) {
+      throw new Error(`initialLinks[${i}] references unknown tower id`);
+    }
+
+    linksBySource.set(fromTowerId, {
+      id: `${fromTowerId}->${toTowerId}`,
+      fromTowerId,
+      toTowerId,
+      owner: fromTower.owner,
+      points: [
+        { x: fromTower.x, y: fromTower.y },
+        { x: toTower.x, y: toTower.y },
+      ],
+    });
+  }
+
+  return Array.from(linksBySource.values());
 }
 
 function asString(value: unknown, fieldName: string): string {
