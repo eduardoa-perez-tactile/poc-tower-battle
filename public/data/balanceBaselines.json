@@ -1,0 +1,81 @@
+{
+  "version": 1,
+  "troopRegen": {
+    "baseRegenPerSec": 1,
+    "temporaryBuffBonusScale": 0.6,
+    "archetypeMultipliers": {
+      "STRONGHOLD": 1,
+      "BARRACKS": 1,
+      "FORTRESS": 1,
+      "RELAY": 1,
+      "BANK": 1,
+      "OBELISK": 1
+    },
+    "globalRegenCaps": {
+      "min": 0,
+      "max": 8
+    }
+  },
+  "towerTroops": {
+    "baseMaxTroops": 120,
+    "captureRateMultiplier": 1,
+    "captureSeedTroops": 10,
+    "defenseMultipliersCaps": {
+      "min": 0.1,
+      "max": 3
+    }
+  },
+  "packets": {
+    "baseSpeed": 120,
+    "baseDamage": 1,
+    "baseArmor": 1,
+    "globalCaps": {
+      "speedMin": 25,
+      "speedMax": 420,
+      "damageMin": 0.2,
+      "damageMax": 14,
+      "hpMin": 0.2,
+      "hpMax": 220,
+      "armorMin": 0.2,
+      "armorMax": 4
+    },
+    "fightResolutionModelParams": {
+      "shieldArmorUptimeMultiplier": 1.8,
+      "combatHoldFactor": 0.45,
+      "rangedHoldFactor": 0.65,
+      "linkCutterHoldFactor": 0.4,
+      "bossSummonSpeedMultiplier": 1.1
+    },
+    "travelTimeTargets": {
+      "shortEdgeSec": 1.4,
+      "avgEdgeSec": 2.5,
+      "longEdgeSec": 4
+    }
+  },
+  "economy": {
+    "baseGoldPerWave": 16,
+    "bankGoldPerSec": 2.5,
+    "gloryMultiplierByDifficulty": {
+      "NORMAL": 1,
+      "HARD": 1.2,
+      "ASCENDED": 1.45
+    }
+  },
+  "calibration": {
+    "waveGeneration": {
+      "budgetBase": 11,
+      "budgetPerWave": 5,
+      "budgetMin": 6,
+      "budgetMax": 240,
+      "budgetPerMissionDifficultyMul": 0.45,
+      "spawnIntervalSec": 1.15,
+      "spawnIntervalJitterMin": 0.82,
+      "spawnIntervalJitterMax": 1.24,
+      "swarmCountCap": 14,
+      "defaultCountCap": 8,
+      "baseEliteChance": 0.05,
+      "eliteChancePerWave": 0.018,
+      "eliteChanceHardCap": 0.92
+    }
+  }
+}

@@ -1,7 +1,11 @@
 import type { Tower, UnitPacket, Vec2, World } from "../sim/World";
+import type { DifficultyTierId } from "../config/Difficulty";
 import { EnemyFactory } from "./EnemyFactory";
 import type {
+  DifficultyTierConfig,
   LoadedWaveContent,
+  LossRiskBand,
+  WavePacingDifficultyTarget,
   WaveGeneratorInputs,
   WaveModifierDefinition,
   WavePlan,
@@ -51,6 +55,7 @@ export interface WavePreviewItem {
 }
 
 export interface MissionWaveTelemetry {
+  difficultyTier: DifficultyTierId;
   currentWaveIndex: number;
   totalWaveCount: number;
   activeModifierNames: string[];
@@ -60,6 +65,11 @@ export interface MissionWaveTelemetry {
   activeBuffRemainingSec: number;
   bossName: string | null;
   bossHp01: number;
+  wavePressureScore: number;
+  playerTowersOwned: number;
+  avgTroopsPerOwnedTower: number;
+  packetsSentPerSec: number;
+  timeToZeroTowersEstimateSec: number | null;
 }
 
 export interface WaveRenderState {
@@ -68,7 +78,9 @@ export interface WaveRenderState {
 
 export interface WaveDirectorOptions {
   runSeed: number;
-  missionDifficulty: number;
+  missionDifficultyScalar: number;
+  difficultyTier: DifficultyTierId;
+  balanceDiagnosticsEnabled?: boolean;
 }
 
 interface RuntimeWaveState {
@@ -76,11 +88,14 @@ interface RuntimeWaveState {
   elapsedSec: number;
   nextSpawnIndex: number;
   activeModifierEffects: AggregatedEffects;
+  pressureScore: number;
+  startedAtSec: number;
 }
 
 interface AggregatedEffects {
   speedMultiplier: number;
   armorMultiplier: number;
+  spawnRateMultiplier: number;
 }
 
 export class WaveDirector {
@@ -94,6 +109,8 @@ export class WaveDirector {
   private readonly packetSnapshots: Map<string, PacketSnapshot>;
   private readonly telegraphs: TelegraphMarker[];
   private readonly previewsByWave: Map<number, WavePreviewItem[]>;
+  private readonly difficultyConfig: DifficultyTierConfig;
+  private readonly goldRewardMultiplier: number;
 
   private currentWaveIndex: number;
   private readonly totalWaveCount: number;
@@ -107,6 +124,12 @@ export class WaveDirector {
   private packetSequence: number;
   private simulationTimeSec: number;
   private finished: boolean;
+  private diagnosticsEnabled: boolean;
+  private currentWavePressureScore: number;
+  private packetsSentPerSec: number;
+  private packetRateAccumulatorSec: number;
+  private packetRateAccumulatorCount: number;
+  private previousPlayerPacketCount: number;
 
   constructor(world: World, content: LoadedWaveContent, options: WaveDirectorOptions) {
     this.content = content;
@@ -119,6 +142,8 @@ export class WaveDirector {
     this.packetSnapshots = new Map<string, PacketSnapshot>();
     this.telegraphs = [];
     this.previewsByWave = new Map<number, WavePreviewItem[]>();
+    this.difficultyConfig = content.difficultyTiers.difficultyTiers[options.difficultyTier];
+    this.goldRewardMultiplier = this.difficultyConfig.economy.goldMul;
 
     for (const modifier of content.modifierCatalog.modifiers) {
       this.modifierById.set(modifier.id, modifier);
@@ -136,12 +161,19 @@ export class WaveDirector {
     this.packetSequence = 0;
     this.simulationTimeSec = 0;
     this.finished = false;
+    this.diagnosticsEnabled = Boolean(options.balanceDiagnosticsEnabled);
+    this.currentWavePressureScore = 0;
+    this.packetsSentPerSec = 0;
+    this.packetRateAccumulatorSec = 0;
+    this.packetRateAccumulatorCount = 0;
+    this.previousPlayerPacketCount = 0;
 
     this.preparePreviews();
   }
 
   updatePreStep(dtSec: number): void {
     this.simulationTimeSec += dtSec;
+    this.updatePlayerPacketRate(dtSec);
 
     if (this.activeBuffRemainingSec > 0) {
       this.activeBuffRemainingSec = Math.max(0, this.activeBuffRemainingSec - dtSec);
@@ -152,12 +184,15 @@ export class WaveDirector {
 
     if (this.activeBuffRemainingSec > 0) {
       const regenBoost = this.content.balance.elite.temporaryBuffSpeedMultiplier;
-      const regenBonus = 0.6 * (regenBoost - 1);
+      const regenBonus =
+        this.content.balanceBaselines.troopRegen.temporaryBuffBonusScale * (regenBoost - 1);
+      const regenCaps = this.content.balanceBaselines.troopRegen.globalRegenCaps;
       for (const tower of this.world.towers) {
         if (tower.owner !== "player") {
           continue;
         }
-        tower.troops = Math.min(tower.maxTroops, tower.troops + regenBonus * dtSec);
+        const clampedBonus = clamp(regenBonus, regenCaps.min, regenCaps.max);
+        tower.troops = Math.min(tower.maxTroops, tower.troops + clampedBonus * dtSec);
       }
     }
 
@@ -183,10 +218,12 @@ export class WaveDirector {
     const hasAliveWavePackets = this.hasAlivePacketsForWave(this.currentWaveIndex);
     if (allSpawned && !hasAliveWavePackets) {
       const waveClearReward =
-        this.content.balance.goldRewards.waveClearBase +
+        this.content.balanceBaselines.economy.baseGoldPerWave +
         this.currentWaveIndex * this.content.balance.goldRewards.waveClearPerWave;
-      this.missionGold += Math.max(0, Math.round(waveClearReward));
+      this.addMissionGold(waveClearReward);
+      this.validateWaveEnd(this.runtimeWave, dtSec);
       this.runtimeWave = null;
+      this.currentWavePressureScore = 0;
       this.cooldownUntilNextWaveSec = 3;
       if (this.currentWaveIndex >= this.totalWaveCount) {
         this.finished = true;
@@ -213,8 +250,11 @@ export class WaveDirector {
     const activeBoss = this.getActiveBossPacket();
     const bossName = activeBoss ? this.enemyFactory.getArchetype(activeBoss.archetypeId).name : null;
     const bossHp01 = activeBoss ? clamp(activeBoss.count / Math.max(1, activeBoss.baseCount), 0, 1) : 0;
+    const playerMetrics = this.getPlayerMetrics();
+    const timeToZeroTowersEstimateSec = this.estimateTimeToZeroTowersSec();
 
     return {
+      difficultyTier: this.options.difficultyTier,
       currentWaveIndex: this.currentWaveIndex,
       totalWaveCount: this.totalWaveCount,
       activeModifierNames,
@@ -224,6 +264,11 @@ export class WaveDirector {
       activeBuffRemainingSec: this.activeBuffRemainingSec,
       bossName,
       bossHp01,
+      wavePressureScore: this.currentWavePressureScore,
+      playerTowersOwned: playerMetrics.playerTowersOwned,
+      avgTroopsPerOwnedTower: playerMetrics.avgTroopsPerOwnedTower,
+      packetsSentPerSec: this.packetsSentPerSec,
+      timeToZeroTowersEstimateSec,
     };
   }
 
@@ -241,6 +286,14 @@ export class WaveDirector {
     return this.totalWaveCount;
   }
 
+  setBalanceDiagnosticsEnabled(enabled: boolean): void {
+    this.diagnosticsEnabled = enabled;
+  }
+
+  isBalanceDiagnosticsEnabled(): boolean {
+    return this.diagnosticsEnabled;
+  }
+
   debugSpawnEnemy(archetypeId: string, elite: boolean): void {
     const lane = this.lanes[0];
     const entry: WaveSpawnEntry = {
@@ -253,6 +306,7 @@ export class WaveDirector {
     const modifierEffects: AggregatedEffects = {
       speedMultiplier: 1,
       armorMultiplier: 1,
+      spawnRateMultiplier: 1,
     };
     this.spawnEntry(entry, this.currentWaveIndex <= 0 ? 1 : this.currentWaveIndex, modifierEffects);
   }
@@ -265,6 +319,7 @@ export class WaveDirector {
     this.finished = false;
     this.activeBossPacketId = null;
     this.bossAbilitySchedule = null;
+    this.currentWavePressureScore = 0;
   }
 
   private preparePreviews(): void {
@@ -284,12 +339,18 @@ export class WaveDirector {
       if (this.cooldownUntilNextWaveSec <= 0 && this.currentWaveIndex < this.totalWaveCount) {
         this.currentWaveIndex += 1;
         const plan = this.waveGenerator.generate(this.getWaveGeneratorInputs(this.currentWaveIndex));
+        const modifierEffects = this.aggregateModifierEffects(plan.modifiers);
+        const pressureScore = this.computePressureScore(plan, modifierEffects);
         this.runtimeWave = {
           plan,
           elapsedSec: 0,
           nextSpawnIndex: 0,
-          activeModifierEffects: this.aggregateModifierEffects(plan.modifiers),
+          activeModifierEffects: modifierEffects,
+          pressureScore,
+          startedAtSec: this.simulationTimeSec,
         };
+        this.currentWavePressureScore = pressureScore;
+        this.validateWaveStart(this.runtimeWave);
       }
       return;
     }
@@ -340,7 +401,8 @@ export class WaveDirector {
         archetypeId: entry.enemyId,
         count: 1,
         waveIndex,
-        difficultyTier: this.options.missionDifficulty,
+        difficultyTier: this.options.difficultyTier,
+        missionDifficultyScalar: this.options.missionDifficultyScalar,
         isElite,
         isBoss: entry.enemyId === this.content.balance.boss.id,
       });
@@ -348,8 +410,15 @@ export class WaveDirector {
       packet.baseCount = packet.count;
       packet.sourceLane = lane.index;
       packet.sourceWaveIndex = waveIndex;
-      packet.baseSpeedMultiplier = effects.speedMultiplier;
-      packet.baseArmorMultiplier = effects.armorMultiplier;
+      const packetCaps = this.content.balanceBaselines.packets.globalCaps;
+      const speedMinMul = packetCaps.speedMin / Math.max(1, packet.speedPxPerSec);
+      const speedMaxMul = packetCaps.speedMax / Math.max(1, packet.speedPxPerSec);
+      packet.baseSpeedMultiplier = clamp(effects.speedMultiplier, speedMinMul, speedMaxMul);
+      packet.baseArmorMultiplier = clamp(
+        effects.armorMultiplier,
+        packetCaps.armorMin,
+        packetCaps.armorMax,
+      );
 
       this.world.packets.push(this.world.acquirePacket(packet));
 
@@ -426,7 +495,7 @@ export class WaveDirector {
       }
     }
 
-    this.missionGold += Math.max(0, Math.round(reward));
+    this.addMissionGold(reward);
   }
 
   private spawnSplitChildren(snapshot: PacketSnapshot): void {
@@ -447,7 +516,8 @@ export class WaveDirector {
         archetypeId: snapshot.splitChildArchetypeId,
         count: 1,
         waveIndex: Math.max(1, snapshot.sourceWaveIndex),
-        difficultyTier: this.options.missionDifficulty,
+        difficultyTier: this.options.difficultyTier,
+        missionDifficultyScalar: this.options.missionDifficultyScalar,
         isElite: false,
         isBoss: false,
       });
@@ -561,7 +631,11 @@ export class WaveDirector {
       if (tower.owner !== "player" || tower.goldPerSecond <= 0) {
         continue;
       }
-      this.missionGold += tower.goldPerSecond * dtSec;
+      const cappedPerSec = Math.min(
+        tower.goldPerSecond,
+        this.content.balanceBaselines.economy.bankGoldPerSec,
+      );
+      this.addMissionGold(cappedPerSec * dtSec);
     }
   }
 
@@ -579,7 +653,7 @@ export class WaveDirector {
       if (!tower || tower.recaptureBonusGold <= 0) {
         continue;
       }
-      this.missionGold += tower.recaptureBonusGold;
+      this.addMissionGold(tower.recaptureBonusGold);
     }
   }
 
@@ -593,8 +667,9 @@ export class WaveDirector {
       laneIndex: lane.index,
     };
     this.spawnEntry(entry, Math.max(1, this.currentWaveIndex), {
-      speedMultiplier: 1.1,
+      speedMultiplier: this.content.balanceBaselines.packets.fightResolutionModelParams.bossSummonSpeedMultiplier,
       armorMultiplier: 1,
+      spawnRateMultiplier: 1,
     });
   }
 
@@ -618,7 +693,8 @@ export class WaveDirector {
   private getWaveGeneratorInputs(waveIndex: number): WaveGeneratorInputs {
     return {
       waveIndex,
-      difficultyTier: this.options.missionDifficulty,
+      difficultyTier: this.options.difficultyTier,
+      missionDifficultyScalar: this.options.missionDifficultyScalar,
       runSeed: this.options.runSeed,
       laneCount: this.lanes.length,
     };
@@ -641,6 +717,7 @@ export class WaveDirector {
     const result: AggregatedEffects = {
       speedMultiplier: 1,
       armorMultiplier: 1,
+      spawnRateMultiplier: 1,
     };
 
     for (const modifierId of modifierIds) {
@@ -650,9 +727,185 @@ export class WaveDirector {
       }
       result.speedMultiplier *= modifier.effects.speedMultiplier ?? 1;
       result.armorMultiplier *= modifier.effects.armorMultiplier ?? 1;
+      result.spawnRateMultiplier *= modifier.effects.spawnRateMultiplier ?? 1;
     }
 
     return result;
+  }
+
+  private addMissionGold(rawAmount: number): void {
+    const scaled = Math.max(0, rawAmount * this.goldRewardMultiplier);
+    this.missionGold += scaled;
+  }
+
+  private computePressureScore(plan: WavePlan, effects: AggregatedEffects): number {
+    const difficultyMul = this.difficultyConfig.wave.intensityMul * this.options.missionDifficultyScalar;
+    const waveModMul = Math.max(
+      0.5,
+      Math.min(3, (effects.speedMultiplier + effects.armorMultiplier + effects.spawnRateMultiplier) / 3),
+    );
+
+    let score = 0;
+    for (const entry of plan.spawnEntries) {
+      const archetype = this.enemyFactory.getArchetype(entry.enemyId);
+      score += archetype.unitThreatValue * entry.count * difficultyMul * waveModMul;
+    }
+    return Math.round(score * 100) / 100;
+  }
+
+  private validateWaveStart(runtimeWave: RuntimeWaveState): void {
+    if (!this.diagnosticsEnabled) {
+      return;
+    }
+    const target = this.getPacingTarget(runtimeWave.plan.waveIndex);
+    if (!target) {
+      return;
+    }
+
+    if (!isWithinRange(runtimeWave.pressureScore, target.expectedEnemyPressureScoreRange)) {
+      console.warn(
+        `[Balance] Wave ${runtimeWave.plan.waveIndex} pressure ${runtimeWave.pressureScore.toFixed(2)} outside target [${target.expectedEnemyPressureScoreRange.min}, ${target.expectedEnemyPressureScoreRange.max}] (${this.options.difficultyTier})`,
+      );
+    }
+  }
+
+  private validateWaveEnd(runtimeWave: RuntimeWaveState, dtSec: number): void {
+    void dtSec;
+    if (!this.diagnosticsEnabled) {
+      return;
+    }
+
+    const target = this.getPacingTarget(runtimeWave.plan.waveIndex);
+    if (!target) {
+      return;
+    }
+
+    const playerMetrics = this.getPlayerMetrics();
+    const waveDurationSec = this.simulationTimeSec - runtimeWave.startedAtSec;
+    const actualRiskBand = this.estimateLossRiskBand(playerMetrics, target);
+
+    if (
+      playerMetrics.playerTowersOwned < target.expectedPlayerTowersOwnedMin ||
+      playerMetrics.playerTowersOwned > target.expectedPlayerTowersOwnedMax
+    ) {
+      console.warn(
+        `[Balance] Wave ${runtimeWave.plan.waveIndex} towers owned ${playerMetrics.playerTowersOwned} outside target [${target.expectedPlayerTowersOwnedMin}, ${target.expectedPlayerTowersOwnedMax}] (${this.options.difficultyTier})`,
+      );
+    }
+
+    if (
+      playerMetrics.avgTroopsPerOwnedTower < target.expectedAvgTroopsPerTowerMin ||
+      playerMetrics.avgTroopsPerOwnedTower > target.expectedAvgTroopsPerTowerMax
+    ) {
+      console.warn(
+        `[Balance] Wave ${runtimeWave.plan.waveIndex} avg troops ${playerMetrics.avgTroopsPerOwnedTower.toFixed(2)} outside target [${target.expectedAvgTroopsPerTowerMin}, ${target.expectedAvgTroopsPerTowerMax}] (${this.options.difficultyTier})`,
+      );
+    }
+
+    if (!isWithinRange(waveDurationSec, target.expectedWaveDurationSecRange)) {
+      console.warn(
+        `[Balance] Wave ${runtimeWave.plan.waveIndex} duration ${waveDurationSec.toFixed(2)}s outside target [${target.expectedWaveDurationSecRange.min}, ${target.expectedWaveDurationSecRange.max}] (${this.options.difficultyTier})`,
+      );
+    }
+
+    if (actualRiskBand !== target.expectedLossRiskBand) {
+      console.warn(
+        `[Balance] Wave ${runtimeWave.plan.waveIndex} estimated risk "${actualRiskBand}" differs from target "${target.expectedLossRiskBand}" (${this.options.difficultyTier})`,
+      );
+    }
+  }
+
+  private getPacingTarget(waveIndex: number): WavePacingDifficultyTarget | null {
+    for (const target of this.content.wavePacingTargets.targets) {
+      if (waveIndex < target.waveStart || waveIndex > target.waveEnd) {
+        continue;
+      }
+      return target.byDifficulty[this.options.difficultyTier];
+    }
+    return null;
+  }
+
+  private getPlayerMetrics(): { playerTowersOwned: number; avgTroopsPerOwnedTower: number } {
+    let playerTowersOwned = 0;
+    let troopsTotal = 0;
+
+    for (const tower of this.world.towers) {
+      if (tower.owner !== "player") {
+        continue;
+      }
+      playerTowersOwned += 1;
+      troopsTotal += tower.troops;
+    }
+
+    return {
+      playerTowersOwned,
+      avgTroopsPerOwnedTower: playerTowersOwned > 0 ? troopsTotal / playerTowersOwned : 0,
+    };
+  }
+
+  private estimateTimeToZeroTowersSec(): number | null {
+    const playerTowers = this.world.towers.filter((tower) => tower.owner === "player");
+    if (playerTowers.length === 0) {
+      return 0;
+    }
+
+    let enemyDps = 0;
+    for (const packet of this.world.packets) {
+      if (packet.owner !== "enemy") {
+        continue;
+      }
+      enemyDps += packet.count * packet.dpsPerUnit;
+    }
+
+    if (enemyDps <= 0) {
+      return null;
+    }
+
+    let playerDurability = 0;
+    for (const tower of playerTowers) {
+      playerDurability += tower.hp + tower.troops * this.content.balanceBaselines.packets.baseDamage;
+    }
+
+    return Math.round((playerDurability / enemyDps) * 10) / 10;
+  }
+
+  private updatePlayerPacketRate(dtSec: number): void {
+    let currentPlayerPacketCount = 0;
+    for (const packet of this.world.packets) {
+      if (packet.owner === "player") {
+        currentPlayerPacketCount += 1;
+      }
+    }
+
+    const createdDelta = Math.max(0, currentPlayerPacketCount - this.previousPlayerPacketCount);
+    this.previousPlayerPacketCount = currentPlayerPacketCount;
+    this.packetRateAccumulatorCount += createdDelta;
+    this.packetRateAccumulatorSec += dtSec;
+
+    if (this.packetRateAccumulatorSec >= 0.5) {
+      this.packetsSentPerSec = this.packetRateAccumulatorCount / this.packetRateAccumulatorSec;
+      this.packetRateAccumulatorSec = 0;
+      this.packetRateAccumulatorCount = 0;
+    }
+  }
+
+  private estimateLossRiskBand(
+    metrics: { playerTowersOwned: number; avgTroopsPerOwnedTower: number },
+    target: WavePacingDifficultyTarget,
+  ): LossRiskBand {
+    const towersMid = (target.expectedPlayerTowersOwnedMin + target.expectedPlayerTowersOwnedMax) * 0.5;
+    const troopsMid = (target.expectedAvgTroopsPerTowerMin + target.expectedAvgTroopsPerTowerMax) * 0.5;
+
+    if (
+      metrics.playerTowersOwned < target.expectedPlayerTowersOwnedMin ||
+      metrics.avgTroopsPerOwnedTower < target.expectedAvgTroopsPerTowerMin
+    ) {
+      return "high";
+    }
+    if (metrics.playerTowersOwned <= towersMid || metrics.avgTroopsPerOwnedTower <= troopsMid) {
+      return "med";
+    }
+    return "low";
   }
 
   private getActiveBossPacket(): UnitPacket | null {
@@ -858,6 +1111,10 @@ function createRng(seed: number): () => number {
     t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
+}
+
+function isWithinRange(value: number, range: { min: number; max: number }): boolean {
+  return value >= range.min && value <= range.max;
 }
 
 function clamp(value: number, min: number, max: number): number {
