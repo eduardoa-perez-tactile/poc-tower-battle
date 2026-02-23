@@ -38,7 +38,7 @@ async function bootstrap(): Promise<void> {
 
       const world = createWorldFromLevel(level);
       inputController = new InputController(canvas, world);
-      game = new Game(world, renderer, inputController, level.rules);
+      game = new Game(world, renderer, inputController, level.rules, level.ai);
     } catch (error) {
       if (requestId !== loadRequestId) {
         return;
@@ -50,8 +50,15 @@ async function bootstrap(): Promise<void> {
     }
   };
 
-  restartBtn.addEventListener("click", () => {
+  const restartGame = () => {
     void loadGame();
+  };
+
+  restartBtn.addEventListener("click", restartGame);
+  window.addEventListener("keydown", (event) => {
+    if (event.key === "r" || event.key === "R") {
+      restartGame();
+    }
   });
 
   await loadGame();

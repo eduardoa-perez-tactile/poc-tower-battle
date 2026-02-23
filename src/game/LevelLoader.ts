@@ -1,6 +1,11 @@
 import type { Link, Owner, Tower } from "../sim/World";
 import type { SimulationRules } from "../sim/Simulation";
 
+export interface AiRules {
+  aiThinkIntervalSec: number;
+  aiMinTroopsToAttack: number;
+}
+
 export interface LevelRules extends SimulationRules {
   maxOutgoingLinksPerTower: number;
   collisionDistancePx: number;
@@ -11,6 +16,7 @@ export interface LoadedLevel {
   towers: Tower[];
   initialLinks: Link[];
   rules: LevelRules;
+  ai: AiRules;
 }
 
 export async function loadLevel(path: string): Promise<LoadedLevel> {
@@ -42,6 +48,7 @@ function parseLevel(data: unknown): LoadedLevel {
     towers: parsedTowers,
     initialLinks: parseInitialLinks(data.initialLinks, parsedTowers),
     rules: parseRules(data.rules),
+    ai: parseAi(data.ai),
   };
 }
 
@@ -84,6 +91,17 @@ function parseRules(value: Record<string, unknown>): LevelRules {
       dpsPerUnit: asNumber(value.defaultUnit.dpsPerUnit, "rules.defaultUnit.dpsPerUnit"),
       hpPerUnit: asNumber(value.defaultUnit.hpPerUnit, "rules.defaultUnit.hpPerUnit"),
     },
+  };
+}
+
+function parseAi(value: unknown): AiRules {
+  if (!isObject(value)) {
+    throw new Error("Level JSON must include an ai object");
+  }
+
+  return {
+    aiThinkIntervalSec: asNumber(value.aiThinkIntervalSec, "ai.aiThinkIntervalSec"),
+    aiMinTroopsToAttack: asNumber(value.aiMinTroopsToAttack, "ai.aiMinTroopsToAttack"),
   };
 }
 

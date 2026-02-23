@@ -28,8 +28,9 @@ export class Renderer2D {
     this.ctx = ctx;
   }
 
-  render(world: World, preview: DragPreview | null): void {
-    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+  render(world: World, preview: DragPreview | null, overlayText: string | null): void {
+    const viewport = this.getViewportSize();
+    this.ctx.clearRect(0, 0, viewport.width, viewport.height);
 
     for (const link of world.links) {
       this.drawLink(link);
@@ -48,6 +49,10 @@ export class Renderer2D {
 
     if (preview) {
       this.drawPreviewLink(preview);
+    }
+
+    if (overlayText) {
+      this.drawOverlay(overlayText);
     }
   }
 
@@ -170,6 +175,35 @@ export class Renderer2D {
     this.ctx.lineTo(baseX - perpX * width, baseY - perpY * width);
     this.ctx.closePath();
     this.ctx.fill();
+  }
+
+  private drawOverlay(title: string): void {
+    const viewport = this.getViewportSize();
+    this.ctx.save();
+    this.ctx.fillStyle = "rgba(0, 0, 0, 0.58)";
+    this.ctx.fillRect(0, 0, viewport.width, viewport.height);
+
+    const centerX = viewport.width / 2;
+    const centerY = viewport.height / 2;
+    this.ctx.fillStyle = "#f8f9fa";
+    this.ctx.textAlign = "center";
+    this.ctx.textBaseline = "middle";
+
+    this.ctx.font = "bold 54px Arial";
+    this.ctx.fillText(title, centerX, centerY - 12);
+
+    this.ctx.font = "16px Arial";
+    this.ctx.fillStyle = "#ced4da";
+    this.ctx.fillText("Press R or click Restart", centerX, centerY + 34);
+    this.ctx.restore();
+  }
+
+  private getViewportSize(): { width: number; height: number } {
+    const rect = this.canvas.getBoundingClientRect();
+    if (rect.width > 0 && rect.height > 0) {
+      return { width: rect.width, height: rect.height };
+    }
+    return { width: this.canvas.width, height: this.canvas.height };
   }
 }
 

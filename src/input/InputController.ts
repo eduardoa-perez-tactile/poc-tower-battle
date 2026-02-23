@@ -17,11 +17,13 @@ export class InputController {
   private readonly canvas: HTMLCanvasElement;
   private readonly world: World;
   private dragState: DragState | null;
+  private enabled: boolean;
 
   constructor(canvas: HTMLCanvasElement, world: World) {
     this.canvas = canvas;
     this.world = world;
     this.dragState = null;
+    this.enabled = true;
 
     this.canvas.addEventListener("mousedown", this.onMouseDown);
     window.addEventListener("mousemove", this.onMouseMove);
@@ -39,8 +41,15 @@ export class InputController {
     this.cancelDrag();
   }
 
+  setEnabled(enabled: boolean): void {
+    this.enabled = enabled;
+    if (!enabled) {
+      this.cancelDrag();
+    }
+  }
+
   getPreviewLine(): DragPreview | null {
-    if (!this.dragState) {
+    if (!this.enabled || !this.dragState) {
       return null;
     }
 
@@ -52,6 +61,10 @@ export class InputController {
   }
 
   private readonly onMouseDown = (event: MouseEvent): void => {
+    if (!this.enabled) {
+      return;
+    }
+
     if (event.button === 2) {
       this.cancelDrag();
       event.preventDefault();
@@ -77,6 +90,10 @@ export class InputController {
   };
 
   private readonly onMouseMove = (event: MouseEvent): void => {
+    if (!this.enabled) {
+      return;
+    }
+
     if (!this.dragState) {
       return;
     }
@@ -85,6 +102,10 @@ export class InputController {
   };
 
   private readonly onMouseUp = (event: MouseEvent): void => {
+    if (!this.enabled) {
+      return;
+    }
+
     if (event.button === 2) {
       this.cancelDrag();
       event.preventDefault();
@@ -109,6 +130,10 @@ export class InputController {
   };
 
   private readonly onKeyDown = (event: KeyboardEvent): void => {
+    if (!this.enabled) {
+      return;
+    }
+
     if (event.key === "Escape") {
       this.cancelDrag();
     }
