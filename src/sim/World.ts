@@ -10,6 +10,8 @@ export interface Tower {
   x: number;
   y: number;
   owner: Owner;
+  maxHp: number;
+  hp: number;
   troopCount: number;
   regenRatePerSec: number;
   maxTroops: number;
@@ -76,7 +78,7 @@ export class World {
       return;
     }
 
-    this.removeOutgoingLinks(fromTowerId);
+    this.clearOutgoingLink(fromTowerId);
     const link: Link = {
       id: `${fromTowerId}->${toTowerId}`,
       fromTowerId,
@@ -88,6 +90,14 @@ export class World {
       ],
     };
     this.links.push(link);
+  }
+
+  clearOutgoingLink(fromTowerId: string): void {
+    for (let i = this.links.length - 1; i >= 0; i -= 1) {
+      if (this.links[i].fromTowerId === fromTowerId) {
+        this.links.splice(i, 1);
+      }
+    }
   }
 
   getOutgoingLink(fromTowerId: string): Link | null {
@@ -115,13 +125,5 @@ export class World {
       }
     }
     return null;
-  }
-
-  private removeOutgoingLinks(fromTowerId: string): void {
-    for (let i = this.links.length - 1; i >= 0; i -= 1) {
-      if (this.links[i].fromTowerId === fromTowerId) {
-        this.links.splice(i, 1);
-      }
-    }
   }
 }

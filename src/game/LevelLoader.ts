@@ -3,6 +3,8 @@ import type { SimulationRules } from "../sim/Simulation";
 
 export interface LevelRules extends SimulationRules {
   maxOutgoingLinksPerTower: number;
+  collisionDistancePx: number;
+  captureSeedTroops: number;
 }
 
 export interface LoadedLevel {
@@ -52,11 +54,13 @@ function parseTower(value: unknown, index: number): Tower {
   const x = asNumber(value.x, `towers[${index}].x`);
   const y = asNumber(value.y, `towers[${index}].y`);
   const owner = asOwner(value.owner, `towers[${index}].owner`);
+  const maxHp = asNumber(value.maxHp, `towers[${index}].maxHp`);
+  const hp = asNumber(value.hp, `towers[${index}].hp`);
   const troopCount = asNumber(value.troopCount, `towers[${index}].troopCount`);
   const regenRatePerSec = asNumber(value.regenRatePerSec, `towers[${index}].regenRatePerSec`);
   const maxTroops = asNumber(value.maxTroops, `towers[${index}].maxTroops`);
 
-  return { id, x, y, owner, troopCount, regenRatePerSec, maxTroops };
+  return { id, x, y, owner, maxHp, hp, troopCount, regenRatePerSec, maxTroops };
 }
 
 function parseRules(value: Record<string, unknown>): LevelRules {
@@ -69,6 +73,8 @@ function parseRules(value: Record<string, unknown>): LevelRules {
       value.maxOutgoingLinksPerTower,
       "rules.maxOutgoingLinksPerTower",
     ),
+    collisionDistancePx: asNumber(value.collisionDistancePx, "rules.collisionDistancePx"),
+    captureSeedTroops: asNumber(value.captureSeedTroops, "rules.captureSeedTroops"),
     sendRatePerSec: asNumber(value.sendRatePerSec, "rules.sendRatePerSec"),
     defaultUnit: {
       speedPxPerSec: asNumber(
