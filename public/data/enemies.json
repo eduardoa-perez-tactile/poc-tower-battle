@@ -1,0 +1,245 @@
+{
+  "archetypes": [
+    {
+      "id": "swarm",
+      "name": "Swarm",
+      "baseStats": {
+        "hp": 0.65,
+        "speed": 165,
+        "damage": 0.8,
+        "attackRange": 12,
+        "attackCooldown": 0.4
+      },
+      "tags": ["swarm"],
+      "spawnCost": 1,
+      "spawnWeight": 4.6,
+      "visuals": {
+        "icon": "S",
+        "color": "#f25f5c",
+        "sizeScale": 0.78,
+        "vfxHook": "vfx_swarm_trail",
+        "sfxHook": "sfx_swarm_strike"
+      },
+      "eliteDrop": {
+        "gold": 8,
+        "temporaryBuffId": "adrenaline"
+      }
+    },
+    {
+      "id": "tank",
+      "name": "Tank",
+      "baseStats": {
+        "hp": 4.8,
+        "speed": 74,
+        "damage": 2.2,
+        "attackRange": 14,
+        "attackCooldown": 0.95
+      },
+      "tags": ["tank"],
+      "spawnCost": 5,
+      "spawnWeight": 1.5,
+      "visuals": {
+        "icon": "T",
+        "color": "#9d8189",
+        "sizeScale": 1.22,
+        "vfxHook": "vfx_tank_hit",
+        "sfxHook": "sfx_tank_impact"
+      },
+      "eliteDrop": {
+        "gold": 12,
+        "temporaryBuffId": "fortify"
+      }
+    },
+    {
+      "id": "ranged",
+      "name": "Ranged",
+      "baseStats": {
+        "hp": 1.3,
+        "speed": 122,
+        "damage": 1.6,
+        "attackRange": 150,
+        "attackCooldown": 1.1
+      },
+      "tags": ["ranged"],
+      "spawnCost": 3,
+      "spawnWeight": 2.3,
+      "behavior": {
+        "rangedStopToShoot": true
+      },
+      "visuals": {
+        "icon": "R",
+        "color": "#4ea8de",
+        "sizeScale": 0.95,
+        "vfxHook": "vfx_ranged_shot",
+        "sfxHook": "sfx_ranged_fire"
+      },
+      "eliteDrop": {
+        "gold": 10,
+        "temporaryBuffId": "focus"
+      }
+    },
+    {
+      "id": "shield",
+      "name": "Shield",
+      "baseStats": {
+        "hp": 2.8,
+        "speed": 105,
+        "damage": 1.1,
+        "attackRange": 14,
+        "attackCooldown": 0.8
+      },
+      "tags": ["shield"],
+      "spawnCost": 3,
+      "spawnWeight": 1.8,
+      "behavior": {
+        "shieldCycleSec": 3.2,
+        "shieldUptimeSec": 1.8
+      },
+      "visuals": {
+        "icon": "D",
+        "color": "#3a86ff",
+        "sizeScale": 1.02,
+        "vfxHook": "vfx_shield_pulse",
+        "sfxHook": "sfx_shield_ping"
+      },
+      "eliteDrop": {
+        "gold": 10,
+        "temporaryBuffId": "bulwark"
+      }
+    },
+    {
+      "id": "splitter",
+      "name": "Splitter",
+      "baseStats": {
+        "hp": 1.7,
+        "speed": 112,
+        "damage": 1.4,
+        "attackRange": 14,
+        "attackCooldown": 0.7
+      },
+      "tags": ["splitter"],
+      "spawnCost": 4,
+      "spawnWeight": 1.4,
+      "behavior": {
+        "splitChildArchetypeId": "splitling",
+        "splitChildCount": 2
+      },
+      "visuals": {
+        "icon": "P",
+        "color": "#f4a261",
+        "sizeScale": 1.0,
+        "vfxHook": "vfx_split_burst",
+        "sfxHook": "sfx_split_pop"
+      },
+      "eliteDrop": {
+        "gold": 11,
+        "temporaryBuffId": "duplication"
+      }
+    },
+    {
+      "id": "support",
+      "name": "Support",
+      "baseStats": {
+        "hp": 1.4,
+        "speed": 98,
+        "damage": 0.7,
+        "attackRange": 14,
+        "attackCooldown": 0.9
+      },
+      "tags": ["support"],
+      "spawnCost": 3,
+      "spawnWeight": 1.6,
+      "behavior": {
+        "supportAuraRadius": 135,
+        "supportSpeedMultiplier": 1.2,
+        "supportArmorMultiplier": 1.24
+      },
+      "visuals": {
+        "icon": "U",
+        "color": "#80ed99",
+        "sizeScale": 0.92,
+        "vfxHook": "vfx_support_aura",
+        "sfxHook": "sfx_support_hum"
+      },
+      "eliteDrop": {
+        "gold": 9,
+        "temporaryBuffId": "inspiration"
+      }
+    },
+    {
+      "id": "splitling",
+      "name": "Splitling",
+      "baseStats": {
+        "hp": 0.8,
+        "speed": 150,
+        "damage": 0.75,
+        "attackRange": 12,
+        "attackCooldown": 0.45
+      },
+      "tags": ["swarm"],
+      "spawnCost": 1,
+      "spawnWeight": 0,
+      "visuals": {
+        "icon": "s",
+        "color": "#ffb703",
+        "sizeScale": 0.64,
+        "vfxHook": "vfx_splitling_trail",
+        "sfxHook": "sfx_splitling"
+      },
+      "eliteDrop": {
+        "gold": 6,
+        "temporaryBuffId": "adrenaline"
+      }
+    },
+    {
+      "id": "miniboss_brute",
+      "name": "Mini-boss Brute",
+      "baseStats": {
+        "hp": 20,
+        "speed": 82,
+        "damage": 3.8,
+        "attackRange": 18,
+        "attackCooldown": 1.15
+      },
+      "tags": ["miniboss", "tank"],
+      "spawnCost": 16,
+      "spawnWeight": 0,
+      "visuals": {
+        "icon": "M",
+        "color": "#ff6b35",
+        "sizeScale": 1.55,
+        "vfxHook": "vfx_miniboss_step",
+        "sfxHook": "sfx_miniboss"
+      },
+      "eliteDrop": {
+        "gold": 18,
+        "temporaryBuffId": "overdrive"
+      }
+    },
+    {
+      "id": "overseer_boss",
+      "name": "Overseer",
+      "baseStats": {
+        "hp": 120,
+        "speed": 75,
+        "damage": 4.4,
+        "attackRange": 28,
+        "attackCooldown": 1.2
+      },
+      "tags": ["boss", "tank"],
+      "spawnCost": 60,
+      "spawnWeight": 0,
+      "visuals": {
+        "icon": "B",
+        "color": "#c77dff",
+        "sizeScale": 2.15,
+        "vfxHook": "vfx_boss_core",
+        "sfxHook": "sfx_boss_roar"
+      },
+      "eliteDrop": {
+        "gold": 60,
+        "temporaryBuffId": "legendary"
+      }
+    }
+  ]
+}

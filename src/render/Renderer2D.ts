@@ -1,5 +1,6 @@
 import type { DragPreview } from "../input/InputController";
 import { TOWER_RADIUS_PX, type Link, type Owner, type Vec2, type World } from "../sim/World";
+import type { WaveRenderState } from "../waves/WaveDirector";
 
 const OWNER_COLORS: Record<Owner, string> = {
   player: "#2a9d8f",
@@ -28,7 +29,13 @@ export class Renderer2D {
     this.ctx = ctx;
   }
 
-  render(world: World, preview: DragPreview | null, overlayText: string | null): void {
+  render(
+    world: World,
+    preview: DragPreview | null,
+    overlayText: string | null,
+    waveRenderState: WaveRenderState | null,
+    bossBar: { name: string; hp01: number } | null,
+  ): void {
     const viewport = this.getViewportSize();
     this.ctx.clearRect(0, 0, viewport.width, viewport.height);
 
@@ -36,10 +43,14 @@ export class Renderer2D {
       this.drawLink(link);
     }
 
+    if (waveRenderState) {
+      this.drawTelegraphs(waveRenderState);
+    }
+
     for (const packet of world.packets) {
       const link = world.getLinkById(packet.linkId);
       if (link) {
-        this.drawPacket(link, packet.progress01, packet.owner, packet.count);
+        this.drawPacket(link, packet.progress01, packet.owner, packet.count, packet.sizeScale, packet.colorTint, packet.isElite, packet.icon);
       }
     }
 
@@ -53,6 +64,10 @@ export class Renderer2D {
 
     if (overlayText) {
       this.drawOverlay(overlayText);
+    }
+
+    if (bossBar) {
+      this.drawBossBar(bossBar.name, bossBar.hp01);
     }
   }
 
@@ -84,6 +99,10 @@ export class Renderer2D {
   }
 
   private drawLink(link: Link): void {
+    if (link.hideInRender) {
+      return;
+    }
+
     if (link.points.length < 2) {
       return;
     }
@@ -118,19 +137,29 @@ export class Renderer2D {
     this.ctx.restore();
   }
 
-  private drawPacket(link: Link, progress01: number, owner: Owner, count: number): void {
+  private drawPacket(
+    link: Link,
+    progress01: number,
+    owner: Owner,
+    count: number,
+    sizeScale: number,
+    colorTint: string,
+    isElite: boolean,
+    icon: string,
+  ): void {
     const position = samplePointOnPolyline(link.points, progress01);
     if (!position) {
       return;
     }
 
     this.ctx.save();
-    this.ctx.fillStyle = PACKET_COLORS[owner];
+    const packetRadius = Math.max(4, 8 * sizeScale);
+    this.ctx.fillStyle = colorTint || PACKET_COLORS[owner];
     this.ctx.beginPath();
-    this.ctx.arc(position.x, position.y, 8, 0, Math.PI * 2);
+    this.ctx.arc(position.x, position.y, packetRadius, 0, Math.PI * 2);
     this.ctx.fill();
 
-    this.ctx.strokeStyle = "#0b0c0d";
+    this.ctx.strokeStyle = isElite ? "#ffd166" : "#0b0c0d";
     this.ctx.lineWidth = 1.5;
     this.ctx.stroke();
 
@@ -139,6 +168,57 @@ export class Renderer2D {
     this.ctx.textAlign = "center";
     this.ctx.textBaseline = "middle";
     this.ctx.fillText(String(Math.max(0, Math.round(count))), position.x, position.y - 14);
+    if (icon) {
+      this.ctx.font = "bold 10px Arial";
+      this.ctx.fillText(icon, position.x, position.y + 0.5);
+    }
+    this.ctx.restore();
+  }
+
+  private drawTelegraphs(waveRenderState: WaveRenderState): void {
+    for (const marker of waveRenderState.telegraphs) {
+      const windupDuration = Math.max(0.01, marker.triggerAtSec - marker.windupStartSec);
+      const windupT = clamp01((performance.now() / 1000 - marker.windupStartSec) / windupDuration);
+      this.ctx.save();
+      this.ctx.strokeStyle = marker.color;
+      this.ctx.lineWidth = 3;
+      this.ctx.setLineDash([8, 6]);
+      this.ctx.beginPath();
+      this.ctx.arc(marker.x, marker.y, marker.radiusPx * (0.85 + windupT * 0.15), 0, Math.PI * 2);
+      this.ctx.stroke();
+
+      this.ctx.fillStyle = marker.color;
+      this.ctx.font = "bold 12px Arial";
+      this.ctx.textAlign = "center";
+      this.ctx.textBaseline = "middle";
+      this.ctx.fillText(marker.label, marker.x, marker.y);
+      this.ctx.restore();
+    }
+  }
+
+  private drawBossBar(name: string, hp01: number): void {
+    const viewport = this.getViewportSize();
+    const width = Math.min(520, viewport.width - 80);
+    const height = 22;
+    const x = Math.round((viewport.width - width) / 2);
+    const y = 12;
+
+    this.ctx.save();
+    this.ctx.fillStyle = "rgba(0, 0, 0, 0.55)";
+    this.ctx.fillRect(x, y, width, height);
+
+    this.ctx.fillStyle = "#c77dff";
+    this.ctx.fillRect(x + 2, y + 2, Math.max(0, (width - 4) * clamp01(hp01)), height - 4);
+
+    this.ctx.strokeStyle = "#f8f9fa";
+    this.ctx.lineWidth = 1.5;
+    this.ctx.strokeRect(x, y, width, height);
+
+    this.ctx.fillStyle = "#f8f9fa";
+    this.ctx.font = "bold 12px Arial";
+    this.ctx.textAlign = "center";
+    this.ctx.textBaseline = "middle";
+    this.ctx.fillText(`${name} ${Math.round(clamp01(hp01) * 100)}%`, x + width / 2, y + height / 2 + 0.5);
     this.ctx.restore();
   }
 
@@ -205,6 +285,10 @@ export class Renderer2D {
     }
     return { width: this.canvas.width, height: this.canvas.height };
   }
+}
+
+function clamp01(value: number): number {
+  return Math.max(0, Math.min(1, value));
 }
 
 function samplePointOnPolyline(points: Vec2[], progress01: number): Vec2 | null {

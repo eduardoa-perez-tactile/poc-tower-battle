@@ -1,0 +1,60 @@
+{
+  "totalWaveCount": 6,
+  "scaling": {
+    "hpPerWave": 0.12,
+    "damagePerWave": 0.1,
+    "speedPerWave": 0.03,
+    "hpPerDifficultyTier": 0.08,
+    "damagePerDifficultyTier": 0.06
+  },
+  "goldRewards": {
+    "baseKill": 2,
+    "tagBonuses": {
+      "swarm": 1,
+      "tank": 2,
+      "ranged": 2,
+      "shield": 2,
+      "splitter": 3,
+      "support": 2,
+      "miniboss": 10,
+      "boss": 30
+    },
+    "eliteBonus": 8,
+    "waveClearBase": 16,
+    "waveClearPerWave": 6
+  },
+  "elite": {
+    "hpMultiplier": 2,
+    "damageMultiplier": 1.45,
+    "sizeScaleMultiplier": 1.3,
+    "colorTint": "#ffd166",
+    "defaultDropGold": 10,
+    "temporaryBuffId": "overdrive",
+    "temporaryBuffDurationSec": 5,
+    "temporaryBuffDamageMultiplier": 1.25,
+    "temporaryBuffSpeedMultiplier": 1.2
+  },
+  "boss": {
+    "id": "overseer_boss",
+    "finalWaveIndex": 6,
+    "minibossStartWave": 3,
+    "minibossArchetypeId": "miniboss_brute",
+    "hpMultiplier": 1.2,
+    "damageMultiplier": 1.15,
+    "enrageThreshold": 0.3,
+    "enrageSpeedMultiplier": 1.45,
+    "enrageDamageMultiplier": 1.65,
+    "slam": {
+      "cooldownSec": 7,
+      "windupSec": 1.2,
+      "radiusPx": 130,
+      "towerDamage": 22
+    },
+    "summon": {
+      "cooldownSec": 11,
+      "windupSec": 1.0,
+      "enemyId": "swarm",
+      "count": 7
+    }
+  }
+}

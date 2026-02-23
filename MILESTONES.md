@@ -26,3 +26,8 @@
 - Run-based structure across multiple missions
 - Persistent Glory currency + upgrade tree
 - Continue run after reload + summary screens
+
+## M7 Enemy & wave variety
+- Data-driven enemy archetypes (swarm/tank/ranged/shield/splitter/support) + elites
+- Deterministic handcrafted/procedural wave generation with wave modifiers
+- Mini-boss + boss mechanics (slam/summon/enrage), telegraphs, and mission telemetry UI

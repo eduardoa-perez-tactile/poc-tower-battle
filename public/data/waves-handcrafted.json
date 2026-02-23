@@ -1,0 +1,24 @@
+{
+  "handcraftedWaves": [
+    {
+      "waveIndex": 1,
+      "modifiers": ["swarm-rush"],
+      "entries": [
+        { "timeOffsetSec": 0.0, "enemyId": "swarm", "count": 10, "eliteChance": 0.04, "laneIndex": 0 },
+        { "timeOffsetSec": 1.0, "enemyId": "swarm", "count": 10, "eliteChance": 0.04, "laneIndex": 1 },
+        { "timeOffsetSec": 2.0, "enemyId": "support", "count": 3, "eliteChance": 0.05, "laneIndex": 0 },
+        { "timeOffsetSec": 3.4, "enemyId": "splitter", "count": 4, "eliteChance": 0.05, "laneIndex": 1 }
+      ]
+    },
+    {
+      "waveIndex": 2,
+      "modifiers": ["armored"],
+      "entries": [
+        { "timeOffsetSec": 0.0, "enemyId": "tank", "count": 5, "eliteChance": 0.06, "laneIndex": 0 },
+        { "timeOffsetSec": 1.2, "enemyId": "shield", "count": 6, "eliteChance": 0.08, "laneIndex": 1 },
+        { "timeOffsetSec": 2.2, "enemyId": "ranged", "count": 6, "eliteChance": 0.08, "laneIndex": 0 },
+        { "timeOffsetSec": 3.6, "enemyId": "support", "count": 3, "eliteChance": 0.1, "laneIndex": 1 }
+      ]
+    }
+  ]
+}

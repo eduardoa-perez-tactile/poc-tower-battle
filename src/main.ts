@@ -30,6 +30,8 @@ import {
   saveRunState,
 } from "./save/Storage";
 import { World } from "./sim/World";
+import { loadWaveContent } from "./waves/Definitions";
+import { WaveDirector } from "./waves/WaveDirector";
 
 type Screen = "main-menu" | "meta" | "run-map" | "mission" | "run-summary";
 
@@ -60,9 +62,10 @@ async function bootstrap(): Promise<void> {
   window.addEventListener("resize", resize);
   resize();
 
-  const [missionTemplates, upgradeCatalog] = await Promise.all([
+  const [missionTemplates, upgradeCatalog, waveContent] = await Promise.all([
     loadMissionCatalog(),
     loadMetaUpgradeCatalog(),
+    loadWaveContent(),
   ]);
 
   const app: AppState = {
@@ -94,7 +97,16 @@ async function bootstrap(): Promise<void> {
       finalizeRun,
       closeSummaryToMenu,
     );
-    renderDebugPanel(debugPanel, app, addDebugGlory, resetMeta, forceMissionWin, forceMissionLose);
+    renderDebugPanel(
+      debugPanel,
+      app,
+      addDebugGlory,
+      resetMeta,
+      forceMissionWin,
+      forceMissionLose,
+      debugSpawnEnemy,
+      debugStartWave,
+    );
     syncRestartButton(restartBtn, app, restartCurrentMission);
   };
 
@@ -163,10 +175,14 @@ async function bootstrap(): Promise<void> {
       tunedLevel.rules.maxOutgoingLinksPerTower,
       tunedLevel.initialLinks,
     );
+    const waveDirector = new WaveDirector(world, waveContent, {
+      runSeed: app.runState.seed + app.runState.currentMissionIndex * 911,
+      missionDifficulty: mission.difficulty * app.runState.runModifiers.difficulty,
+    });
 
     const inputController = new InputController(canvas, world);
     app.inputController = inputController;
-    app.game = new Game(world, renderer, inputController, tunedLevel.rules, tunedLevel.ai);
+    app.game = new Game(world, renderer, inputController, tunedLevel.rules, tunedLevel.ai, waveDirector);
     app.missionResult = null;
     app.missionReward = null;
     app.screen = "mission";
@@ -308,6 +324,18 @@ async function bootstrap(): Promise<void> {
     }
   };
 
+  const debugSpawnEnemy = (enemyId: string, elite: boolean): void => {
+    if (app.game && app.screen === "mission" && app.missionResult === null) {
+      app.game.debugSpawnEnemy(enemyId, elite);
+    }
+  };
+
+  const debugStartWave = (waveIndex: number): void => {
+    if (app.game && app.screen === "mission" && app.missionResult === null) {
+      app.game.debugStartWave(waveIndex);
+    }
+  };
+
   const stopMission = (): void => {
     app.inputController?.dispose();
     app.inputController = null;
@@ -345,6 +373,7 @@ async function bootstrap(): Promise<void> {
     if (app.game) {
       app.game.frame(dtSec);
       handleMissionResult();
+      syncMissionHud(app);
     }
 
     requestAnimationFrame(loop);
@@ -484,7 +513,7 @@ function renderCurrentScreen(
     hud.style.position = "absolute";
     hud.style.right = "12px";
     hud.style.bottom = "12px";
-    hud.style.maxWidth = "340px";
+    hud.style.maxWidth = "390px";
 
     if (app.runState) {
       const mission = getCurrentMission(app.runState);
@@ -497,6 +526,32 @@ function renderCurrentScreen(
       }
     }
     hud.appendChild(createParagraph("Drag from player towers to direct links."));
+    hud.appendChild(createParagraph("Wave telemetry updates in real time."));
+
+    const waveStatus = createParagraph("Wave: --");
+    waveStatus.id = "missionWaveStatus";
+    hud.appendChild(waveStatus);
+
+    const modifiers = createParagraph("Modifiers: --");
+    modifiers.id = "missionWaveModifiers";
+    hud.appendChild(modifiers);
+
+    const gold = createParagraph("Gold: 0");
+    gold.id = "missionWaveGold";
+    hud.appendChild(gold);
+
+    const buff = createParagraph("Buff: none");
+    buff.id = "missionWaveBuff";
+    hud.appendChild(buff);
+
+    const previewLabel = createParagraph("Upcoming:");
+    previewLabel.style.marginBottom = "4px";
+    hud.appendChild(previewLabel);
+    const preview = document.createElement("div");
+    preview.id = "missionWavePreview";
+    preview.className = "list";
+    preview.style.gap = "4px";
+    hud.appendChild(preview);
 
     if (app.missionResult) {
       const resultPanel = createPanel(app.missionResult === "win" ? "Mission Victory" : "Mission Defeat");
@@ -560,6 +615,66 @@ function renderCurrentScreen(
   }
 }
 
+function syncMissionHud(app: AppState): void {
+  if (app.screen !== "mission" || !app.game || app.missionResult) {
+    return;
+  }
+
+  const telemetry = app.game.getWaveTelemetry();
+  if (!telemetry) {
+    return;
+  }
+
+  const waveStatus = document.getElementById("missionWaveStatus");
+  if (waveStatus instanceof HTMLParagraphElement) {
+    waveStatus.textContent = `Wave: ${telemetry.currentWaveIndex}/${telemetry.totalWaveCount}`;
+  }
+
+  const modifiers = document.getElementById("missionWaveModifiers");
+  if (modifiers instanceof HTMLParagraphElement) {
+    modifiers.textContent =
+      telemetry.activeModifierNames.length > 0
+        ? `Modifiers: ${telemetry.activeModifierNames.join(", ")}`
+        : "Modifiers: none";
+  }
+
+  const gold = document.getElementById("missionWaveGold");
+  if (gold instanceof HTMLParagraphElement) {
+    gold.textContent = `Gold: ${telemetry.missionGold}`;
+  }
+
+  const buff = document.getElementById("missionWaveBuff");
+  if (buff instanceof HTMLParagraphElement) {
+    buff.textContent = telemetry.activeBuffId
+      ? `Buff: ${telemetry.activeBuffId} (${telemetry.activeBuffRemainingSec.toFixed(1)}s)`
+      : "Buff: none";
+  }
+
+  const preview = document.getElementById("missionWavePreview");
+  if (preview instanceof HTMLDivElement) {
+    const signature = telemetry.nextWavePreview
+      .map((item) => `${item.enemyId}:${item.count}`)
+      .join("|");
+    if (preview.dataset.signature !== signature) {
+      preview.dataset.signature = signature;
+      preview.replaceChildren();
+
+      if (telemetry.nextWavePreview.length === 0) {
+        const empty = createParagraph("No upcoming spawns.");
+        empty.style.opacity = "0.8";
+        preview.appendChild(empty);
+        return;
+      }
+
+      for (const item of telemetry.nextWavePreview) {
+        const row = createParagraph(`${item.icon} ${item.enemyId} x${item.count}`);
+        row.style.margin = "2px 0";
+        preview.appendChild(row);
+      }
+    }
+  }
+}
+
 function renderDebugPanel(
   debugPanel: HTMLDivElement,
   app: AppState,
@@ -567,6 +682,8 @@ function renderDebugPanel(
   resetMeta: () => void,
   forceMissionWin: () => void,
   forceMissionLose: () => void,
+  debugSpawnEnemy: (enemyId: string, elite: boolean) => void,
+  debugStartWave: (waveIndex: number) => void,
 ): void {
   debugPanel.replaceChildren();
   if (!DEBUG_TOOLS_ENABLED) {
@@ -582,6 +699,66 @@ function renderDebugPanel(
   const forceLoseBtn = createButton("Debug: Mission Lose", forceMissionLose);
   forceLoseBtn.disabled = !canForceEnd;
   debugPanel.appendChild(forceLoseBtn);
+
+  if (!app.game || app.screen !== "mission" || app.missionResult !== null) {
+    return;
+  }
+
+  const enemyIds = app.game.getDebugEnemyIds();
+  if (enemyIds.length > 0) {
+    const spawnContainer = document.createElement("div");
+    spawnContainer.className = "panel";
+    spawnContainer.style.padding = "8px";
+    spawnContainer.style.display = "grid";
+    spawnContainer.style.gap = "6px";
+
+    const select = document.createElement("select");
+    for (const enemyId of enemyIds) {
+      const option = document.createElement("option");
+      option.value = enemyId;
+      option.textContent = enemyId;
+      select.appendChild(option);
+    }
+
+    const eliteLabel = document.createElement("label");
+    eliteLabel.style.display = "flex";
+    eliteLabel.style.gap = "6px";
+    eliteLabel.style.alignItems = "center";
+    const eliteCheckbox = document.createElement("input");
+    eliteCheckbox.type = "checkbox";
+    eliteLabel.append(eliteCheckbox, document.createTextNode("Elite"));
+
+    const spawnBtn = createButton("Debug: Spawn Enemy", () => {
+      debugSpawnEnemy(select.value, eliteCheckbox.checked);
+    });
+
+    spawnContainer.append(select, eliteLabel, spawnBtn);
+    debugPanel.appendChild(spawnContainer);
+  }
+
+  const maxWaveIndex = app.game.getDebugMaxWaveIndex();
+  if (maxWaveIndex > 0) {
+    const waveContainer = document.createElement("div");
+    waveContainer.className = "panel";
+    waveContainer.style.padding = "8px";
+    waveContainer.style.display = "grid";
+    waveContainer.style.gap = "6px";
+
+    const waveSelect = document.createElement("select");
+    for (let i = 1; i <= maxWaveIndex; i += 1) {
+      const option = document.createElement("option");
+      option.value = String(i);
+      option.textContent = `Wave ${i}`;
+      waveSelect.appendChild(option);
+    }
+
+    const waveBtn = createButton("Debug: Start Wave", () => {
+      debugStartWave(Number.parseInt(waveSelect.value, 10));
+    });
+
+    waveContainer.append(waveSelect, waveBtn);
+    debugPanel.appendChild(waveContainer);
+  }
 }
 
 function syncRestartButton(

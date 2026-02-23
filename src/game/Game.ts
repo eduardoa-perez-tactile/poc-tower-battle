@@ -2,6 +2,7 @@ import { InputController } from "../input/InputController";
 import { Renderer2D } from "../render/Renderer2D";
 import { updateWorld, type SimulationRules } from "../sim/Simulation";
 import { World } from "../sim/World";
+import { WaveDirector, type MissionWaveTelemetry } from "../waves/WaveDirector";
 
 const FIXED_STEP_SEC = 1 / 60;
 const MAX_FRAME_DT_SEC = 0.25;
@@ -20,6 +21,7 @@ export class Game {
   private readonly inputController: InputController;
   private readonly rules: SimulationRules;
   private readonly aiRules: GameAiRules;
+  private readonly waveDirector: WaveDirector | null;
   private accumulatorSec: number;
   private aiAccumulatorSec: number;
   private matchResult: MatchResult;
@@ -30,12 +32,14 @@ export class Game {
     inputController: InputController,
     rules: SimulationRules,
     aiRules: GameAiRules,
+    waveDirector: WaveDirector | null = null,
   ) {
     this.world = world;
     this.renderer = renderer;
     this.inputController = inputController;
     this.rules = rules;
     this.aiRules = aiRules;
+    this.waveDirector = waveDirector;
     this.accumulatorSec = 0;
     this.aiAccumulatorSec = 0;
     this.matchResult = null;
@@ -56,6 +60,26 @@ export class Game {
     this.inputController.setEnabled(false);
   }
 
+  debugSpawnEnemy(archetypeId: string, elite: boolean): void {
+    this.waveDirector?.debugSpawnEnemy(archetypeId, elite);
+  }
+
+  debugStartWave(waveIndex: number): void {
+    this.waveDirector?.debugStartWave(waveIndex);
+  }
+
+  getWaveTelemetry(): MissionWaveTelemetry | null {
+    return this.waveDirector?.getTelemetry() ?? null;
+  }
+
+  getDebugEnemyIds(): string[] {
+    return this.waveDirector?.getDebugEnemyIds() ?? [];
+  }
+
+  getDebugMaxWaveIndex(): number {
+    return this.waveDirector?.getDebugMaxWaveIndex() ?? 0;
+  }
+
   private update(dtSec: number): void {
     if (this.matchResult) {
       return;
@@ -66,7 +90,9 @@ export class Game {
 
     while (this.accumulatorSec >= FIXED_STEP_SEC) {
       this.accumulatorSec -= FIXED_STEP_SEC;
+      this.waveDirector?.updatePreStep(FIXED_STEP_SEC);
       updateWorld(this.world, FIXED_STEP_SEC, this.rules);
+      this.waveDirector?.updatePostStep(FIXED_STEP_SEC);
       this.aiAccumulatorSec += FIXED_STEP_SEC;
       this.runAiIfReady();
       this.evaluateMatchResult();
@@ -80,7 +106,21 @@ export class Game {
 
   private render(): void {
     const overlayText = this.matchResult === "win" ? "YOU WIN" : this.matchResult === "lose" ? "YOU LOSE" : null;
-    this.renderer.render(this.world, this.inputController.getPreviewLine(), overlayText);
+    const waveTelemetry = this.waveDirector?.getTelemetry() ?? null;
+    const bossBar =
+      waveTelemetry && waveTelemetry.bossName
+        ? {
+            name: waveTelemetry.bossName,
+            hp01: waveTelemetry.bossHp01,
+          }
+        : null;
+    this.renderer.render(
+      this.world,
+      this.inputController.getPreviewLine(),
+      overlayText,
+      this.waveDirector?.getRenderState() ?? null,
+      bossBar,
+    );
   }
 
   private runAiIfReady(): void {
@@ -152,6 +192,13 @@ export class Game {
     }
 
     if (enemyTowerCount === 0) {
+      if (!this.waveDirector) {
+        this.matchResult = "win";
+        return;
+      }
+    }
+
+    if (this.waveDirector && this.waveDirector.isFinished()) {
       this.matchResult = "win";
       return;
     }

@@ -1,0 +1,71 @@
+{
+  "modifiers": [
+    {
+      "id": "double-speed",
+      "name": "Double Speed",
+      "description": "All enemies move twice as fast.",
+      "effects": {
+        "speedMultiplier": 2,
+        "spawnRateMultiplier": 1.2
+      }
+    },
+    {
+      "id": "armored",
+      "name": "Armored",
+      "description": "Enemies gain extra armor.",
+      "effects": {
+        "armorMultiplier": 1.35,
+        "tagWeightMultipliers": {
+          "tank": 1.4,
+          "shield": 1.6
+        }
+      }
+    },
+    {
+      "id": "ranged-heavy",
+      "name": "Ranged Heavy",
+      "description": "Wave composition favors ranged attackers.",
+      "effects": {
+        "tagWeightMultipliers": {
+          "ranged": 3,
+          "support": 1.35
+        },
+        "spawnRateMultiplier": 0.9
+      }
+    },
+    {
+      "id": "elite-wave",
+      "name": "Elite Wave",
+      "description": "Most enemies have elite upgrades.",
+      "effects": {
+        "eliteChanceBonus": 0.4,
+        "spawnRateMultiplier": 0.9
+      }
+    },
+    {
+      "id": "swarm-rush",
+      "name": "Swarm Rush",
+      "description": "Rapid low-cost swarms flood lanes.",
+      "effects": {
+        "spawnRateMultiplier": 1.6,
+        "tagWeightMultipliers": {
+          "swarm": 3.5,
+          "splitter": 1.5
+        }
+      }
+    },
+    {
+      "id": "mini-boss-escort",
+      "name": "Mini-boss Escort",
+      "description": "A mini-boss arrives with supporting units.",
+      "effects": {
+        "forceMiniBossEscort": true,
+        "tagWeightMultipliers": {
+          "support": 2,
+          "tank": 1.2
+        },
+        "spawnRateMultiplier": 0.85
+      }
+    }
+  ]
+}
