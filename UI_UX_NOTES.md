@@ -5,6 +5,23 @@
 - Current renderer uses 2D world-space in canvas pixels, so projection maps `world.x/world.y` directly into viewport coordinates via `canvas.getBoundingClientRect()`.
 - `src/ui/WorldTooltipOverlay.ts` applies viewport clamping and above/below flipping, then smooths position in RAF by updating DOM `transform` (no per-frame React/state updates).
 
+## Territory control mission HUD
+- Mission HUD includes a "Tower Selection" card in `src/main.ts`.
+- Synced DOM ids:
+- `missionSelectedTower`
+- `missionClusterSize`
+- `missionClusterBonusRegen`
+- `missionClusterBonusArmor`
+- `missionClusterBonusVision`
+- Selected tower id is provided by `InputController.getSelectedTowerId()`.
+
+## Territory visual indicators
+- Renderer draws cluster feedback in `src/render/Renderer2D.ts`.
+- Cluster `3+`: faint green ring.
+- Cluster `5+`: shield marker above tower.
+- Cluster `8+`: expanded vision circle.
+- Indicators are drawn in canvas render pass (no React rerender path).
+
 ## Adding new tooltip fields
 - Tower tooltip content is assembled in `WorldTooltipOverlay.showTowerTooltip()`.
 - Enemy tooltip content is assembled in `WorldTooltipOverlay.showEnemyTooltip()`.

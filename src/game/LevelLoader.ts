@@ -77,6 +77,10 @@ function parseTower(value: unknown, index: number): Tower {
   );
   const maxTroops = asNumber(value.maxTroops, `towers[${index}].maxTroops`);
   const archetype = parseTowerArchetype(value.archetype, TowerArchetype.STRONGHOLD);
+  const baseVision =
+    asOptionalNumber(value.baseVision, `towers[${index}].baseVision`) ??
+    asOptionalNumber(value.visionRadius, `towers[${index}].visionRadius`) ??
+    170;
 
   return {
     id,
@@ -88,6 +92,14 @@ function parseTower(value: unknown, index: number): Tower {
     troops,
     maxTroops,
     regenRate,
+    baseRegen: regenRate,
+    effectiveRegen: regenRate,
+    baseVision,
+    effectiveVision: baseVision,
+    territoryClusterSize: 0,
+    territoryRegenBonusPct: 0,
+    territoryArmorBonusPct: 0,
+    territoryVisionBonusPct: 0,
     baseMaxTroops: maxTroops,
     baseRegenRate: regenRate,
     archetype,

@@ -6,14 +6,15 @@
 - Fixed-step simulation runs in `requestAnimationFrame` loop.
 
 ## Primary modules
-- `src/main.ts`: app bootstrap, menu/meta/run screens, mission orchestration, docs-aligned data loading, HUD sync.
+- `src/main.ts`: app bootstrap, menu/meta/run screens, mission orchestration, docs-aligned data loading, HUD sync (including selected tower cluster bonus panel).
 - `src/game/Game.ts`: fixed-step loop, AI decisions, skill dispatch, win/lose evaluation, renderer handoff.
 - `src/game/SkillManager.ts`: fixed-tick skill cooldowns, activation, temporary modifier state.
 - `src/game/LevelLoader.ts`: level JSON parsing and validation.
-- `src/sim/World.ts`: mutable world state for towers, links, packets, scripted links, packet pool.
-- `src/sim/Simulation.ts`: regen, sending, packet combat, movement, arrival/capture, modifier hooks.
-- `src/input/InputController.ts`: player drag-to-link interactions.
-- `src/render/Renderer2D.ts`: links/towers/packets rendering plus telegraphs and boss bar.
+- `src/sim/World.ts`: mutable world state for towers, links, packets, scripted links, packet pool, territory recompute hooks on link/ownership mutations.
+- `src/sim/Simulation.ts`: regen, sending, packet combat, movement, arrival/capture, modifier hooks, effective armor damage resolution.
+- `src/sim/TerritoryControl.ts`: connected-cluster graph computation and territory bonus application/reset.
+- `src/input/InputController.ts`: player drag-to-link interactions plus tower selection tracking.
+- `src/render/Renderer2D.ts`: links/towers/packets rendering plus telegraphs, boss bar, and territory cluster visual cues.
 
 ## Meta progression modules (M8)
 - `src/meta/MetaProgression.ts`:
@@ -53,6 +54,9 @@
 - enemy strategic AI
 - match result evaluation
 - `Renderer2D.render` draws world plus wave visuals.
+- Territory cluster recompute path:
+- Triggered directly by world state mutations (capture/link create/link destroy).
+- Not part of per-frame full-world scanning.
 
 ## Determinism and performance
 - Wave composition/schedule is generated from seeded RNG.
@@ -60,4 +64,5 @@
 - IDs are sorted before aggregation to avoid object-key-order dependence.
 - Run content gates are snapshotted at run start (`runUnlockSnapshot`) and used as explicit generation input.
 - Packet pooling is used to reduce allocation churn.
+- Territory cluster graph recomputation is event-driven to avoid per-frame overhead.
 - UI telemetry and skill HUD update via targeted DOM sync, not per-frame React rerenders.

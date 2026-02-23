@@ -3,6 +3,7 @@ import {
   TOWER_RADIUS_PX,
   type Link,
   type Owner,
+  type Tower,
   type UnitPacket,
   type Vec2,
   type World,
@@ -74,7 +75,7 @@ export class Renderer2D {
     }
 
     for (const tower of world.towers) {
-      this.drawTower(tower.x, tower.y, tower.owner, tower.troops, tower.id, tower.archetypeIcon);
+      this.drawTower(tower);
     }
 
     if (preview) {
@@ -90,14 +91,36 @@ export class Renderer2D {
     }
   }
 
-  private drawTower(
-    x: number,
-    y: number,
-    owner: Owner,
-    troops: number,
-    id: string,
-    archetypeIcon: string,
-  ): void {
+  private drawTower(tower: Tower): void {
+    const x = tower.x;
+    const y = tower.y;
+    const owner = tower.owner;
+    const troops = tower.troops;
+    const id = tower.id;
+    const archetypeIcon = tower.archetypeIcon;
+    const clusterSize = tower.territoryClusterSize;
+
+    if (owner === "player" && clusterSize >= 8) {
+      const visionRadius = Math.max(TOWER_RADIUS_PX + 10, tower.effectiveVision);
+      this.ctx.save();
+      this.ctx.beginPath();
+      this.ctx.strokeStyle = "rgba(124, 227, 160, 0.34)";
+      this.ctx.lineWidth = 1.5;
+      this.ctx.arc(x, y, visionRadius, 0, Math.PI * 2);
+      this.ctx.stroke();
+      this.ctx.restore();
+    }
+
+    if (owner === "player" && clusterSize >= 3) {
+      this.ctx.save();
+      this.ctx.beginPath();
+      this.ctx.strokeStyle = "rgba(107, 225, 132, 0.55)";
+      this.ctx.lineWidth = 3;
+      this.ctx.arc(x, y, TOWER_RADIUS_PX + 6, 0, Math.PI * 2);
+      this.ctx.stroke();
+      this.ctx.restore();
+    }
+
     this.ctx.beginPath();
     this.ctx.fillStyle = OWNER_COLORS[owner];
     this.ctx.arc(x, y, TOWER_RADIUS_PX, 0, Math.PI * 2);
@@ -127,6 +150,24 @@ export class Renderer2D {
       this.ctx.textAlign = "center";
       this.ctx.textBaseline = "middle";
       this.ctx.fillText(archetypeIcon, x + 16, y - 16.5);
+    }
+
+    if (owner === "player" && clusterSize >= 5) {
+      this.ctx.save();
+      this.ctx.fillStyle = "rgba(8, 14, 22, 0.82)";
+      this.ctx.strokeStyle = "rgba(168, 227, 191, 0.95)";
+      this.ctx.lineWidth = 1.5;
+      this.ctx.beginPath();
+      this.ctx.moveTo(x, y - TOWER_RADIUS_PX - 18);
+      this.ctx.lineTo(x + 8, y - TOWER_RADIUS_PX - 13);
+      this.ctx.lineTo(x + 6, y - TOWER_RADIUS_PX - 4);
+      this.ctx.lineTo(x, y - TOWER_RADIUS_PX + 2);
+      this.ctx.lineTo(x - 6, y - TOWER_RADIUS_PX - 4);
+      this.ctx.lineTo(x - 8, y - TOWER_RADIUS_PX - 13);
+      this.ctx.closePath();
+      this.ctx.fill();
+      this.ctx.stroke();
+      this.ctx.restore();
     }
   }
 

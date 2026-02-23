@@ -1,4 +1,5 @@
 import type { Link, Owner, Tower, UnitPacket, Vec2, World } from "./World";
+import { armorFromMultiplier, combineArmorMultiplicative } from "./TerritoryControl";
 
 export interface UnitRuleSet {
   speedPxPerSec: number;
@@ -67,6 +68,7 @@ export function updateWorld(
   sendTroops(world, dtSec, rules);
   preparePacketRuntime(world, dtSec, rules, temporaryModifiers);
   applySupportAuras(world);
+  refreshEffectivePacketArmor(world);
   resolvePacketCombat(world, dtSec, rules);
   movePackets(world, dtSec, rules);
   removeDestroyedPackets(world);
@@ -102,7 +104,8 @@ function regenTowers(world: World, dtSec: number, rules: SimulationRules): void 
 
     const auraBonus = auraBonuses.get(tower.id) ?? 0;
     const ownerRegenMul = tower.owner === "player" ? rules.playerRegenMultiplier : rules.enemyRegenMultiplier;
-    const regenRate = tower.regenRate * ownerRegenMul * (1 + auraBonus);
+    const effectiveRegen = Number.isFinite(tower.effectiveRegen) ? tower.effectiveRegen : tower.regenRate;
+    const regenRate = effectiveRegen * ownerRegenMul * (1 + auraBonus);
     const clampedRegenRate = clamp(regenRate, rules.regenMinPerSec, rules.regenMaxPerSec);
     tower.troops = Math.min(tower.maxTroops, tower.troops + clampedRegenRate * dtSec);
   }
@@ -186,6 +189,9 @@ function preparePacketRuntime(
     packet.tempSpeedMultiplier =
       packet.baseSpeedMultiplier * (packet.owner === "player" ? temporaryModifiers.playerPacketSpeedMul : 1);
     packet.tempArmorMultiplier = packet.baseArmorMultiplier;
+    if (!Number.isFinite(packet.baseArmor)) {
+      packet.baseArmor = armorFromMultiplier(packet.baseArmorMultiplier);
+    }
     packet.dpsPerUnit = packet.baseDpsPerUnit;
 
     if (packet.shieldCycleSec > 0 && packet.shieldUptimeSec > 0) {
@@ -194,6 +200,14 @@ function preparePacketRuntime(
         packet.tempArmorMultiplier *= rules.fightModel.shieldArmorUptimeMultiplier;
       }
     }
+  }
+}
+
+function refreshEffectivePacketArmor(world: World): void {
+  for (const packet of world.packets) {
+    const runtimeArmor = armorFromMultiplier(packet.tempArmorMultiplier);
+    const territoryArmor = Number.isFinite(packet.territoryArmorBonus) ? packet.territoryArmorBonus : 0;
+    packet.effectiveArmor = combineArmorMultiplicative([runtimeArmor, territoryArmor]);
   }
 }
 
@@ -287,8 +301,10 @@ function resolvePacketCombat(world: World, dtSec: number, rules: SimulationRules
         }
       }
 
-      const killsOnB = damageAtoB / positiveOrOne(packetB.hpPerUnit * packetB.tempArmorMultiplier);
-      const killsOnA = damageBtoA / positiveOrOne(packetA.hpPerUnit * packetA.tempArmorMultiplier);
+      const damageTakenByB = damageAtoB * (1 - packetB.effectiveArmor);
+      const damageTakenByA = damageBtoA * (1 - packetA.effectiveArmor);
+      const killsOnB = damageTakenByB / positiveOrOne(packetB.hpPerUnit);
+      const killsOnA = damageTakenByA / positiveOrOne(packetA.hpPerUnit);
 
       packetA.count = Math.max(0, packetA.count - killsOnA);
       packetB.count = Math.max(0, packetB.count - killsOnB);
@@ -586,6 +602,7 @@ function createPacket(
     caps.armorMin,
     caps.armorMax,
   );
+  const baseArmor = armorFromMultiplier(baseArmorMultiplier);
 
   const packet: UnitPacket = {
     id: `pkt-${packetSequence}`,
@@ -629,6 +646,9 @@ function createPacket(
     isBoss: false,
     bossEnraged: false,
     ageSec: 0,
+    baseArmor,
+    effectiveArmor: baseArmor,
+    territoryArmorBonus: 0,
     baseArmorMultiplier,
     tempSpeedMultiplier: 1,
     tempArmorMultiplier: 1,

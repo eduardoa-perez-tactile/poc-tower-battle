@@ -1,4 +1,5 @@
 import type { Owner, UnitPacket } from "../sim/World";
+import { armorFromMultiplier } from "../sim/TerritoryControl";
 import type { DifficultyTierId } from "../config/Difficulty";
 import type { EnemyArchetypeDefinition, LoadedWaveContent } from "./Definitions";
 
@@ -112,6 +113,9 @@ export class EnemyFactory {
       ? archetype.eliteDrop?.temporaryBuffId ?? this.content.balance.elite.temporaryBuffId
       : null;
 
+    const baseArmorMultiplier = 1;
+    const baseArmor = armorFromMultiplier(baseArmorMultiplier);
+
     return {
       id: request.packetId,
       owner: request.owner,
@@ -156,7 +160,10 @@ export class EnemyFactory {
       isBoss: request.isBoss,
       bossEnraged: false,
       ageSec: 0,
-      baseArmorMultiplier: 1,
+      baseArmor,
+      effectiveArmor: baseArmor,
+      territoryArmorBonus: 0,
+      baseArmorMultiplier,
       tempSpeedMultiplier: 1,
       tempArmorMultiplier: 1,
       sourceLane: 0,

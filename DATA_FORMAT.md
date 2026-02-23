@@ -35,6 +35,8 @@
 - `regenRate` (or legacy `regenRatePerSec`): number
 - `maxTroops`: number
 - `archetype`: tower archetype id
+- `baseVision` (optional): number
+- `visionRadius` (optional legacy alias): number
 
 ### Rules
 - `maxOutgoingLinksPerTower`: number
@@ -121,6 +123,34 @@
 ## Wave balance (`public/data/wave-balance.json`)
 - Root: `WaveBalanceConfig`
 - Includes: total wave count, scaling, rewards, elite config, boss config
+
+## Runtime-derived fields (not required in level JSON)
+
+### Tower runtime fields
+- `baseRegen`: base regen used for derived calculations
+- `effectiveRegen`: regen after territory bonus
+- `baseVision`: base tower vision radius
+- `effectiveVision`: vision radius after territory bonus
+- `territoryClusterSize`: connected cluster size for this tower
+- `territoryRegenBonusPct`: active regen bonus percent
+- `territoryArmorBonusPct`: active armor bonus percent (affects packets from this cluster)
+- `territoryVisionBonusPct`: active vision bonus percent
+
+### UnitPacket runtime fields
+- `baseArmor`: base armor value in `[0..1)` space
+- `effectiveArmor`: current armor after stacking runtime sources
+- `territoryArmorBonus`: territory-driven armor contribution
+
+## Territory bonus config (code)
+- `src/sim/TerritoryControl.ts` exports:
+- `TERRITORY_BONUSES = { regenThreshold, armorThreshold, visionThreshold, regenBonus, armorBonus, visionBonus }`
+- Defaults:
+- `regenThreshold: 3`
+- `armorThreshold: 5`
+- `visionThreshold: 8`
+- `regenBonus: 0.10`
+- `armorBonus: 0.15`
+- `visionBonus: 0.20`
 
 ## Local save schema (LocalStorage)
 - `tower-battle.meta-profile`: `MetaProfile`
