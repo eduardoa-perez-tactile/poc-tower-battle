@@ -9,6 +9,8 @@
         margin: 0;
         overflow: hidden;
         background: #111;
+        color: #f8f9fa;
+        font-family: Arial, sans-serif;
       }
       #ui {
         position: fixed;
@@ -19,6 +21,56 @@
       button {
         padding: 6px 10px;
         font-size: 14px;
+        cursor: pointer;
+      }
+      #screenRoot {
+        position: fixed;
+        inset: 0;
+        z-index: 12;
+        pointer-events: none;
+      }
+      .panel {
+        pointer-events: auto;
+        background: rgba(14, 17, 20, 0.9);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        border-radius: 8px;
+        padding: 14px;
+        max-width: 640px;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+      }
+      .centered {
+        position: absolute;
+        inset: 0;
+        display: grid;
+        place-items: center;
+      }
+      .list {
+        display: grid;
+        gap: 10px;
+      }
+      .meta-row {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 12px;
+        align-items: center;
+      }
+      .badge {
+        font-size: 12px;
+        background: rgba(255, 255, 255, 0.12);
+        border-radius: 999px;
+        padding: 2px 8px;
+        margin-left: 6px;
+      }
+      #debugPanel {
+        position: fixed;
+        right: 10px;
+        top: 10px;
+        z-index: 13;
+        display: grid;
+        gap: 8px;
+      }
+      #debugPanel button {
+        width: 160px;
       }
     </style>
   </head>
@@ -26,6 +78,8 @@
     <div id="ui">
       <button id="restartBtn">Restart</button>
     </div>
+    <div id="debugPanel"></div>
+    <div id="screenRoot"></div>
     <canvas id="gameCanvas"></canvas>
     <script type="module" src="/src/main.ts"></script>
   </body>

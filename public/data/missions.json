@@ -1,0 +1,10 @@
+{
+  "templates": [
+    { "id": "border-pass", "name": "Border Pass", "levelPath": "/levels/level01.json", "baseDifficulty": 0.95 },
+    { "id": "river-fort", "name": "River Fort", "levelPath": "/levels/level01.json", "baseDifficulty": 1.0 },
+    { "id": "dust-front", "name": "Dust Front", "levelPath": "/levels/level01.json", "baseDifficulty": 1.05 },
+    { "id": "sunken-ridge", "name": "Sunken Ridge", "levelPath": "/levels/level01.json", "baseDifficulty": 1.12 },
+    { "id": "iron-gate", "name": "Iron Gate", "levelPath": "/levels/level01.json", "baseDifficulty": 1.2 },
+    { "id": "crown-bastion", "name": "Crown Bastion", "levelPath": "/levels/level01.json", "baseDifficulty": 1.28 }
+  ]
+}

@@ -51,6 +51,11 @@ export class Game {
     return this.matchResult;
   }
 
+  debugForceResult(result: Exclude<MatchResult, null>): void {
+    this.matchResult = result;
+    this.inputController.setEnabled(false);
+  }
+
   private update(dtSec: number): void {
     if (this.matchResult) {
       return;

@@ -1,0 +1,96 @@
+{
+  "upgrades": [
+    {
+      "id": "supply-ledger",
+      "name": "Supply Ledger",
+      "description": "Start each run with additional gold reserves.",
+      "maxLevel": 5,
+      "baseCost": 30,
+      "costGrowth": 1.45,
+      "effectsPerLevel": { "startingGold": 35 }
+    },
+    {
+      "id": "war-bonds",
+      "name": "War Bonds",
+      "description": "Increase Glory income from missions and run summaries.",
+      "maxLevel": 4,
+      "baseCost": 45,
+      "costGrowth": 1.5,
+      "effectsPerLevel": { "goldEarnedPct": 0.08 }
+    },
+    {
+      "id": "heroic-drills",
+      "name": "Heroic Drills",
+      "description": "Improve hero strike efficiency for future hero systems.",
+      "maxLevel": 3,
+      "baseCost": 55,
+      "costGrowth": 1.5,
+      "effectsPerLevel": { "heroDamagePct": 0.1 }
+    },
+    {
+      "id": "fortified-walls",
+      "name": "Fortified Walls",
+      "description": "Increase starting HP of player-owned towers.",
+      "maxLevel": 4,
+      "baseCost": 60,
+      "costGrowth": 1.55,
+      "effectsPerLevel": { "towerHpPct": 0.06 }
+    },
+    {
+      "id": "command-uplink",
+      "name": "Command Uplink",
+      "description": "Slightly increase starting resources and defensive prep.",
+      "maxLevel": 3,
+      "baseCost": 70,
+      "costGrowth": 1.6,
+      "effectsPerLevel": { "startingGold": 20, "towerHpPct": 0.03 }
+    },
+    {
+      "id": "scavenger-crews",
+      "name": "Scavenger Crews",
+      "description": "Extra wartime salvage increases run rewards.",
+      "maxLevel": 3,
+      "baseCost": 65,
+      "costGrowth": 1.55,
+      "effectsPerLevel": { "goldEarnedPct": 0.05 }
+    },
+    {
+      "id": "vanguard-school",
+      "name": "Vanguard School",
+      "description": "Additional hero combat training reserves.",
+      "maxLevel": 3,
+      "baseCost": 85,
+      "costGrowth": 1.55,
+      "effectsPerLevel": { "heroDamagePct": 0.12 }
+    },
+    {
+      "id": "steel-silos",
+      "name": "Steel Silos",
+      "description": "Larger reserves for your opening deployments.",
+      "maxLevel": 2,
+      "baseCost": 100,
+      "costGrowth": 1.6,
+      "effectsPerLevel": { "startingGold": 50 }
+    },
+    {
+      "id": "stronghold-doctrine",
+      "name": "Stronghold Doctrine",
+      "description": "Stronghold starts at level 2 in future runs.",
+      "maxLevel": 1,
+      "baseCost": 220,
+      "costGrowth": 1,
+      "effectsPerLevel": { "strongholdStartLevel": 2 },
+      "prerequisites": ["fortified-walls"]
+    },
+    {
+      "id": "imperial-logistics",
+      "name": "Imperial Logistics",
+      "description": "Combined command efficiencies improve economy and durability.",
+      "maxLevel": 2,
+      "baseCost": 140,
+      "costGrowth": 1.7,
+      "effectsPerLevel": { "goldEarnedPct": 0.06, "towerHpPct": 0.04 },
+      "prerequisites": ["war-bonds", "fortified-walls"]
+    }
+  ]
+}

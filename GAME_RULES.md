@@ -49,3 +49,9 @@
 ## Win/Lose
 - Win when enemy owns 0 towers.
 - Lose when player owns 0 towers.
+
+## Meta progression (M6)
+- Runs are 3-5 mission sequences generated from a seed.
+- Glory is permanent currency earned from mission results and run-end bonus.
+- Meta upgrades apply starting modifiers to future runs.
+- If a run is in progress, it can be continued after reload.
