@@ -1,0 +1,90 @@
+
+{
+  "meta": {
+    "id": "level01",
+    "name": "PoC Level 01"
+  },
+  "rules": {
+    "maxOutgoingLinksPerTower": 1,
+    "sendRatePerSec": 6,
+    "collisionDistancePx": 14,
+    "captureSeedTroops": 10,
+    "defaultUnit": {
+      "speedPxPerSec": 120,
+      "dpsPerUnit": 1,
+      "hpPerUnit": 1
+    }
+  },
+  "ai": {
+    "aiThinkIntervalSec": 2.5,
+    "aiMinTroopsToAttack": 25
+  },
+  "towers": [
+    {
+      "id": "P1",
+      "x": 200,
+      "y": 420,
+      "owner": "player",
+      "maxHp": 60,
+      "hp": 60,
+      "troopCount": 40,
+      "regenRatePerSec": 3,
+      "maxTroops": 120
+    },
+    {
+      "id": "P2",
+      "x": 380,
+      "y": 300,
+      "owner": "player",
+      "maxHp": 50,
+      "hp": 50,
+      "troopCount": 20,
+      "regenRatePerSec": 2,
+      "maxTroops": 90
+    },
+    {
+      "id": "N1",
+      "x": 520,
+      "y": 420,
+      "owner": "neutral",
+      "maxHp": 40,
+      "hp": 40,
+      "troopCount": 15,
+      "regenRatePerSec": 1,
+      "maxTroops": 70
+    },
+    {
+      "id": "N2",
+      "x": 640,
+      "y": 280,
+      "owner": "neutral",
+      "maxHp": 40,
+      "hp": 40,
+      "troopCount": 15,
+      "regenRatePerSec": 1,
+      "maxTroops": 70
+    },
+    {
+      "id": "E1",
+      "x": 860,
+      "y": 220,
+      "owner": "enemy",
+      "maxHp": 60,
+      "hp": 60,
+      "troopCount": 40,
+      "regenRatePerSec": 3,
+      "maxTroops": 120
+    },
+    {
+      "id": "E2",
+      "x": 740,
+      "y": 420,
+      "owner": "enemy",
+      "maxHp": 50,
+      "hp": 50,
+      "troopCount": 20,
+      "regenRatePerSec": 2,
+      "maxTroops": 90
+    }
+  ]
+}
