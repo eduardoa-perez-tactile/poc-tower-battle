@@ -1,54 +1,65 @@
-# Tower Battle: Connect Towers — Web 2D PoC Spec
+# Tower Battle PoC Spec (Current Scope)
 
 ## Goal
-Build a playable 2D browser PoC inspired by “Tower Battle: Connect Towers”.
+Build a playable browser strategy prototype with tower-link control, mission-based runs, meta progression, and M7 enemy/wave variety.
 
 ## Tech Stack
 - TypeScript (strict)
 - Vite
 - HTML5 Canvas 2D (single canvas)
-- Minimal DOM overlay (no React for PoC)
+- Minimal DOM overlay (no React)
 
-## Core Gameplay (PoC)
-- Top-down map with Towers (nodes).
-- Player draws a connection from an owned tower to another tower (neutral/enemy).
-- Towers generate troops over time.
-- Connected towers send troops as moving packets along the line.
-- Packets fight opposing packets on the same line.
-- Packets reaching enemy towers reduce defenders / HP; towers can be captured.
-- Simple enemy AI periodically creates a connection and attacks.
-- Win: enemy has 0 towers. Lose: player has 0 towers.
-- One level is enough.
+## Core gameplay systems
+- Top-down node map with player/enemy/neutral towers.
+- Player draws outgoing links from owned towers to redirect pressure.
+- Towers regenerate and send grouped troop packets.
+- Packets move, fight, siege, and capture towers.
+- Enemy AI periodically retargets attacks.
+- Mission progression is organized into seeded runs with persistent meta bonuses.
+
+## M7 combat extension
+- Data-driven enemy archetypes with distinct tactical behavior.
+- Elite variants with multipliers, tint, and reward drops.
+- Wave modifiers applied per wave to composition and tempo.
+- Deterministic wave generation using run seed + wave context.
+- Miniboss escalation and final boss mechanics (slam, summon, enrage).
+- Telegraph rendering and boss hp bar.
+- Mission wave telemetry UI (upcoming preview, active modifiers, mission gold, buff timer).
 
 ## Controls
-- Mouse drag from owned tower to target tower to create/replace outgoing link.
-- ESC or right-click cancels a drag.
-- Restart button.
+- Drag from owned tower to target tower to create/replace outgoing link.
+- Right click or `Escape` cancels an active drag.
+- Restart button and debug mission controls are available in UI.
 
-## Entities (minimum)
-- Tower: id, x, y, owner(player/enemy/neutral), hp, maxHp, troopCount, regenRatePerSec, maxTroops
-- Link: id, fromTowerId, toTowerId, owner, points[] (for PoC can be straight line)
-- UnitPacket: id, owner, count, speedPxPerSec, dpsPerUnit, hpPerUnit, linkId, progress01
+## Core entities
+- `Tower`: ownership, hp, troop economy, regen.
+- `Link`: source-target route for packet movement.
+- `UnitPacket`: grouped moving combat packet with archetype behavior data.
+- `WavePlan`: scheduled spawn entries and applied modifiers for a wave.
 
-## Rules (minimum)
-- Each tower: max 1 outgoing link (new replaces old).
-- Sending: if link exists, source sends troops at sendRatePerSec, reducing tower troopCount.
-- Movement: progress increases by (speed / linkLength) * dt.
-- Link combat: opposing packets on the same link within collisionDistance trade damage each tick.
-- Arrival:
-  - Friendly tower: add count to troopCount (clamp).
-  - Enemy/neutral: reduce troopCount then hp; capture when hp<=0 -> flip owner, reset hp, set troopCount=captureSeed.
-- Tower regen: +regenRatePerSec * dt up to maxTroops.
+## Rules summary
+- Each tower has max one standard outgoing link.
+- Sending is continuous while link exists.
+- Packet combat uses ranges, cooldowns, and archetype modifiers.
+- Arrival resolves reinforcement or capture flow.
+- Win condition in missions with wave director: survive until full wave program is completed.
+- Lose condition: player owns zero towers.
 
-## AI (simple)
-Every aiThinkInterval seconds:
-- pick an enemy tower with troopCount >= aiMinTroopsToAttack
-- target nearest player tower
-- create/replace outgoing link and let normal sending rules apply
+## Data-driven assets
+- `levels/level01.json`
+- `public/data/missions.json`
+- `public/data/meta-upgrades.json`
+- `public/data/enemies.json`
+- `public/data/wave-modifiers.json`
+- `public/data/waves-handcrafted.json`
+- `public/data/wave-balance.json`
 
-## Non-goals
-No meta progression, no multiple levels UI, no portals, no sound, no fancy VFX.
+## Performance constraints
+- Use pooled packets for transient enemy traffic.
+- Keep update loop deterministic and fixed-step.
+- Avoid per-frame framework rerender loops for HUD updates.
+- Reuse shared canvas drawing paths and compact packet representations.
 
 ## Deliverable
-`npm install && npm run dev` runs the playable PoC in browser.
-
+- `npm install && npm run dev` launches playable prototype.
+- `npm run build` passes with production build output.
