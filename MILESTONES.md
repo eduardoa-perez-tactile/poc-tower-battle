@@ -31,3 +31,11 @@
 - Data-driven enemy archetypes (swarm/tank/ranged/shield/splitter/support) + elites
 - Deterministic handcrafted/procedural wave generation with wave modifiers
 - Mini-boss + boss mechanics (slam/summon/enrage), telegraphs, and mission telemetry UI
+
+## M8 Meta layer expansion (Retention Engine) v1
+- Branching persistent upgrade trees (Offense / Economy / Tactical)
+- Tactical skills: unlocks, cooldown/duration/potency scaling, in-mission fixed-tick skill manager
+- Ascensions: selectable run mutators with deterministic persistence and reward multipliers
+- Permanent unlock pacing rules with progress metrics and end-of-run unlock evaluation
+- Run unlock snapshot + sorted id resolution to preserve deterministic seeded generation
+- Save schema v2 + migration path from older profiles/run states
