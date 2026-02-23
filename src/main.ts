@@ -69,7 +69,7 @@ import {
 import { debugUiStore, type DebugUiState } from "./ui/debugStore";
 import { WorldTooltipOverlay } from "./ui/WorldTooltipOverlay";
 
-type Screen = "main-menu" | "meta" | "run-map" | "mission" | "run-summary";
+type Screen = "title" | "main-menu" | "meta" | "run-map" | "mission" | "run-summary";
 type DebugTab = "run" | "sim" | "ui" | "dev";
 
 interface AppState {
@@ -87,6 +87,7 @@ interface AppState {
   debugDangerZoneOpen: boolean;
   frameTimeMs: number;
   fps: number;
+  missionPaused: boolean;
 }
 
 const DEBUG_TOOLS_ENABLED = true;
@@ -96,7 +97,7 @@ async function bootstrap(): Promise<void> {
   const canvas = getCanvas();
   const ctx = getContext(canvas);
   const renderer = new Renderer2D(canvas, ctx);
-  const restartBtn = getRestartButton();
+  const pauseBtn = getPauseButton();
   const screenRoot = getScreenRoot();
   const debugPanel = getDebugPanel();
   const debugIndicator = getDebugIndicator();
@@ -130,7 +131,7 @@ async function bootstrap(): Promise<void> {
   });
 
   const app: AppState = {
-    screen: "main-menu",
+    screen: "title",
     metaProfile: loadMetaProfile(),
     runState: loadRunState(),
     runSummary: null,
@@ -144,6 +145,7 @@ async function bootstrap(): Promise<void> {
     debugDangerZoneOpen: false,
     frameTimeMs: 0,
     fps: 0,
+    missionPaused: false,
   };
 
   const initialUnlockEvaluation = evaluateUnlocks(
@@ -205,6 +207,7 @@ async function bootstrap(): Promise<void> {
       finalizeRun,
       closeSummaryToMenu,
       debugState,
+      setMissionPaused,
     );
     renderDebugPanel(
       debugPanel,
@@ -219,12 +222,22 @@ async function bootstrap(): Promise<void> {
       runQuickSimDebug,
     );
     syncDebugIndicator(debugIndicator, DEBUG_TOOLS_ENABLED, debugState);
-    syncRestartButton(restartBtn, app, restartCurrentMission);
+    syncPauseButton(pauseBtn, app, setMissionPaused);
   };
 
   debugUiStore.subscribe(() => {
     render();
   });
+
+  const setMissionPaused = (paused: boolean): void => {
+    if (app.screen !== "mission" || !app.game || !app.inputController || app.missionResult !== null) {
+      app.missionPaused = false;
+      return;
+    }
+    app.missionPaused = paused;
+    app.inputController.setEnabled(!paused);
+    render();
+  };
 
   const openMainMenu = (): void => {
     stopMission();
@@ -350,6 +363,7 @@ async function bootstrap(): Promise<void> {
     app.game = new Game(world, renderer, inputController, tunedLevel.rules, tunedLevel.ai, waveDirector, skillManager);
     app.missionResult = null;
     app.missionReward = null;
+    app.missionPaused = false;
     app.screen = "mission";
     saveRunState(app.runState);
     render();
@@ -385,6 +399,7 @@ async function bootstrap(): Promise<void> {
     app.runState.runGloryEarned += missionReward.total;
     app.missionResult = result;
     app.missionReward = missionReward;
+    app.missionPaused = false;
 
     if (result === "win") {
       app.runState.currentMissionIndex += 1;
@@ -486,6 +501,7 @@ async function bootstrap(): Promise<void> {
     if (app.screen !== "mission" || !app.runState) {
       return;
     }
+    app.missionPaused = false;
     void startCurrentMission();
   };
 
@@ -726,6 +742,7 @@ async function bootstrap(): Promise<void> {
     app.game = null;
     app.missionResult = null;
     app.missionReward = null;
+    app.missionPaused = false;
   };
 
   window.addEventListener("keydown", (event) => {
@@ -744,10 +761,27 @@ async function bootstrap(): Promise<void> {
         event.preventDefault();
         return;
       }
+      if (
+        !isTyping &&
+        app.screen === "mission" &&
+        app.game &&
+        app.missionResult === null &&
+        !(app.inputController?.isDragging() ?? false)
+      ) {
+        setMissionPaused(!app.missionPaused);
+        event.preventDefault();
+        return;
+      }
       if (!isTyping && triggerHotkeyButton("escape", screenRoot)) {
         event.preventDefault();
         return;
       }
+    }
+
+    if (!isTyping && app.screen === "mission" && app.game && app.missionResult === null && (key === "p" || key === "P")) {
+      setMissionPaused(!app.missionPaused);
+      event.preventDefault();
+      return;
     }
 
     if ((key === "Enter" || key === "NumpadEnter") && !isTyping) {
@@ -791,7 +825,7 @@ async function bootstrap(): Promise<void> {
       ? 1 / clampedDtSec
       : app.fps * 0.85 + (1 / clampedDtSec) * 0.15;
 
-    if (app.game) {
+    if (app.game && !app.missionPaused) {
       app.game.frame(dtSec);
       handleMissionResult();
     }
@@ -841,23 +875,73 @@ function renderCurrentScreen(
   finalizeRun: (won: boolean) => void,
   closeSummaryToMenu: () => void,
   debugState: DebugUiState,
+  setMissionPaused: (paused: boolean) => void,
 ): void {
   screenRoot.replaceChildren();
 
+  if (app.screen === "title") {
+    const panel = createPanel("Tower Battle: Connect Towers", "Command linked towers. Hold lanes. Break the siege.");
+    panel.classList.add("menu-panel", "title-panel");
+
+    const heroCard = createCard("Welcome Commander");
+    heroCard.appendChild(
+      createParagraph(
+        "Direct your network by dragging links between towers. Your economy and control decide every wave.",
+      ),
+    );
+    heroCard.appendChild(
+      createParagraph(
+        "Progress through missions, unlock meta upgrades, and take on ascension modifiers for harder runs.",
+      ),
+    );
+    panel.appendChild(heroCard);
+
+    const controlsCard = createCard("Core Controls");
+    controlsCard.appendChild(createParagraph("Mouse drag: create outgoing links"));
+    controlsCard.appendChild(createParagraph("Right click / Esc: cancel drag"));
+    controlsCard.appendChild(createParagraph("D: open debug menu"));
+    controlsCard.appendChild(createParagraph("P or Esc during mission: pause menu"));
+    panel.appendChild(controlsCard);
+
+    panel.appendChild(
+      createButton("Enter Command", openMainMenu, {
+        variant: "primary",
+        primaryAction: true,
+        hotkey: "Enter",
+      }),
+    );
+    screenRoot.appendChild(wrapCentered(panel));
+    return;
+  }
+
   if (app.screen === "main-menu") {
-    const panel = createPanel("Tower Battle: Connect Towers", "Deterministic tactics at 60 Hz");
+    const panel = createPanel("Main Menu", "Choose where to go next");
     panel.classList.add("menu-panel");
 
-    const profileCard = createCard("Command Profile");
-    profileCard.appendChild(createParagraph(`Glory: ${app.metaProfile.glory}`));
+    const introCard = createCard("What This Is");
+    introCard.appendChild(
+      createParagraph(
+        "Tower Battle is a deterministic lane-control strategy game. Link towers to route troops and outscale enemy waves.",
+      ),
+    );
+    introCard.appendChild(
+      createParagraph(
+        "Start a run to enter mission flow, or open Meta Progression to invest permanent Glory upgrades.",
+      ),
+    );
+    panel.appendChild(introCard);
+
+    const profileCard = createCard("Profile Snapshot");
+    profileCard.appendChild(createParagraph(`Current Glory: ${app.metaProfile.glory}`));
     profileCard.appendChild(createParagraph(`Meta Level: ${computeMetaAccountLevel(app.metaProfile)}`));
-    profileCard.appendChild(createParagraph(`Mission Templates: ${missionTemplates.length}`));
+    profileCard.appendChild(createParagraph(`Runs Completed: ${app.metaProfile.metaProgress.runsCompleted}`));
+    profileCard.appendChild(createParagraph(`Mission Templates Loaded: ${missionTemplates.length}`));
     if (app.runState) {
-      profileCard.appendChild(createParagraph(`Run in progress: ${app.runState.runId}`));
+      profileCard.appendChild(createParagraph(`Run In Progress: ${app.runState.currentMissionIndex + 1}/${app.runState.missions.length}`));
     }
     panel.appendChild(profileCard);
 
-    const actionCard = createCard("Operations");
+    const actionCard = createCard("Actions");
     const startBtn = createButton("Start New Run", startNewRun, {
       variant: "primary",
       primaryAction: true,
@@ -867,7 +951,7 @@ function renderCurrentScreen(
     const continueBtn = createButton("Continue Run", continueRun, { variant: "secondary" });
     continueBtn.disabled = !app.runState;
     actionCard.appendChild(continueBtn);
-    actionCard.appendChild(createButton("Meta Progression", openMetaScreen, { variant: "ghost" }));
+    actionCard.appendChild(createButton("Meta Progression", openMetaScreen, { variant: "secondary" }));
     panel.appendChild(actionCard);
 
     screenRoot.appendChild(wrapCentered(panel));
@@ -877,18 +961,38 @@ function renderCurrentScreen(
   if (app.screen === "meta") {
     const panel = createPanel("Meta Progression", "Persistent upgrades and ascensions");
     panel.classList.add("menu-panel", "menu-panel-wide");
-    const summary = createCard("Profile");
-    summary.appendChild(createParagraph(`Glory: ${app.metaProfile.glory}`));
+
+    const body = document.createElement("div");
+    body.className = "menu-body";
+    const scroll = document.createElement("div");
+    scroll.className = "menu-body-scroll";
+
+    const summary = createCard("Section 1: Account Overview");
+    summary.appendChild(
+      createParagraph(
+        "This section shows your persistent profile stats and available Glory to spend on upgrades.",
+      ),
+    );
+    summary.appendChild(createParagraph(`Available Glory: ${app.metaProfile.glory}`));
     summary.appendChild(
       createParagraph(
         `Meta Lv ${computeMetaAccountLevel(app.metaProfile)} • Runs ${app.metaProfile.metaProgress.runsCompleted} • Wins ${app.metaProfile.metaProgress.runsWon}`,
       ),
     );
-    summary.appendChild(createParagraph(`Glory Spent: ${Math.round(app.metaProfile.metaProgress.glorySpentTotal)}`));
-    panel.appendChild(summary);
+    summary.appendChild(createParagraph(`Total Glory Spent: ${Math.round(app.metaProfile.metaProgress.glorySpentTotal)}`));
+    summary.appendChild(
+      createParagraph(
+        `Ascension Clears: ${Object.values(app.metaProfile.metaProgress.ascensionsCleared).reduce((sum, value) => sum + value, 0)}`,
+      ),
+    );
+    scroll.appendChild(summary);
 
-    const trees = document.createElement("div");
-    trees.className = "list";
+    const trees = createCard("Section 2: Upgrade Trees");
+    trees.appendChild(
+      createParagraph(
+        "Each tree focuses on one domain. Buy nodes with Glory; prerequisites are shown inline.",
+      ),
+    );
     for (const tree of upgradeCatalog.trees) {
       const treeCard = createCard(tree.name);
 
@@ -923,15 +1027,30 @@ function renderCurrentScreen(
       treeCard.appendChild(createScrollArea(list, { maxHeight: "min(32vh, 280px)" }));
       trees.appendChild(treeCard);
     }
-    panel.appendChild(createScrollArea(trees, { maxHeight: "min(60vh, 680px)" }));
+    scroll.appendChild(trees);
+
+    const progressionCard = createCard("Section 3: Progress Notes");
+    progressionCard.appendChild(
+      createParagraph(
+        "Meta upgrades affect future runs only. Current run state remains deterministic and unchanged.",
+      ),
+    );
+    progressionCard.appendChild(createParagraph("Tip: spend Glory before starting a new run for best value."));
+    scroll.appendChild(progressionCard);
+
+    body.appendChild(scroll);
+    panel.appendChild(body);
     panel.appendChild(createDivider());
-    panel.appendChild(
+    const footer = document.createElement("div");
+    footer.className = "menu-footer";
+    footer.appendChild(
       createButton("Back", app.runState ? openRunMap : openMainMenu, {
         variant: "ghost",
         escapeAction: true,
         hotkey: "Esc",
       }),
     );
+    panel.appendChild(footer);
     screenRoot.appendChild(wrapCentered(panel));
     return;
   }
@@ -946,7 +1065,13 @@ function renderCurrentScreen(
       return;
     }
 
+    const body = document.createElement("div");
+    body.className = "menu-body";
+    const scroll = document.createElement("div");
+    scroll.className = "menu-body-scroll";
+
     const runCard = createCard("Run Data");
+    runCard.appendChild(createParagraph("Section 1: Snapshot of this run seed, difficulty, and mission progress."));
     runCard.appendChild(createParagraph(`Run ID: ${app.runState.runId}`));
     runCard.appendChild(createParagraph(`Seed: ${app.runState.seed}`));
     runCard.appendChild(createParagraph(`Difficulty Tier: ${app.runState.runModifiers.tier}`));
@@ -976,12 +1101,13 @@ function renderCurrentScreen(
     };
     difficultyRow.append(difficultyLabel, difficultySelect);
     runCard.appendChild(difficultyRow);
-    panel.appendChild(runCard);
+    scroll.appendChild(runCard);
 
     const ascensionInfo = createParagraph(
       `Ascensions: ${app.runState.runAscensionIds.length}/${ascensionCatalog.maxSelected}`,
     );
-    const ascensionCard = createCard("Ascensions");
+    const ascensionCard = createCard("Section 2: Ascensions");
+    ascensionCard.appendChild(createParagraph("Enable modifiers for higher rewards. Locked after mission 1 starts."));
     ascensionCard.appendChild(ascensionInfo);
 
     const ascensionList = document.createElement("div");
@@ -1020,14 +1146,15 @@ function renderCurrentScreen(
       ascensionList.appendChild(row);
     }
     ascensionCard.appendChild(createScrollArea(ascensionList, { maxHeight: "min(26vh, 260px)" }));
-    panel.appendChild(ascensionCard);
+    scroll.appendChild(ascensionCard);
 
     const rewardMul = getAscensionRewardMultipliers(app.runState.runAscensionIds, ascensionCatalog);
-    panel.appendChild(
+    scroll.appendChild(
       createParagraph(`Expected Ascension Rewards: Glory x${rewardMul.gloryMul.toFixed(2)} | Gold x${rewardMul.goldMul.toFixed(2)}`),
     );
 
-    const missionCard = createCard("Mission Route");
+    const missionCard = createCard("Section 3: Mission Route");
+    missionCard.appendChild(createParagraph("Mission order for this run. Complete current mission to unlock the next."));
     const missionsList = document.createElement("div");
     missionsList.className = "list";
     app.runState.missions.forEach((mission, index) => {
@@ -1047,7 +1174,10 @@ function renderCurrentScreen(
       missionsList.appendChild(row);
     });
     missionCard.appendChild(createScrollArea(missionsList, { maxHeight: "min(22vh, 240px)" }));
-    panel.appendChild(missionCard);
+    scroll.appendChild(missionCard);
+
+    body.appendChild(scroll);
+    panel.appendChild(body);
 
     const deployBtn = createButton("Deploy Mission", () => {
       void startCurrentMission();
@@ -1058,10 +1188,14 @@ function renderCurrentScreen(
     });
     const runFinished = app.runState.currentMissionIndex >= app.runState.missions.length;
     deployBtn.disabled = runFinished;
-    panel.appendChild(deployBtn);
-    panel.appendChild(createButton("Meta Progression", openMetaScreen, { variant: "secondary" }));
-    panel.appendChild(createButton("Abandon Run", abandonRun, { variant: "danger" }));
-    panel.appendChild(createButton("Main Menu", openMainMenu, { variant: "ghost", escapeAction: true, hotkey: "Esc" }));
+    panel.appendChild(createDivider());
+    const footer = document.createElement("div");
+    footer.className = "menu-footer";
+    footer.appendChild(deployBtn);
+    footer.appendChild(createButton("Meta Progression", openMetaScreen, { variant: "secondary" }));
+    footer.appendChild(createButton("Abandon Run", abandonRun, { variant: "danger" }));
+    footer.appendChild(createButton("Main Menu", openMainMenu, { variant: "ghost", escapeAction: true, hotkey: "Esc" }));
+    panel.appendChild(footer);
     screenRoot.appendChild(wrapCentered(panel));
     return;
   }
@@ -1141,6 +1275,39 @@ function renderCurrentScreen(
       }
 
       screenRoot.appendChild(hud);
+    }
+
+    if (app.missionPaused && app.missionResult === null) {
+      const pausePanel = createPanel("Mission Paused", "Simulation is halted. Continue when ready.");
+      pausePanel.classList.add("menu-panel", "pause-panel");
+
+      const summary = createCard("Pause Menu");
+      summary.appendChild(createParagraph("Continue: resume simulation and input controls."));
+      summary.appendChild(createParagraph("Restart Mission: reset current mission state."));
+      summary.appendChild(createParagraph("Main Menu: exit mission view and return to menu."));
+      pausePanel.appendChild(summary);
+
+      const actions = document.createElement("div");
+      actions.className = "menu-footer";
+      actions.appendChild(
+        createButton("Continue", () => {
+          setMissionPaused(false);
+        }, { variant: "primary", primaryAction: true, hotkey: "Enter" }),
+      );
+      actions.appendChild(
+        createButton("Restart Mission", () => {
+          setMissionPaused(false);
+          restartCurrentMission();
+        }, { variant: "secondary" }),
+      );
+      actions.appendChild(
+        createButton("Main Menu", () => {
+          setMissionPaused(false);
+          openMainMenu();
+        }, { variant: "ghost", escapeAction: true, hotkey: "Esc" }),
+      );
+      pausePanel.appendChild(actions);
+      screenRoot.appendChild(wrapCentered(pausePanel));
     }
 
     if (app.missionResult) {
@@ -1625,14 +1792,20 @@ function createDebugToggle(
   return row;
 }
 
-function syncRestartButton(
-  restartBtn: HTMLButtonElement,
+function syncPauseButton(
+  pauseBtn: HTMLButtonElement,
   app: AppState,
-  restartCurrentMission: () => void,
+  setMissionPaused: (paused: boolean) => void,
 ): void {
-  const missionActive = app.screen === "mission" && app.runState !== null;
-  restartBtn.style.display = missionActive ? "inline-block" : "none";
-  restartBtn.onclick = missionActive ? () => restartCurrentMission() : null;
+  const missionActive = app.screen === "mission" && app.runState !== null && app.missionResult === null;
+  pauseBtn.style.display = missionActive ? "inline-flex" : "none";
+  pauseBtn.className = "ui-button ui-button-secondary top-pause-btn";
+  pauseBtn.textContent = app.missionPaused ? "Resume" : "Pause";
+  pauseBtn.onclick = missionActive
+    ? () => {
+        setMissionPaused(!app.missionPaused);
+      }
+    : null;
 }
 
 async function getLevelByPath(path: string, cache: Map<string, LoadedLevel>): Promise<LoadedLevel> {
@@ -2001,10 +2174,10 @@ function getContext(canvas: HTMLCanvasElement): CanvasRenderingContext2D {
   return ctx;
 }
 
-function getRestartButton(): HTMLButtonElement {
-  const element = document.getElementById("restartBtn");
+function getPauseButton(): HTMLButtonElement {
+  const element = document.getElementById("pauseBtn");
   if (!(element instanceof HTMLButtonElement)) {
-    throw new Error('Button "#restartBtn" was not found');
+    throw new Error('Button "#pauseBtn" was not found');
   }
   return element;
 }

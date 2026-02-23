@@ -37,7 +37,7 @@
         left: 14px;
         z-index: 20;
       }
-      #restartBtn {
+      #pauseBtn {
         display: none;
       }
       #screenRoot {
@@ -54,10 +54,17 @@
 
       .menu-panel {
         width: min(92vw, 760px);
+        display: flex;
+        flex-direction: column;
+        max-height: min(92vh, 940px);
       }
 
       .menu-panel-wide {
         width: min(94vw, 940px);
+      }
+
+      .title-panel {
+        width: min(90vw, 700px);
       }
 
       .panel,
@@ -114,8 +121,30 @@
         position: absolute;
         inset: 0;
         display: grid;
-        place-items: center;
-        padding: 20px;
+        justify-items: center;
+        align-items: start;
+        padding: 18px;
+        overflow-y: auto;
+        pointer-events: auto;
+      }
+      .menu-body {
+        flex: 1;
+        min-height: 0;
+        overflow: hidden;
+        display: grid;
+      }
+      .menu-body-scroll {
+        min-height: 0;
+        overflow-y: auto;
+        display: grid;
+        gap: 12px;
+        padding-right: 6px;
+      }
+      .menu-footer {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        align-items: center;
       }
       .list {
         display: grid;
@@ -352,6 +381,12 @@
         bottom: 12px;
         max-width: min(420px, calc(100vw - 20px));
       }
+      .pause-panel {
+        width: min(88vw, 520px);
+      }
+      .top-pause-btn {
+        min-width: 96px;
+      }
 
       .world-tooltip-overlay {
         position: fixed;
@@ -439,7 +474,7 @@
 
         .centered {
           align-items: start;
-          padding-top: 14px;
+          padding-top: 12px;
         }
 
         .mission-hud {
@@ -452,7 +487,7 @@
   </head>
   <body>
     <div id="ui">
-      <button id="restartBtn">Restart</button>
+      <button id="pauseBtn">Pause</button>
     </div>
     <div id="debugIndicator">DEBUG</div>
     <div id="debugPanel"></div>
