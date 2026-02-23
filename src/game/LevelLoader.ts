@@ -1,8 +1,13 @@
 import type { Owner, Tower } from "../sim/World";
+import type { SimulationRules } from "../sim/Simulation";
+
+export interface LevelRules extends SimulationRules {
+  maxOutgoingLinksPerTower: number;
+}
 
 export interface LoadedLevel {
   towers: Tower[];
-  maxOutgoingLinksPerTower: number;
+  rules: LevelRules;
 }
 
 export async function loadLevel(path: string): Promise<LoadedLevel> {
@@ -31,10 +36,7 @@ function parseLevel(data: unknown): LoadedLevel {
 
   return {
     towers: towers.map((tower, index) => parseTower(tower, index)),
-    maxOutgoingLinksPerTower: asNumber(
-      data.rules.maxOutgoingLinksPerTower,
-      "rules.maxOutgoingLinksPerTower",
-    ),
+    rules: parseRules(data.rules),
   };
 }
 
@@ -48,8 +50,32 @@ function parseTower(value: unknown, index: number): Tower {
   const y = asNumber(value.y, `towers[${index}].y`);
   const owner = asOwner(value.owner, `towers[${index}].owner`);
   const troopCount = asNumber(value.troopCount, `towers[${index}].troopCount`);
+  const regenRatePerSec = asNumber(value.regenRatePerSec, `towers[${index}].regenRatePerSec`);
+  const maxTroops = asNumber(value.maxTroops, `towers[${index}].maxTroops`);
 
-  return { id, x, y, owner, troopCount };
+  return { id, x, y, owner, troopCount, regenRatePerSec, maxTroops };
+}
+
+function parseRules(value: Record<string, unknown>): LevelRules {
+  if (!isObject(value.defaultUnit)) {
+    throw new Error("rules.defaultUnit must be an object");
+  }
+
+  return {
+    maxOutgoingLinksPerTower: asNumber(
+      value.maxOutgoingLinksPerTower,
+      "rules.maxOutgoingLinksPerTower",
+    ),
+    sendRatePerSec: asNumber(value.sendRatePerSec, "rules.sendRatePerSec"),
+    defaultUnit: {
+      speedPxPerSec: asNumber(
+        value.defaultUnit.speedPxPerSec,
+        "rules.defaultUnit.speedPxPerSec",
+      ),
+      dpsPerUnit: asNumber(value.defaultUnit.dpsPerUnit, "rules.defaultUnit.dpsPerUnit"),
+      hpPerUnit: asNumber(value.defaultUnit.hpPerUnit, "rules.defaultUnit.hpPerUnit"),
+    },
+  };
 }
 
 function asString(value: unknown, fieldName: string): string {

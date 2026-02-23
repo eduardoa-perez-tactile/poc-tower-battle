@@ -18,10 +18,10 @@ async function bootstrap(): Promise<void> {
 
   try {
     const level = await loadLevel(LEVEL_PATH);
-    const world = new World(level.towers, level.maxOutgoingLinksPerTower);
+    const world = new World(level.towers, level.rules.maxOutgoingLinksPerTower);
     const renderer = new Renderer2D(canvas, ctx);
     const inputController = new InputController(canvas, world);
-    const game = new Game(world, renderer, inputController);
+    const game = new Game(world, renderer, inputController, level.rules);
 
     let lastTimeSec = performance.now() / 1000;
 

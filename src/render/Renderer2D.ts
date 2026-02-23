@@ -1,5 +1,5 @@
 import type { DragPreview } from "../input/InputController";
-import { TOWER_RADIUS_PX, type Link, type Owner, type World } from "../sim/World";
+import { TOWER_RADIUS_PX, type Link, type Owner, type Vec2, type World } from "../sim/World";
 
 const OWNER_COLORS: Record<Owner, string> = {
   player: "#2a9d8f",
@@ -11,6 +11,12 @@ const LINK_COLORS: Record<Owner, string> = {
   player: "#7ce3d6",
   enemy: "#ff7b86",
   neutral: "#adb5bd",
+};
+
+const PACKET_COLORS: Record<Owner, string> = {
+  player: "#33d9c5",
+  enemy: "#ff5d6a",
+  neutral: "#dee2e6",
 };
 
 export class Renderer2D {
@@ -29,12 +35,19 @@ export class Renderer2D {
       this.drawLink(link);
     }
 
-    if (preview) {
-      this.drawPreviewLink(preview);
+    for (const packet of world.packets) {
+      const link = world.getLinkById(packet.linkId);
+      if (link) {
+        this.drawPacket(link, packet.progress01, packet.owner, packet.count);
+      }
     }
 
     for (const tower of world.towers) {
       this.drawTower(tower.x, tower.y, tower.owner, tower.troopCount, tower.id);
+    }
+
+    if (preview) {
+      this.drawPreviewLink(preview);
     }
   }
 
@@ -58,7 +71,7 @@ export class Renderer2D {
     this.ctx.font = "bold 18px Arial";
     this.ctx.textAlign = "center";
     this.ctx.textBaseline = "middle";
-    this.ctx.fillText(String(troopCount), x, y);
+    this.ctx.fillText(String(Math.round(troopCount)), x, y);
 
     this.ctx.font = "12px Arial";
     this.ctx.textBaseline = "alphabetic";
@@ -100,6 +113,30 @@ export class Renderer2D {
     this.ctx.restore();
   }
 
+  private drawPacket(link: Link, progress01: number, owner: Owner, count: number): void {
+    const position = samplePointOnPolyline(link.points, progress01);
+    if (!position) {
+      return;
+    }
+
+    this.ctx.save();
+    this.ctx.fillStyle = PACKET_COLORS[owner];
+    this.ctx.beginPath();
+    this.ctx.arc(position.x, position.y, 8, 0, Math.PI * 2);
+    this.ctx.fill();
+
+    this.ctx.strokeStyle = "#0b0c0d";
+    this.ctx.lineWidth = 1.5;
+    this.ctx.stroke();
+
+    this.ctx.fillStyle = "#ffffff";
+    this.ctx.font = "11px Arial";
+    this.ctx.textAlign = "center";
+    this.ctx.textBaseline = "middle";
+    this.ctx.fillText(String(Math.max(0, Math.round(count))), position.x, position.y - 14);
+    this.ctx.restore();
+  }
+
   private drawArrowHead(
     fromX: number,
     fromY: number,
@@ -134,4 +171,53 @@ export class Renderer2D {
     this.ctx.closePath();
     this.ctx.fill();
   }
+}
+
+function samplePointOnPolyline(points: Vec2[], progress01: number): Vec2 | null {
+  if (points.length === 0) {
+    return null;
+  }
+
+  if (points.length === 1) {
+    return points[0];
+  }
+
+  const clampedProgress = Math.max(0, Math.min(1, progress01));
+  const totalLength = getPolylineLength(points);
+  if (totalLength <= 0.001) {
+    return points[0];
+  }
+
+  const targetDistance = clampedProgress * totalLength;
+  let walkedDistance = 0;
+
+  for (let i = 1; i < points.length; i += 1) {
+    const start = points[i - 1];
+    const end = points[i];
+    const segmentLength = Math.hypot(end.x - start.x, end.y - start.y);
+    if (segmentLength <= 0.001) {
+      continue;
+    }
+
+    if (walkedDistance + segmentLength >= targetDistance) {
+      const localDistance = targetDistance - walkedDistance;
+      const t = localDistance / segmentLength;
+      return {
+        x: start.x + (end.x - start.x) * t,
+        y: start.y + (end.y - start.y) * t,
+      };
+    }
+
+    walkedDistance += segmentLength;
+  }
+
+  return points[points.length - 1];
+}
+
+function getPolylineLength(points: Vec2[]): number {
+  let totalLength = 0;
+  for (let i = 1; i < points.length; i += 1) {
+    totalLength += Math.hypot(points[i].x - points[i - 1].x, points[i].y - points[i - 1].y);
+  }
+  return totalLength;
 }

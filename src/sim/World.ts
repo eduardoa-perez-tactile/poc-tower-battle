@@ -11,6 +11,8 @@ export interface Tower {
   y: number;
   owner: Owner;
   troopCount: number;
+  regenRatePerSec: number;
+  maxTroops: number;
 }
 
 export interface Link {
@@ -21,16 +23,29 @@ export interface Link {
   points: Vec2[];
 }
 
+export interface UnitPacket {
+  id: string;
+  owner: Owner;
+  count: number;
+  speedPxPerSec: number;
+  dpsPerUnit: number;
+  hpPerUnit: number;
+  linkId: string;
+  progress01: number;
+}
+
 export const TOWER_RADIUS_PX = 28;
 
 export class World {
   readonly towers: Tower[];
   readonly links: Link[];
+  readonly packets: UnitPacket[];
   private readonly maxOutgoingLinksPerTower: number;
 
   constructor(towers: Tower[], maxOutgoingLinksPerTower: number) {
     this.towers = towers.map((tower) => ({ ...tower }));
     this.links = [];
+    this.packets = [];
     this.maxOutgoingLinksPerTower = Math.max(0, Math.floor(maxOutgoingLinksPerTower));
   }
 
@@ -71,7 +86,25 @@ export class World {
     this.links.push(link);
   }
 
-  private getTowerById(towerId: string): Tower | null {
+  getOutgoingLink(fromTowerId: string): Link | null {
+    for (const link of this.links) {
+      if (link.fromTowerId === fromTowerId) {
+        return link;
+      }
+    }
+    return null;
+  }
+
+  getLinkById(linkId: string): Link | null {
+    for (const link of this.links) {
+      if (link.id === linkId) {
+        return link;
+      }
+    }
+    return null;
+  }
+
+  getTowerById(towerId: string): Tower | null {
     for (const tower of this.towers) {
       if (tower.id === towerId) {
         return tower;
