@@ -76,6 +76,11 @@ export interface WaveRenderState {
   telegraphs: TelegraphMarker[];
 }
 
+export interface BossTooltipTelemetry {
+  phase: string;
+  upcomingTelegraph: string;
+}
+
 export interface WaveDirectorOptions {
   runSeed: number;
   missionDifficultyScalar: number;
@@ -279,6 +284,35 @@ export class WaveDirector {
       avgTroopsPerOwnedTower: playerMetrics.avgTroopsPerOwnedTower,
       packetsSentPerSec: this.packetsSentPerSec,
       timeToZeroTowersEstimateSec,
+    };
+  }
+
+  getBossTooltipTelemetry(): BossTooltipTelemetry | null {
+    const boss = this.getActiveBossPacket();
+    if (!boss) {
+      return null;
+    }
+
+    const healthRatio = clamp(boss.count / Math.max(1, boss.baseCount), 0, 1);
+    const phase = boss.bossEnraged
+      ? "Enraged"
+      : healthRatio > 0.66
+        ? "Phase 1"
+        : healthRatio > this.content.balance.boss.enrageThreshold
+          ? "Phase 2"
+          : "Phase 3";
+
+    let upcomingTelegraph = "Slam / Summon / Enrage";
+    if (this.bossAbilitySchedule) {
+      upcomingTelegraph =
+        this.bossAbilitySchedule.nextSlamAtSec <= this.bossAbilitySchedule.nextSummonAtSec
+          ? "Slam"
+          : "Summon";
+    }
+
+    return {
+      phase,
+      upcomingTelegraph,
     };
   }
 

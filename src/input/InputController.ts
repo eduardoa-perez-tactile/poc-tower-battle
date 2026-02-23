@@ -60,6 +60,10 @@ export class InputController {
     };
   }
 
+  isDragging(): boolean {
+    return this.enabled && this.dragState !== null;
+  }
+
   private readonly onMouseDown = (event: MouseEvent): void => {
     if (!this.enabled) {
       return;

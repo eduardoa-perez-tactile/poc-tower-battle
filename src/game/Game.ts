@@ -2,7 +2,11 @@ import { InputController } from "../input/InputController";
 import { Renderer2D } from "../render/Renderer2D";
 import { updateWorld, type SimulationRules } from "../sim/Simulation";
 import { World } from "../sim/World";
-import { WaveDirector, type MissionWaveTelemetry } from "../waves/WaveDirector";
+import {
+  WaveDirector,
+  type BossTooltipTelemetry,
+  type MissionWaveTelemetry,
+} from "../waves/WaveDirector";
 import { SkillManager, type SkillHudState } from "./SkillManager";
 
 const FIXED_STEP_SEC = 1 / 60;
@@ -83,6 +87,14 @@ export class Game {
 
   getWaveTelemetry(): MissionWaveTelemetry | null {
     return this.waveDirector?.getTelemetry() ?? null;
+  }
+
+  getBossTooltipTelemetry(): BossTooltipTelemetry | null {
+    return this.waveDirector?.getBossTooltipTelemetry() ?? null;
+  }
+
+  getWorld(): World {
+    return this.world;
   }
 
   getDebugEnemyIds(): string[] {

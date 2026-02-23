@@ -55,8 +55,22 @@ import type { BalanceBaselinesConfig, DifficultyTierConfig } from "./waves/Defin
 import { loadWaveContent } from "./waves/Definitions";
 import { WaveDirector } from "./waves/WaveDirector";
 import { SkillManager } from "./game/SkillManager";
+import {
+  createBadge,
+  createButton,
+  createCard,
+  createDivider,
+  createIconButton,
+  createPanel,
+  createScrollArea,
+  createTabs,
+  createTooltip,
+} from "./components/ui/primitives";
+import { debugUiStore, type DebugUiState } from "./ui/debugStore";
+import { WorldTooltipOverlay } from "./ui/WorldTooltipOverlay";
 
-type Screen = "main-menu" | "meta" | "run-map" | "mission" | "run-summary";
+type Screen = "title" | "main-menu" | "meta" | "run-map" | "mission" | "run-summary";
+type DebugTab = "run" | "sim" | "ui" | "dev";
 
 interface AppState {
   screen: Screen;
@@ -69,6 +83,11 @@ interface AppState {
   missionReward: MissionGloryReward | null;
   balanceDiagnosticsEnabled: boolean;
   pendingAscensionIds: string[];
+  debugTab: DebugTab;
+  debugDangerZoneOpen: boolean;
+  frameTimeMs: number;
+  fps: number;
+  missionPaused: boolean;
 }
 
 const DEBUG_TOOLS_ENABLED = true;
@@ -78,10 +97,16 @@ async function bootstrap(): Promise<void> {
   const canvas = getCanvas();
   const ctx = getContext(canvas);
   const renderer = new Renderer2D(canvas, ctx);
-  const restartBtn = getRestartButton();
+  const pauseBtn = getPauseButton();
   const screenRoot = getScreenRoot();
   const debugPanel = getDebugPanel();
+  const debugIndicator = getDebugIndicator();
   const levelCache = new Map<string, LoadedLevel>();
+  debugIndicator.onclick = () => {
+    if (DEBUG_TOOLS_ENABLED) {
+      debugUiStore.toggleDebugOpen();
+    }
+  };
 
   const resize = () => resizeCanvas(canvas, ctx);
   window.addEventListener("resize", resize);
@@ -106,7 +131,7 @@ async function bootstrap(): Promise<void> {
   });
 
   const app: AppState = {
-    screen: "main-menu",
+    screen: "title",
     metaProfile: loadMetaProfile(),
     runState: loadRunState(),
     runSummary: null,
@@ -116,6 +141,11 @@ async function bootstrap(): Promise<void> {
     missionReward: null,
     balanceDiagnosticsEnabled: DEBUG_TOOLS_ENABLED,
     pendingAscensionIds: [],
+    debugTab: "run",
+    debugDangerZoneOpen: false,
+    frameTimeMs: 0,
+    fps: 0,
+    missionPaused: false,
   };
 
   const initialUnlockEvaluation = evaluateUnlocks(
@@ -134,7 +164,30 @@ async function bootstrap(): Promise<void> {
     saveRunState(app.runState);
   }
 
+  const enemyArchetypesById = new Map(
+    waveContent.enemyCatalog.archetypes.map((archetype) => [archetype.id, archetype] as const),
+  );
+  const worldTooltipOverlay = new WorldTooltipOverlay({
+    canvas,
+    getWorld: () => app.game?.getWorld() ?? null,
+    isMissionScreen: () => app.screen === "mission",
+    isDraggingLink: () => app.inputController?.isDragging() ?? false,
+    isTowerTooltipsEnabled: () => debugUiStore.getState().showTowerTooltips,
+    isEnemyTooltipsEnabled: () => debugUiStore.getState().showEnemyTooltips,
+    getBossTooltipState: () => app.game?.getBossTooltipTelemetry() ?? null,
+    enemyArchetypesById,
+  });
+  worldTooltipOverlay.start();
+  window.addEventListener(
+    "beforeunload",
+    () => {
+      worldTooltipOverlay.dispose();
+    },
+    { once: true },
+  );
+
   const render = (): void => {
+    const debugState = debugUiStore.getState();
     renderCurrentScreen(
       app,
       screenRoot,
@@ -153,6 +206,8 @@ async function bootstrap(): Promise<void> {
       toggleRunAscension,
       finalizeRun,
       closeSummaryToMenu,
+      debugState,
+      setMissionPaused,
     );
     renderDebugPanel(
       debugPanel,
@@ -166,7 +221,22 @@ async function bootstrap(): Promise<void> {
       toggleBalanceDiagnostics,
       runQuickSimDebug,
     );
-    syncRestartButton(restartBtn, app, restartCurrentMission);
+    syncDebugIndicator(debugIndicator, DEBUG_TOOLS_ENABLED, debugState);
+    syncPauseButton(pauseBtn, app, setMissionPaused);
+  };
+
+  debugUiStore.subscribe(() => {
+    render();
+  });
+
+  const setMissionPaused = (paused: boolean): void => {
+    if (app.screen !== "mission" || !app.game || !app.inputController || app.missionResult !== null) {
+      app.missionPaused = false;
+      return;
+    }
+    app.missionPaused = paused;
+    app.inputController.setEnabled(!paused);
+    render();
   };
 
   const openMainMenu = (): void => {
@@ -293,6 +363,7 @@ async function bootstrap(): Promise<void> {
     app.game = new Game(world, renderer, inputController, tunedLevel.rules, tunedLevel.ai, waveDirector, skillManager);
     app.missionResult = null;
     app.missionReward = null;
+    app.missionPaused = false;
     app.screen = "mission";
     saveRunState(app.runState);
     render();
@@ -328,6 +399,7 @@ async function bootstrap(): Promise<void> {
     app.runState.runGloryEarned += missionReward.total;
     app.missionResult = result;
     app.missionReward = missionReward;
+    app.missionPaused = false;
 
     if (result === "win") {
       app.runState.currentMissionIndex += 1;
@@ -429,6 +501,7 @@ async function bootstrap(): Promise<void> {
     if (app.screen !== "mission" || !app.runState) {
       return;
     }
+    app.missionPaused = false;
     void startCurrentMission();
   };
 
@@ -669,22 +742,69 @@ async function bootstrap(): Promise<void> {
     app.game = null;
     app.missionResult = null;
     app.missionReward = null;
+    app.missionPaused = false;
   };
 
   window.addEventListener("keydown", (event) => {
-    if (event.key === "r" || event.key === "R") {
-      restartCurrentMission();
-    }
-    if (!DEBUG_TOOLS_ENABLED) {
+    const isTyping = isTypingTarget(event.target);
+    const key = event.key;
+
+    if (DEBUG_TOOLS_ENABLED && (key === "d" || key === "D") && !isTyping && !event.repeat) {
+      debugUiStore.toggleDebugOpen();
+      event.preventDefault();
       return;
     }
-    if (event.key === "g" || event.key === "G") {
+
+    if (key === "Escape") {
+      if (debugUiStore.getState().debugOpen) {
+        debugUiStore.setState({ debugOpen: false });
+        event.preventDefault();
+        return;
+      }
+      if (
+        !isTyping &&
+        app.screen === "mission" &&
+        app.game &&
+        app.missionResult === null &&
+        !(app.inputController?.isDragging() ?? false)
+      ) {
+        setMissionPaused(!app.missionPaused);
+        event.preventDefault();
+        return;
+      }
+      if (!isTyping && triggerHotkeyButton("escape", screenRoot)) {
+        event.preventDefault();
+        return;
+      }
+    }
+
+    if (!isTyping && app.screen === "mission" && app.game && app.missionResult === null && (key === "p" || key === "P")) {
+      setMissionPaused(!app.missionPaused);
+      event.preventDefault();
+      return;
+    }
+
+    if ((key === "Enter" || key === "NumpadEnter") && !isTyping) {
+      if (triggerHotkeyButton("enter", screenRoot)) {
+        event.preventDefault();
+        return;
+      }
+    }
+
+    if ((key === "r" || key === "R") && !isTyping) {
+      restartCurrentMission();
+    }
+
+    if (!DEBUG_TOOLS_ENABLED || isTyping) {
+      return;
+    }
+    if (key === "g" || key === "G") {
       addDebugGlory();
     }
-    if (event.key === "1") {
+    if (key === "1") {
       forceMissionWin();
     }
-    if (event.key === "2") {
+    if (key === "2") {
       forceMissionLose();
     }
   });
@@ -692,15 +812,42 @@ async function bootstrap(): Promise<void> {
   render();
 
   let lastTimeSec = performance.now() / 1000;
+  let uiSyncAccumulatorSec = 0;
   const loop = (timeMs: number): void => {
     const nowSec = timeMs / 1000;
     const dtSec = nowSec - lastTimeSec;
     lastTimeSec = nowSec;
+    const clampedDtSec = Math.max(0.0001, dtSec);
+    app.frameTimeMs = app.frameTimeMs <= 0
+      ? clampedDtSec * 1000
+      : app.frameTimeMs * 0.9 + clampedDtSec * 1000 * 0.1;
+    app.fps = app.fps <= 0
+      ? 1 / clampedDtSec
+      : app.fps * 0.85 + (1 / clampedDtSec) * 0.15;
 
-    if (app.game) {
+    if (app.game && !app.missionPaused) {
       app.game.frame(dtSec);
       handleMissionResult();
-      syncMissionHud(app);
+    }
+
+    uiSyncAccumulatorSec += dtSec;
+    if (uiSyncAccumulatorSec >= 0.1) {
+      uiSyncAccumulatorSec = 0;
+      syncMissionHud(app, debugUiStore.getState());
+      if (debugUiStore.getState().debugOpen && (app.debugTab === "run" || app.debugTab === "sim")) {
+        renderDebugPanel(
+          debugPanel,
+          app,
+          addDebugGlory,
+          resetMeta,
+          forceMissionWin,
+          forceMissionLose,
+          debugSpawnEnemy,
+          debugStartWave,
+          toggleBalanceDiagnostics,
+          runQuickSimDebug,
+        );
+      }
     }
 
     requestAnimationFrame(loop);
@@ -727,42 +874,127 @@ function renderCurrentScreen(
   toggleRunAscension: (ascensionId: string, enabled: boolean) => void,
   finalizeRun: (won: boolean) => void,
   closeSummaryToMenu: () => void,
+  debugState: DebugUiState,
+  setMissionPaused: (paused: boolean) => void,
 ): void {
   screenRoot.replaceChildren();
 
+  if (app.screen === "title") {
+    const panel = createPanel("Tower Battle: Connect Towers", "Command linked towers. Hold lanes. Break the siege.");
+    panel.classList.add("menu-panel", "title-panel");
+
+    const heroCard = createCard("Welcome Commander");
+    heroCard.appendChild(
+      createParagraph(
+        "Direct your network by dragging links between towers. Your economy and control decide every wave.",
+      ),
+    );
+    heroCard.appendChild(
+      createParagraph(
+        "Progress through missions, unlock meta upgrades, and take on ascension modifiers for harder runs.",
+      ),
+    );
+    panel.appendChild(heroCard);
+
+    const controlsCard = createCard("Core Controls");
+    controlsCard.appendChild(createParagraph("Mouse drag: create outgoing links"));
+    controlsCard.appendChild(createParagraph("Right click / Esc: cancel drag"));
+    controlsCard.appendChild(createParagraph("D: open debug menu"));
+    controlsCard.appendChild(createParagraph("P or Esc during mission: pause menu"));
+    panel.appendChild(controlsCard);
+
+    panel.appendChild(
+      createButton("Enter Command", openMainMenu, {
+        variant: "primary",
+        primaryAction: true,
+        hotkey: "Enter",
+      }),
+    );
+    screenRoot.appendChild(wrapCentered(panel));
+    return;
+  }
+
   if (app.screen === "main-menu") {
-    const panel = createPanel("Tower Battle: Connect Towers");
-    panel.classList.add("centered");
-    panel.appendChild(createParagraph(`Glory: ${app.metaProfile.glory}`));
-    panel.appendChild(createParagraph(`Meta Level: ${computeMetaAccountLevel(app.metaProfile)}`));
-    panel.appendChild(createParagraph(`Mission Templates: ${missionTemplates.length}`));
-    panel.appendChild(createButton("Start New Run", startNewRun));
-    const continueBtn = createButton("Continue Run", continueRun);
-    continueBtn.disabled = !app.runState;
-    panel.appendChild(continueBtn);
-    panel.appendChild(createButton("Meta Progression", openMetaScreen));
+    const panel = createPanel("Main Menu", "Choose where to go next");
+    panel.classList.add("menu-panel");
+
+    const introCard = createCard("What This Is");
+    introCard.appendChild(
+      createParagraph(
+        "Tower Battle is a deterministic lane-control strategy game. Link towers to route troops and outscale enemy waves.",
+      ),
+    );
+    introCard.appendChild(
+      createParagraph(
+        "Start a run to enter mission flow, or open Meta Progression to invest permanent Glory upgrades.",
+      ),
+    );
+    panel.appendChild(introCard);
+
+    const profileCard = createCard("Profile Snapshot");
+    profileCard.appendChild(createParagraph(`Current Glory: ${app.metaProfile.glory}`));
+    profileCard.appendChild(createParagraph(`Meta Level: ${computeMetaAccountLevel(app.metaProfile)}`));
+    profileCard.appendChild(createParagraph(`Runs Completed: ${app.metaProfile.metaProgress.runsCompleted}`));
+    profileCard.appendChild(createParagraph(`Mission Templates Loaded: ${missionTemplates.length}`));
     if (app.runState) {
-      panel.appendChild(createParagraph(`In progress run: ${app.runState.runId}`));
+      profileCard.appendChild(createParagraph(`Run In Progress: ${app.runState.currentMissionIndex + 1}/${app.runState.missions.length}`));
     }
+    panel.appendChild(profileCard);
+
+    const actionCard = createCard("Actions");
+    const startBtn = createButton("Start New Run", startNewRun, {
+      variant: "primary",
+      primaryAction: true,
+      hotkey: "Enter",
+    });
+    actionCard.appendChild(startBtn);
+    const continueBtn = createButton("Continue Run", continueRun, { variant: "secondary" });
+    continueBtn.disabled = !app.runState;
+    actionCard.appendChild(continueBtn);
+    actionCard.appendChild(createButton("Meta Progression", openMetaScreen, { variant: "secondary" }));
+    panel.appendChild(actionCard);
+
     screenRoot.appendChild(wrapCentered(panel));
     return;
   }
 
   if (app.screen === "meta") {
-    const panel = createPanel("Meta Progression");
-    panel.classList.add("centered");
-    panel.appendChild(createParagraph(`Glory: ${app.metaProfile.glory}`));
-    panel.appendChild(
+    const panel = createPanel("Meta Progression", "Persistent upgrades and ascensions");
+    panel.classList.add("menu-panel", "menu-panel-wide");
+
+    const body = document.createElement("div");
+    body.className = "menu-body";
+    const scroll = document.createElement("div");
+    scroll.className = "menu-body-scroll";
+
+    const summary = createCard("Section 1: Account Overview");
+    summary.appendChild(
       createParagraph(
-        `Meta Level: ${computeMetaAccountLevel(app.metaProfile)} | Runs: ${app.metaProfile.metaProgress.runsCompleted} | Wins: ${app.metaProfile.metaProgress.runsWon} | Glory Spent: ${Math.round(app.metaProfile.metaProgress.glorySpentTotal)}`,
+        "This section shows your persistent profile stats and available Glory to spend on upgrades.",
       ),
     );
+    summary.appendChild(createParagraph(`Available Glory: ${app.metaProfile.glory}`));
+    summary.appendChild(
+      createParagraph(
+        `Meta Lv ${computeMetaAccountLevel(app.metaProfile)} • Runs ${app.metaProfile.metaProgress.runsCompleted} • Wins ${app.metaProfile.metaProgress.runsWon}`,
+      ),
+    );
+    summary.appendChild(createParagraph(`Total Glory Spent: ${Math.round(app.metaProfile.metaProgress.glorySpentTotal)}`));
+    summary.appendChild(
+      createParagraph(
+        `Ascension Clears: ${Object.values(app.metaProfile.metaProgress.ascensionsCleared).reduce((sum, value) => sum + value, 0)}`,
+      ),
+    );
+    scroll.appendChild(summary);
 
+    const trees = createCard("Section 2: Upgrade Trees");
+    trees.appendChild(
+      createParagraph(
+        "Each tree focuses on one domain. Buy nodes with Glory; prerequisites are shown inline.",
+      ),
+    );
     for (const tree of upgradeCatalog.trees) {
-      const treeHeading = createParagraph(`${tree.name}`);
-      treeHeading.style.marginTop = "10px";
-      treeHeading.style.fontWeight = "bold";
-      panel.appendChild(treeHeading);
+      const treeCard = createCard(tree.name);
 
       const list = document.createElement("div");
       list.className = "list";
@@ -786,33 +1018,64 @@ function renderCurrentScreen(
         const buyBtn = createButton(
           cost === null ? "Maxed" : `Buy (${cost})`,
           () => purchaseUpgradeById(node.id),
+          { variant: cost === null ? "ghost" : "secondary" },
         );
         buyBtn.disabled = cost === null || app.metaProfile.glory < cost;
         row.append(left, buyBtn);
         list.appendChild(row);
       }
-      panel.appendChild(list);
+      treeCard.appendChild(createScrollArea(list, { maxHeight: "min(32vh, 280px)" }));
+      trees.appendChild(treeCard);
     }
+    scroll.appendChild(trees);
 
-    panel.appendChild(createButton("Back", app.runState ? openRunMap : openMainMenu));
+    const progressionCard = createCard("Section 3: Progress Notes");
+    progressionCard.appendChild(
+      createParagraph(
+        "Meta upgrades affect future runs only. Current run state remains deterministic and unchanged.",
+      ),
+    );
+    progressionCard.appendChild(createParagraph("Tip: spend Glory before starting a new run for best value."));
+    scroll.appendChild(progressionCard);
+
+    body.appendChild(scroll);
+    panel.appendChild(body);
+    panel.appendChild(createDivider());
+    const footer = document.createElement("div");
+    footer.className = "menu-footer";
+    footer.appendChild(
+      createButton("Back", app.runState ? openRunMap : openMainMenu, {
+        variant: "ghost",
+        escapeAction: true,
+        hotkey: "Esc",
+      }),
+    );
+    panel.appendChild(footer);
     screenRoot.appendChild(wrapCentered(panel));
     return;
   }
 
   if (app.screen === "run-map") {
-    const panel = createPanel("Run Map");
-    panel.classList.add("centered");
+    const panel = createPanel("Run Map", "Prepare modifiers before deploying");
+    panel.classList.add("menu-panel", "menu-panel-wide");
     if (!app.runState) {
       panel.appendChild(createParagraph("No run in progress."));
-      panel.appendChild(createButton("Back to Menu", openMainMenu));
+      panel.appendChild(createButton("Back to Menu", openMainMenu, { escapeAction: true, hotkey: "Esc" }));
       screenRoot.appendChild(wrapCentered(panel));
       return;
     }
 
-    panel.appendChild(createParagraph(`Run ID: ${app.runState.runId}`));
-    panel.appendChild(createParagraph(`Seed: ${app.runState.seed}`));
-    panel.appendChild(createParagraph(`Difficulty Tier: ${app.runState.runModifiers.tier}`));
-    panel.appendChild(createParagraph(`Current Mission: ${app.runState.currentMissionIndex + 1}/${app.runState.missions.length}`));
+    const body = document.createElement("div");
+    body.className = "menu-body";
+    const scroll = document.createElement("div");
+    scroll.className = "menu-body-scroll";
+
+    const runCard = createCard("Run Data");
+    runCard.appendChild(createParagraph("Section 1: Snapshot of this run seed, difficulty, and mission progress."));
+    runCard.appendChild(createParagraph(`Run ID: ${app.runState.runId}`));
+    runCard.appendChild(createParagraph(`Seed: ${app.runState.seed}`));
+    runCard.appendChild(createParagraph(`Difficulty Tier: ${app.runState.runModifiers.tier}`));
+    runCard.appendChild(createParagraph(`Current Mission: ${app.runState.currentMissionIndex + 1}/${app.runState.missions.length}`));
 
     const difficultyRow = document.createElement("div");
     difficultyRow.className = "meta-row";
@@ -837,12 +1100,15 @@ function renderCurrentScreen(
       openRunMap();
     };
     difficultyRow.append(difficultyLabel, difficultySelect);
-    panel.appendChild(difficultyRow);
+    runCard.appendChild(difficultyRow);
+    scroll.appendChild(runCard);
 
     const ascensionInfo = createParagraph(
       `Ascensions: ${app.runState.runAscensionIds.length}/${ascensionCatalog.maxSelected}`,
     );
-    panel.appendChild(ascensionInfo);
+    const ascensionCard = createCard("Section 2: Ascensions");
+    ascensionCard.appendChild(createParagraph("Enable modifiers for higher rewards. Locked after mission 1 starts."));
+    ascensionCard.appendChild(ascensionInfo);
 
     const ascensionList = document.createElement("div");
     ascensionList.className = "list";
@@ -879,15 +1145,18 @@ function renderCurrentScreen(
       row.append(left, checkbox);
       ascensionList.appendChild(row);
     }
-    panel.appendChild(ascensionList);
+    ascensionCard.appendChild(createScrollArea(ascensionList, { maxHeight: "min(26vh, 260px)" }));
+    scroll.appendChild(ascensionCard);
 
     const rewardMul = getAscensionRewardMultipliers(app.runState.runAscensionIds, ascensionCatalog);
-    panel.appendChild(
+    scroll.appendChild(
       createParagraph(`Expected Ascension Rewards: Glory x${rewardMul.gloryMul.toFixed(2)} | Gold x${rewardMul.goldMul.toFixed(2)}`),
     );
 
-    const list = document.createElement("div");
-    list.className = "list";
+    const missionCard = createCard("Section 3: Mission Route");
+    missionCard.appendChild(createParagraph("Mission order for this run. Complete current mission to unlock the next."));
+    const missionsList = document.createElement("div");
+    missionsList.className = "list";
     app.runState.missions.forEach((mission, index) => {
       const row = document.createElement("div");
       row.className = "meta-row";
@@ -899,107 +1168,156 @@ function renderCurrentScreen(
             : "Locked";
       const label = document.createElement("div");
       label.textContent = `${index + 1}. ${mission.name}`;
-      const badge = document.createElement("span");
-      badge.className = "badge";
-      badge.textContent = `${status} • x${mission.difficulty.toFixed(2)} • ${app.runState!.runModifiers.tier}`;
+      const badge = createBadge(`${status} • x${mission.difficulty.toFixed(2)} • ${app.runState!.runModifiers.tier}`);
       label.appendChild(badge);
       row.appendChild(label);
-      list.appendChild(row);
+      missionsList.appendChild(row);
     });
-    panel.appendChild(list);
+    missionCard.appendChild(createScrollArea(missionsList, { maxHeight: "min(22vh, 240px)" }));
+    scroll.appendChild(missionCard);
+
+    body.appendChild(scroll);
+    panel.appendChild(body);
 
     const deployBtn = createButton("Deploy Mission", () => {
       void startCurrentMission();
+    }, {
+      variant: "primary",
+      primaryAction: true,
+      hotkey: "Enter",
     });
     const runFinished = app.runState.currentMissionIndex >= app.runState.missions.length;
     deployBtn.disabled = runFinished;
-    panel.appendChild(deployBtn);
-    panel.appendChild(createButton("Meta Progression", openMetaScreen));
-    panel.appendChild(createButton("Abandon Run", abandonRun));
-    panel.appendChild(createButton("Main Menu", openMainMenu));
+    panel.appendChild(createDivider());
+    const footer = document.createElement("div");
+    footer.className = "menu-footer";
+    footer.appendChild(deployBtn);
+    footer.appendChild(createButton("Meta Progression", openMetaScreen, { variant: "secondary" }));
+    footer.appendChild(createButton("Abandon Run", abandonRun, { variant: "danger" }));
+    footer.appendChild(createButton("Main Menu", openMainMenu, { variant: "ghost", escapeAction: true, hotkey: "Esc" }));
+    panel.appendChild(footer);
     screenRoot.appendChild(wrapCentered(panel));
     return;
   }
 
   if (app.screen === "mission") {
-    const hud = createPanel("Mission");
-    hud.style.position = "absolute";
-    hud.style.right = "12px";
-    hud.style.bottom = "12px";
-    hud.style.maxWidth = "390px";
+    if (debugState.showMissionHud) {
+      const hud = createPanel("Mission");
+      hud.classList.add("mission-hud");
 
-    if (app.runState) {
-      const mission = getCurrentMission(app.runState);
-      if (mission) {
-        hud.appendChild(
-          createParagraph(
-            `${mission.name} (${app.runState.currentMissionIndex + 1}/${app.runState.missions.length}) • Difficulty x${mission.difficulty.toFixed(2)} • ${app.runState.runModifiers.tier}`,
-          ),
-        );
+      if (app.runState) {
+        const mission = getCurrentMission(app.runState);
+        if (mission) {
+          hud.appendChild(
+            createParagraph(
+              `${mission.name} (${app.runState.currentMissionIndex + 1}/${app.runState.missions.length}) • Difficulty x${mission.difficulty.toFixed(2)} • ${app.runState.runModifiers.tier}`,
+            ),
+          );
+        }
       }
+      hud.appendChild(createParagraph("Drag from player towers to direct links."));
+      hud.appendChild(createParagraph("Wave telemetry updates in real time."));
+      hud.appendChild(createTooltip("Hover towers/enemies for world tooltips", "Tooltips are read-only overlays and never block input.", { compact: true }));
+
+      const waveStatus = createParagraph("Wave: --");
+      waveStatus.id = "missionWaveStatus";
+      hud.appendChild(waveStatus);
+
+      const modifiers = createParagraph("Modifiers: --");
+      modifiers.id = "missionWaveModifiers";
+      hud.appendChild(modifiers);
+
+      const gold = createParagraph("Gold: 0");
+      gold.id = "missionWaveGold";
+      hud.appendChild(gold);
+
+      const buff = createParagraph("Buff: none");
+      buff.id = "missionWaveBuff";
+      hud.appendChild(buff);
+
+      if (debugState.showSkillHud) {
+        const skillTargetLabel = createParagraph("Skill Target Tower:");
+        skillTargetLabel.style.marginTop = "8px";
+        hud.appendChild(skillTargetLabel);
+
+        const skillTarget = document.createElement("select");
+        skillTarget.id = "missionSkillTarget";
+        hud.appendChild(skillTarget);
+
+        const skillBarLabel = createParagraph("Skills:");
+        skillBarLabel.style.marginTop = "8px";
+        hud.appendChild(skillBarLabel);
+
+        const skillBar = document.createElement("div");
+        skillBar.id = "missionSkillBar";
+        skillBar.className = "list";
+        skillBar.style.gap = "6px";
+        hud.appendChild(createScrollArea(skillBar, { maxHeight: "min(16vh, 160px)" }));
+      }
+
+      if (DEBUG_TOOLS_ENABLED) {
+        const balanceDebug = createParagraph("Balance: diagnostics off");
+        balanceDebug.id = "missionBalanceDebug";
+        balanceDebug.style.fontSize = "12px";
+        balanceDebug.style.opacity = "0.9";
+        hud.appendChild(balanceDebug);
+      }
+
+      if (debugState.showWavePreview) {
+        const previewLabel = createParagraph("Upcoming:");
+        previewLabel.style.marginBottom = "4px";
+        hud.appendChild(previewLabel);
+        const preview = document.createElement("div");
+        preview.id = "missionWavePreview";
+        preview.className = "list";
+        preview.style.gap = "4px";
+        hud.appendChild(createScrollArea(preview, { maxHeight: "min(18vh, 170px)" }));
+      }
+
+      screenRoot.appendChild(hud);
     }
-    hud.appendChild(createParagraph("Drag from player towers to direct links."));
-    hud.appendChild(createParagraph("Wave telemetry updates in real time."));
 
-    const waveStatus = createParagraph("Wave: --");
-    waveStatus.id = "missionWaveStatus";
-    hud.appendChild(waveStatus);
+    if (app.missionPaused && app.missionResult === null) {
+      const pausePanel = createPanel("Mission Paused", "Simulation is halted. Continue when ready.");
+      pausePanel.classList.add("menu-panel", "pause-panel");
 
-    const modifiers = createParagraph("Modifiers: --");
-    modifiers.id = "missionWaveModifiers";
-    hud.appendChild(modifiers);
+      const summary = createCard("Pause Menu");
+      summary.appendChild(createParagraph("Continue: resume simulation and input controls."));
+      summary.appendChild(createParagraph("Restart Mission: reset current mission state."));
+      summary.appendChild(createParagraph("Main Menu: exit mission view and return to menu."));
+      pausePanel.appendChild(summary);
 
-    const gold = createParagraph("Gold: 0");
-    gold.id = "missionWaveGold";
-    hud.appendChild(gold);
-
-    const buff = createParagraph("Buff: none");
-    buff.id = "missionWaveBuff";
-    hud.appendChild(buff);
-
-    const skillTargetLabel = createParagraph("Skill Target Tower:");
-    skillTargetLabel.style.marginTop = "8px";
-    hud.appendChild(skillTargetLabel);
-
-    const skillTarget = document.createElement("select");
-    skillTarget.id = "missionSkillTarget";
-    hud.appendChild(skillTarget);
-
-    const skillBarLabel = createParagraph("Skills:");
-    skillBarLabel.style.marginTop = "8px";
-    hud.appendChild(skillBarLabel);
-
-    const skillBar = document.createElement("div");
-    skillBar.id = "missionSkillBar";
-    skillBar.className = "list";
-    skillBar.style.gap = "6px";
-    hud.appendChild(skillBar);
-
-    if (DEBUG_TOOLS_ENABLED) {
-      const balanceDebug = createParagraph("Balance: diagnostics off");
-      balanceDebug.id = "missionBalanceDebug";
-      balanceDebug.style.fontSize = "12px";
-      balanceDebug.style.opacity = "0.9";
-      hud.appendChild(balanceDebug);
+      const actions = document.createElement("div");
+      actions.className = "menu-footer";
+      actions.appendChild(
+        createButton("Continue", () => {
+          setMissionPaused(false);
+        }, { variant: "primary", primaryAction: true, hotkey: "Enter" }),
+      );
+      actions.appendChild(
+        createButton("Restart Mission", () => {
+          setMissionPaused(false);
+          restartCurrentMission();
+        }, { variant: "secondary" }),
+      );
+      actions.appendChild(
+        createButton("Main Menu", () => {
+          setMissionPaused(false);
+          openMainMenu();
+        }, { variant: "ghost", escapeAction: true, hotkey: "Esc" }),
+      );
+      pausePanel.appendChild(actions);
+      screenRoot.appendChild(wrapCentered(pausePanel));
     }
-
-    const previewLabel = createParagraph("Upcoming:");
-    previewLabel.style.marginBottom = "4px";
-    hud.appendChild(previewLabel);
-    const preview = document.createElement("div");
-    preview.id = "missionWavePreview";
-    preview.className = "list";
-    preview.style.gap = "4px";
-    hud.appendChild(preview);
 
     if (app.missionResult) {
       const resultPanel = createPanel(app.missionResult === "win" ? "Mission Victory" : "Mission Defeat");
-      resultPanel.classList.add("centered");
+      resultPanel.classList.add("menu-panel");
       const rewardValue = app.missionReward ? app.missionReward.total : 0;
       resultPanel.appendChild(createParagraph(`Glory earned this mission: ${rewardValue}`));
 
       if (app.missionResult === "win" && app.runState && app.runState.currentMissionIndex < app.runState.missions.length) {
-        resultPanel.appendChild(createButton("Continue To Run Map", openRunMap));
+        resultPanel.appendChild(createButton("Continue To Run Map", openRunMap, { variant: "primary", primaryAction: true, hotkey: "Enter" }));
       } else {
         resultPanel.appendChild(
           createButton("Open Run Summary", () => {
@@ -1008,70 +1326,76 @@ function renderCurrentScreen(
             } else {
               finalizeRun(false);
             }
-          }),
+          }, { variant: "primary", primaryAction: true, hotkey: "Enter" }),
         );
       }
       const canRestartMission =
         !(app.missionResult === "win" && app.runState && app.runState.currentMissionIndex < app.runState.missions.length);
       if (canRestartMission) {
-        resultPanel.appendChild(createButton("Restart Mission", restartCurrentMission));
+        resultPanel.appendChild(createButton("Restart Mission", restartCurrentMission, { variant: "secondary" }));
       }
       screenRoot.appendChild(wrapCentered(resultPanel));
     }
-
-    screenRoot.appendChild(hud);
     return;
   }
 
   if (app.screen === "run-summary") {
-    const panel = createPanel("End of Run Summary");
-    panel.classList.add("centered");
+    const panel = createPanel("End of Run Summary", "Mission report and meta rewards");
+    panel.classList.add("menu-panel");
     if (!app.runSummary) {
       panel.appendChild(createParagraph("No summary data."));
-      panel.appendChild(createButton("Back to Menu", closeSummaryToMenu));
+      panel.appendChild(createButton("Back to Menu", closeSummaryToMenu, { variant: "ghost", escapeAction: true, hotkey: "Esc" }));
       screenRoot.appendChild(wrapCentered(panel));
       return;
     }
 
-    panel.appendChild(createParagraph(app.runSummary.won ? "Run Result: Victory" : "Run Result: Defeat"));
-    panel.appendChild(createParagraph(`Missions completed: ${app.runSummary.missionsCompleted}`));
-    panel.appendChild(createParagraph(`Mission Glory: ${app.runSummary.missionGlory}`));
-    panel.appendChild(createParagraph(`Run Bonus Glory: ${app.runSummary.runBonusGlory}`));
-    panel.appendChild(createParagraph(`Total Glory Earned: ${app.runSummary.totalGloryEarned}`));
-    panel.appendChild(createParagraph(`Difficulty Tier: ${app.runSummary.difficultyTier}`));
-    panel.appendChild(
+    const report = document.createElement("div");
+    report.className = "list";
+    report.appendChild(createParagraph(app.runSummary.won ? "Run Result: Victory" : "Run Result: Defeat"));
+    report.appendChild(createParagraph(`Missions completed: ${app.runSummary.missionsCompleted}`));
+    report.appendChild(createParagraph(`Mission Glory: ${app.runSummary.missionGlory}`));
+    report.appendChild(createParagraph(`Run Bonus Glory: ${app.runSummary.runBonusGlory}`));
+    report.appendChild(createParagraph(`Total Glory Earned: ${app.runSummary.totalGloryEarned}`));
+    report.appendChild(createParagraph(`Difficulty Tier: ${app.runSummary.difficultyTier}`));
+    report.appendChild(
       createParagraph(
         `Ascensions: ${app.runSummary.ascensionIds.length > 0 ? app.runSummary.ascensionIds.join(", ") : "none"}`,
       ),
     );
-    panel.appendChild(
+    report.appendChild(
       createParagraph(
         `Ascension Rewards: Glory x${app.runSummary.rewardMultipliers.gloryMul.toFixed(2)} | Gold x${app.runSummary.rewardMultipliers.goldMul.toFixed(2)}`,
       ),
     );
-    panel.appendChild(
+    report.appendChild(
       createParagraph(
         `Applied Multipliers: enemy HP x${app.runSummary.appliedDifficultyMultipliers.enemyHpMul.toFixed(2)}, enemy DMG x${app.runSummary.appliedDifficultyMultipliers.enemyDmgMul.toFixed(2)}, economy Glory x${app.runSummary.appliedDifficultyMultipliers.economyGloryMul.toFixed(2)}`,
       ),
     );
-
     if (app.runSummary.unlockNotifications.length > 0) {
-      panel.appendChild(createParagraph("New unlocks:"));
+      report.appendChild(createDivider());
+      report.appendChild(createParagraph("New unlocks:"));
       const unlockList = document.createElement("div");
       unlockList.className = "list";
       for (const unlock of app.runSummary.unlockNotifications) {
         unlockList.appendChild(createParagraph(`• ${unlock}`));
       }
-      panel.appendChild(unlockList);
+      report.appendChild(createScrollArea(unlockList, { maxHeight: "min(24vh, 220px)" }));
     }
+    panel.appendChild(createScrollArea(report, { maxHeight: "min(60vh, 620px)" }));
 
-    panel.appendChild(createButton("Back to Main Menu", closeSummaryToMenu));
+    panel.appendChild(createButton("Back to Main Menu", closeSummaryToMenu, {
+      variant: "primary",
+      primaryAction: true,
+      hotkey: "Enter",
+      escapeAction: true,
+    }));
     screenRoot.appendChild(wrapCentered(panel));
   }
 }
 
-function syncMissionHud(app: AppState): void {
-  if (app.screen !== "mission" || !app.game || app.missionResult) {
+function syncMissionHud(app: AppState, debugState: DebugUiState): void {
+  if (app.screen !== "mission" || !app.game || app.missionResult || !debugState.showMissionHud) {
     return;
   }
 
@@ -1106,7 +1430,7 @@ function syncMissionHud(app: AppState): void {
   }
 
   const towerTargetSelect = document.getElementById("missionSkillTarget");
-  if (towerTargetSelect instanceof HTMLSelectElement) {
+  if (debugState.showSkillHud && towerTargetSelect instanceof HTMLSelectElement) {
     const towerIds = app.game.getPlayerTowerIds();
     const towerSignature = towerIds.join("|");
     if (towerTargetSelect.dataset.signature !== towerSignature) {
@@ -1126,7 +1450,7 @@ function syncMissionHud(app: AppState): void {
   }
 
   const skillBar = document.getElementById("missionSkillBar");
-  if (skillBar instanceof HTMLDivElement) {
+  if (debugState.showSkillHud && skillBar instanceof HTMLDivElement) {
     const skills = app.game.getSkillHudState();
     const signature = skills
       .map((skill) => `${skill.id}:${Math.round(skill.cooldownRemainingSec * 10)}`)
@@ -1181,7 +1505,7 @@ function syncMissionHud(app: AppState): void {
   }
 
   const preview = document.getElementById("missionWavePreview");
-  if (preview instanceof HTMLDivElement) {
+  if (debugState.showWavePreview && preview instanceof HTMLDivElement) {
     const signature = telemetry.nextWavePreview
       .map((item) => `${item.enemyId}:${item.count}`)
       .join("|");
@@ -1218,97 +1542,270 @@ function renderDebugPanel(
   runQuickSimDebug: () => void,
 ): void {
   debugPanel.replaceChildren();
+  debugPanel.classList.toggle("open", DEBUG_TOOLS_ENABLED && debugUiStore.getState().debugOpen);
   if (!DEBUG_TOOLS_ENABLED) {
     return;
   }
 
-  debugPanel.appendChild(createButton("Debug: +250 Glory", addDebugGlory));
-  debugPanel.appendChild(createButton("Debug: Reset Meta", resetMeta));
-  const canForceEnd = app.screen === "mission" && app.game !== null && app.missionResult === null;
-  const forceWinBtn = createButton("Debug: Mission Win", forceMissionWin);
-  forceWinBtn.disabled = !canForceEnd;
-  debugPanel.appendChild(forceWinBtn);
-  const forceLoseBtn = createButton("Debug: Mission Lose", forceMissionLose);
-  forceLoseBtn.disabled = !canForceEnd;
-  debugPanel.appendChild(forceLoseBtn);
-  const balanceBtn = createButton(
-    app.balanceDiagnosticsEnabled ? "Debug: Balance HUD ON" : "Debug: Balance HUD OFF",
-    toggleBalanceDiagnostics,
+  const debugState = debugUiStore.getState();
+  const shell = createPanel("Debug Menu", "Press D to toggle");
+  shell.classList.add("debug-shell");
+
+  const header = shell.querySelector(".ui-panel-header");
+  if (header instanceof HTMLDivElement) {
+    const closeBtn = createIconButton("×", "Close", () => {
+      debugUiStore.setState({ debugOpen: false });
+    }, { variant: "ghost", tooltip: "Close debug menu (D)" });
+    header.appendChild(closeBtn);
+  }
+
+  const telemetry = app.game?.getWaveTelemetry() ?? null;
+  const world = app.game?.getWorld() ?? null;
+  const tabs = createTabs(
+    [
+      {
+        id: "run",
+        label: "Run",
+        render: () => {
+          const panel = document.createElement("div");
+          panel.className = "list";
+
+          panel.appendChild(createDebugRow("Seed", app.runState ? String(app.runState.seed) : "--"));
+          panel.appendChild(createDebugRow("Wave", telemetry ? `${telemetry.currentWaveIndex}/${telemetry.totalWaveCount}` : "--"));
+          panel.appendChild(createDebugRow("Tier", app.runState?.runModifiers.tier ?? "--"));
+          panel.appendChild(createDebugRow("Frame", `${app.frameTimeMs.toFixed(2)} ms`));
+          panel.appendChild(createDebugRow("FPS", `${app.fps.toFixed(1)}`));
+
+          const modifiersCard = createCard("Current Modifiers");
+          const modifiersList = document.createElement("div");
+          modifiersList.className = "list";
+          for (const modifier of telemetry?.activeModifierNames ?? []) {
+            modifiersList.appendChild(createParagraph(`• ${modifier}`));
+          }
+          if ((telemetry?.activeModifierNames.length ?? 0) === 0) {
+            modifiersList.appendChild(createParagraph("None active."));
+          }
+          modifiersCard.appendChild(createScrollArea(modifiersList, { maxHeight: "min(20vh, 160px)" }));
+          panel.appendChild(modifiersCard);
+
+          return panel;
+        },
+      },
+      {
+        id: "sim",
+        label: "Sim",
+        render: () => {
+          const panel = document.createElement("div");
+          panel.className = "list";
+          panel.appendChild(createDebugRow("Tick Rate", "60 Hz fixed-step"));
+          panel.appendChild(createDebugRow("Determinism", "ON"));
+          panel.appendChild(createDebugRow("Frame Time", `${app.frameTimeMs.toFixed(2)} ms`));
+          panel.appendChild(createDebugRow("Input Drag", app.inputController?.isDragging() ? "active" : "idle"));
+          panel.appendChild(createDebugRow("Entity Towers", world ? String(world.towers.length) : "--"));
+          panel.appendChild(createDebugRow("Entity Links", world ? String(world.links.length) : "--"));
+          panel.appendChild(createDebugRow("Entity Packets", world ? String(world.packets.length) : "--"));
+
+          const diagnostics = createCard("Diagnostics");
+          const diagnosticsList = document.createElement("div");
+          diagnosticsList.className = "list";
+          diagnosticsList.appendChild(createParagraph(`Balance HUD: ${app.balanceDiagnosticsEnabled ? "ON" : "OFF"}`));
+          diagnosticsList.appendChild(createParagraph(`Wave pressure: ${telemetry ? telemetry.wavePressureScore.toFixed(1) : "--"}`));
+          diagnosticsList.appendChild(createParagraph(`Packets/s: ${telemetry ? telemetry.packetsSentPerSec.toFixed(2) : "--"}`));
+          diagnosticsList.appendChild(
+            createParagraph(
+              `TTZ towers: ${telemetry && telemetry.timeToZeroTowersEstimateSec !== null ? telemetry.timeToZeroTowersEstimateSec.toFixed(1) : "∞"}`,
+            ),
+          );
+          diagnostics.appendChild(createScrollArea(diagnosticsList, { maxHeight: "min(20vh, 160px)" }));
+          panel.appendChild(diagnostics);
+
+          return panel;
+        },
+      },
+      {
+        id: "ui",
+        label: "UI",
+        render: () => {
+          const panel = document.createElement("div");
+          panel.className = "list";
+          panel.appendChild(createDebugToggle("Show Tower Tooltips", debugState.showTowerTooltips, () => {
+            debugUiStore.toggle("showTowerTooltips");
+          }));
+          panel.appendChild(createDebugToggle("Show Enemy Tooltips", debugState.showEnemyTooltips, () => {
+            debugUiStore.toggle("showEnemyTooltips");
+          }));
+          panel.appendChild(createDebugToggle("Show Mission HUD", debugState.showMissionHud, () => {
+            debugUiStore.toggle("showMissionHud");
+          }));
+          panel.appendChild(createDebugToggle("Show Skills HUD", debugState.showSkillHud, () => {
+            debugUiStore.toggle("showSkillHud");
+          }));
+          panel.appendChild(createDebugToggle("Show Wave Preview", debugState.showWavePreview, () => {
+            debugUiStore.toggle("showWavePreview");
+          }));
+          panel.appendChild(createDebugToggle("Show Hitboxes", debugState.showHitboxes, () => {
+            debugUiStore.toggle("showHitboxes");
+          }, "Reserved hook; no runtime hitbox renderer is currently active."));
+          return panel;
+        },
+      },
+      {
+        id: "dev",
+        label: "Dev",
+        render: () => {
+          const panel = document.createElement("div");
+          panel.className = "list";
+
+          const danger = document.createElement("details");
+          danger.className = "debug-danger";
+          danger.open = app.debugDangerZoneOpen;
+          danger.ontoggle = () => {
+            app.debugDangerZoneOpen = danger.open;
+          };
+
+          const summary = document.createElement("summary");
+          summary.textContent = "Danger Zone";
+          danger.appendChild(summary);
+
+          const dangerContent = document.createElement("div");
+          dangerContent.className = "list";
+          dangerContent.appendChild(createButton("Debug: +250 Glory", addDebugGlory, { variant: "secondary" }));
+          dangerContent.appendChild(createButton("Debug: Reset Meta", resetMeta, { variant: "danger" }));
+
+          const canForceEnd = app.screen === "mission" && app.game !== null && app.missionResult === null;
+          const forceWinBtn = createButton("Debug: Mission Win", forceMissionWin, { variant: "secondary" });
+          forceWinBtn.disabled = !canForceEnd;
+          dangerContent.appendChild(forceWinBtn);
+
+          const forceLoseBtn = createButton("Debug: Mission Lose", forceMissionLose, { variant: "secondary" });
+          forceLoseBtn.disabled = !canForceEnd;
+          dangerContent.appendChild(forceLoseBtn);
+
+          const balanceBtn = createButton(
+            app.balanceDiagnosticsEnabled ? "Debug: Balance HUD ON" : "Debug: Balance HUD OFF",
+            toggleBalanceDiagnostics,
+            { variant: "ghost" },
+          );
+          dangerContent.appendChild(balanceBtn);
+
+          const quickSimBtn = createButton("Debug: Quick Sim x24", runQuickSimDebug, { variant: "secondary" });
+          quickSimBtn.disabled = app.runState === null;
+          dangerContent.appendChild(quickSimBtn);
+
+          if (app.game && app.screen === "mission" && app.missionResult === null) {
+            const enemyIds = app.game.getDebugEnemyIds();
+            if (enemyIds.length > 0) {
+              const spawnCard = createCard("Spawn Enemy");
+              const select = document.createElement("select");
+              for (const enemyId of enemyIds) {
+                const option = document.createElement("option");
+                option.value = enemyId;
+                option.textContent = enemyId;
+                select.appendChild(option);
+              }
+              const eliteToggle = createDebugToggle("Elite", false, () => {
+                // checkbox state is read when spawning
+              });
+              const eliteCheckbox = eliteToggle.querySelector("input");
+              const spawnBtn = createButton("Spawn", () => {
+                debugSpawnEnemy(select.value, eliteCheckbox instanceof HTMLInputElement ? eliteCheckbox.checked : false);
+              }, { variant: "secondary" });
+              spawnCard.append(select, eliteToggle, spawnBtn);
+              dangerContent.appendChild(spawnCard);
+            }
+
+            const maxWaveIndex = app.game.getDebugMaxWaveIndex();
+            if (maxWaveIndex > 0) {
+              const waveCard = createCard("Start Wave");
+              const waveSelect = document.createElement("select");
+              for (let i = 1; i <= maxWaveIndex; i += 1) {
+                const option = document.createElement("option");
+                option.value = String(i);
+                option.textContent = `Wave ${i}`;
+                waveSelect.appendChild(option);
+              }
+              const waveBtn = createButton("Start", () => {
+                debugStartWave(Number.parseInt(waveSelect.value, 10));
+              }, { variant: "secondary" });
+              waveCard.append(waveSelect, waveBtn);
+              dangerContent.appendChild(waveCard);
+            }
+          }
+
+          danger.appendChild(dangerContent);
+          panel.appendChild(danger);
+          return panel;
+        },
+      },
+    ],
+    app.debugTab,
+    (tabId) => {
+      app.debugTab = tabId as DebugTab;
+    },
   );
-  debugPanel.appendChild(balanceBtn);
-  const quickSimBtn = createButton("Debug: Quick Sim x24", runQuickSimDebug);
-  quickSimBtn.disabled = app.runState === null;
-  debugPanel.appendChild(quickSimBtn);
 
-  if (!app.game || app.screen !== "mission" || app.missionResult !== null) {
-    return;
-  }
-
-  const enemyIds = app.game.getDebugEnemyIds();
-  if (enemyIds.length > 0) {
-    const spawnContainer = document.createElement("div");
-    spawnContainer.className = "panel";
-    spawnContainer.style.padding = "8px";
-    spawnContainer.style.display = "grid";
-    spawnContainer.style.gap = "6px";
-
-    const select = document.createElement("select");
-    for (const enemyId of enemyIds) {
-      const option = document.createElement("option");
-      option.value = enemyId;
-      option.textContent = enemyId;
-      select.appendChild(option);
-    }
-
-    const eliteLabel = document.createElement("label");
-    eliteLabel.style.display = "flex";
-    eliteLabel.style.gap = "6px";
-    eliteLabel.style.alignItems = "center";
-    const eliteCheckbox = document.createElement("input");
-    eliteCheckbox.type = "checkbox";
-    eliteLabel.append(eliteCheckbox, document.createTextNode("Elite"));
-
-    const spawnBtn = createButton("Debug: Spawn Enemy", () => {
-      debugSpawnEnemy(select.value, eliteCheckbox.checked);
-    });
-
-    spawnContainer.append(select, eliteLabel, spawnBtn);
-    debugPanel.appendChild(spawnContainer);
-  }
-
-  const maxWaveIndex = app.game.getDebugMaxWaveIndex();
-  if (maxWaveIndex > 0) {
-    const waveContainer = document.createElement("div");
-    waveContainer.className = "panel";
-    waveContainer.style.padding = "8px";
-    waveContainer.style.display = "grid";
-    waveContainer.style.gap = "6px";
-
-    const waveSelect = document.createElement("select");
-    for (let i = 1; i <= maxWaveIndex; i += 1) {
-      const option = document.createElement("option");
-      option.value = String(i);
-      option.textContent = `Wave ${i}`;
-      waveSelect.appendChild(option);
-    }
-
-    const waveBtn = createButton("Debug: Start Wave", () => {
-      debugStartWave(Number.parseInt(waveSelect.value, 10));
-    });
-
-    waveContainer.append(waveSelect, waveBtn);
-    debugPanel.appendChild(waveContainer);
-  }
+  shell.appendChild(createScrollArea(tabs.root, { maxHeight: "calc(100vh - 130px)" }));
+  debugPanel.appendChild(shell);
 }
 
-function syncRestartButton(
-  restartBtn: HTMLButtonElement,
+function createDebugRow(label: string, value: string): HTMLDivElement {
+  const row = document.createElement("div");
+  row.className = "meta-row";
+
+  const left = document.createElement("div");
+  left.textContent = label;
+
+  const right = document.createElement("div");
+  right.textContent = value;
+  right.style.opacity = "0.85";
+
+  row.append(left, right);
+  return row;
+}
+
+function createDebugToggle(
+  label: string,
+  checked: boolean,
+  onChange: () => void,
+  description?: string,
+): HTMLLabelElement {
+  const row = document.createElement("label");
+  row.className = "debug-toggle-row";
+
+  const left = document.createElement("div");
+  left.className = "debug-toggle-label";
+  left.textContent = label;
+
+  if (description) {
+    const note = document.createElement("div");
+    note.className = "debug-toggle-description";
+    note.textContent = description;
+    left.appendChild(note);
+  }
+
+  const input = document.createElement("input");
+  input.type = "checkbox";
+  input.checked = checked;
+  input.onchange = onChange;
+
+  row.append(left, input);
+  return row;
+}
+
+function syncPauseButton(
+  pauseBtn: HTMLButtonElement,
   app: AppState,
-  restartCurrentMission: () => void,
+  setMissionPaused: (paused: boolean) => void,
 ): void {
-  const missionActive = app.screen === "mission" && app.runState !== null;
-  restartBtn.style.display = missionActive ? "inline-block" : "none";
-  restartBtn.onclick = missionActive ? () => restartCurrentMission() : null;
+  const missionActive = app.screen === "mission" && app.runState !== null && app.missionResult === null;
+  pauseBtn.style.display = missionActive ? "inline-flex" : "none";
+  pauseBtn.className = "ui-button ui-button-secondary top-pause-btn";
+  pauseBtn.textContent = app.missionPaused ? "Resume" : "Pause";
+  pauseBtn.onclick = missionActive
+    ? () => {
+        setMissionPaused(!app.missionPaused);
+      }
+    : null;
 }
 
 async function getLevelByPath(path: string, cache: Map<string, LoadedLevel>): Promise<LoadedLevel> {
@@ -1617,23 +2114,6 @@ function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
 }
 
-function createPanel(title: string): HTMLDivElement {
-  const panel = document.createElement("div");
-  panel.className = "panel";
-  const heading = document.createElement("h2");
-  heading.textContent = title;
-  heading.style.marginTop = "0";
-  panel.appendChild(heading);
-  return panel;
-}
-
-function createButton(label: string, onClick: () => void): HTMLButtonElement {
-  const button = document.createElement("button");
-  button.textContent = label;
-  button.onclick = onClick;
-  return button;
-}
-
 function createParagraph(text: string): HTMLParagraphElement {
   const paragraph = document.createElement("p");
   paragraph.textContent = text;
@@ -1646,6 +2126,36 @@ function wrapCentered(node: HTMLElement): HTMLDivElement {
   wrapper.className = "centered";
   wrapper.appendChild(node);
   return wrapper;
+}
+
+function triggerHotkeyButton(kind: "enter" | "escape", root: HTMLElement): boolean {
+  const selector = kind === "enter" ? "[data-hotkey-enter='true']" : "[data-hotkey-escape='true']";
+  const candidate = root.querySelector(selector);
+  if (!(candidate instanceof HTMLButtonElement) || candidate.disabled) {
+    return false;
+  }
+  candidate.click();
+  return true;
+}
+
+function isTypingTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) {
+    return false;
+  }
+  if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement) {
+    return true;
+  }
+  return target.isContentEditable;
+}
+
+function syncDebugIndicator(
+  indicator: HTMLDivElement,
+  enabled: boolean,
+  debugState: DebugUiState,
+): void {
+  indicator.style.display = enabled ? "inline-flex" : "none";
+  indicator.classList.toggle("open", debugState.debugOpen);
+  indicator.textContent = debugState.debugOpen ? "DEBUG • OPEN" : "DEBUG";
 }
 
 function getCanvas(): HTMLCanvasElement {
@@ -1664,10 +2174,10 @@ function getContext(canvas: HTMLCanvasElement): CanvasRenderingContext2D {
   return ctx;
 }
 
-function getRestartButton(): HTMLButtonElement {
-  const element = document.getElementById("restartBtn");
+function getPauseButton(): HTMLButtonElement {
+  const element = document.getElementById("pauseBtn");
   if (!(element instanceof HTMLButtonElement)) {
-    throw new Error('Button "#restartBtn" was not found');
+    throw new Error('Button "#pauseBtn" was not found');
   }
   return element;
 }
@@ -1684,6 +2194,14 @@ function getDebugPanel(): HTMLDivElement {
   const element = document.getElementById("debugPanel");
   if (!(element instanceof HTMLDivElement)) {
     throw new Error('Container "#debugPanel" was not found');
+  }
+  return element;
+}
+
+function getDebugIndicator(): HTMLDivElement {
+  const element = document.getElementById("debugIndicator");
+  if (!(element instanceof HTMLDivElement)) {
+    throw new Error('Container "#debugIndicator" was not found');
   }
   return element;
 }
