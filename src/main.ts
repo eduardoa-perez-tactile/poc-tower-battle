@@ -1,5 +1,6 @@
 import { Game } from "./game/Game";
 import { loadLevel } from "./game/LevelLoader";
+import { InputController } from "./input/InputController";
 import { Renderer2D } from "./render/Renderer2D";
 import { World } from "./sim/World";
 
@@ -16,10 +17,11 @@ async function bootstrap(): Promise<void> {
   resize();
 
   try {
-    const towers = await loadLevel(LEVEL_PATH);
-    const world = new World(towers);
+    const level = await loadLevel(LEVEL_PATH);
+    const world = new World(level.towers, level.maxOutgoingLinksPerTower);
     const renderer = new Renderer2D(canvas, ctx);
-    const game = new Game(world, renderer);
+    const inputController = new InputController(canvas, world);
+    const game = new Game(world, renderer, inputController);
 
     let lastTimeSec = performance.now() / 1000;
 

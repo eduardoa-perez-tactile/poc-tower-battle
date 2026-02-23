@@ -1,6 +1,11 @@
-import type { TowerOwner, TowerState } from "../sim/World";
+import type { Owner, Tower } from "../sim/World";
 
-export async function loadLevel(path: string): Promise<TowerState[]> {
+export interface LoadedLevel {
+  towers: Tower[];
+  maxOutgoingLinksPerTower: number;
+}
+
+export async function loadLevel(path: string): Promise<LoadedLevel> {
   const response = await fetch(path);
   if (!response.ok) {
     throw new Error(`Failed to load level (${response.status} ${response.statusText})`);
@@ -10,9 +15,13 @@ export async function loadLevel(path: string): Promise<TowerState[]> {
   return parseLevel(data);
 }
 
-function parseLevel(data: unknown): TowerState[] {
+function parseLevel(data: unknown): LoadedLevel {
   if (!isObject(data)) {
     throw new Error("Level JSON root must be an object");
+  }
+
+  if (!isObject(data.rules)) {
+    throw new Error("Level JSON must include a rules object");
   }
 
   const towers = data.towers;
@@ -20,10 +29,16 @@ function parseLevel(data: unknown): TowerState[] {
     throw new Error("Level JSON must include a towers array");
   }
 
-  return towers.map((tower, index) => parseTower(tower, index));
+  return {
+    towers: towers.map((tower, index) => parseTower(tower, index)),
+    maxOutgoingLinksPerTower: asNumber(
+      data.rules.maxOutgoingLinksPerTower,
+      "rules.maxOutgoingLinksPerTower",
+    ),
+  };
 }
 
-function parseTower(value: unknown, index: number): TowerState {
+function parseTower(value: unknown, index: number): Tower {
   if (!isObject(value)) {
     throw new Error(`Tower at index ${index} is invalid`);
   }
@@ -51,7 +66,7 @@ function asNumber(value: unknown, fieldName: string): number {
   return value;
 }
 
-function asOwner(value: unknown, fieldName: string): TowerOwner {
+function asOwner(value: unknown, fieldName: string): Owner {
   if (value === "player" || value === "enemy" || value === "neutral") {
     return value;
   }
