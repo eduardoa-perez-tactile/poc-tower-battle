@@ -5,23 +5,40 @@
     <title>Tower Battle PoC</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <style>
+      :root {
+        --bg-0: #09111f;
+        --bg-1: #101a2b;
+        --bg-2: #1a2740;
+        --surface: rgba(15, 24, 38, 0.84);
+        --surface-strong: rgba(19, 29, 45, 0.95);
+        --stroke: rgba(181, 210, 255, 0.2);
+        --text: #edf4ff;
+        --text-muted: rgba(226, 238, 255, 0.78);
+        --accent: #2dd4bf;
+        --accent-strong: #14b8a6;
+        --danger: #f87171;
+        --shadow: 0 20px 42px rgba(2, 9, 19, 0.5);
+      }
+
       body {
         margin: 0;
+        min-height: 100vh;
         overflow: hidden;
-        background: #111;
-        color: #f8f9fa;
-        font-family: Arial, sans-serif;
+        color: var(--text);
+        font-family: "Avenir Next", "Trebuchet MS", "Segoe UI", sans-serif;
+        background:
+          radial-gradient(1000px 600px at 15% -10%, rgba(45, 212, 191, 0.15), transparent),
+          radial-gradient(900px 560px at 100% 0%, rgba(56, 189, 248, 0.15), transparent),
+          linear-gradient(145deg, var(--bg-0), var(--bg-1) 40%, var(--bg-2) 100%);
       }
       #ui {
         position: fixed;
-        top: 10px;
-        left: 10px;
-        z-index: 10;
+        top: 14px;
+        left: 14px;
+        z-index: 20;
       }
-      button {
-        padding: 6px 10px;
-        font-size: 14px;
-        cursor: pointer;
+      #restartBtn {
+        display: none;
       }
       #screenRoot {
         position: fixed;
@@ -29,20 +46,76 @@
         z-index: 12;
         pointer-events: none;
       }
-      .panel {
-        pointer-events: auto;
-        background: rgba(14, 17, 20, 0.9);
-        border: 1px solid rgba(255, 255, 255, 0.2);
-        border-radius: 8px;
-        padding: 14px;
-        max-width: 640px;
-        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+      #gameCanvas {
+        position: fixed;
+        inset: 0;
+        display: block;
       }
+
+      .menu-panel {
+        width: min(92vw, 760px);
+      }
+
+      .menu-panel-wide {
+        width: min(94vw, 940px);
+      }
+
+      .panel,
+      .ui-panel {
+        pointer-events: auto;
+        background: var(--surface);
+        border: 1px solid var(--stroke);
+        border-radius: 16px;
+        padding: 18px;
+        box-shadow: var(--shadow);
+        backdrop-filter: blur(14px);
+        max-height: min(90vh, 920px);
+      }
+
+      .ui-panel-header {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 8px;
+        align-items: center;
+        margin-bottom: 8px;
+      }
+
+      .ui-heading {
+        margin: 0;
+        font-size: clamp(1.1rem, 2.2vw, 1.7rem);
+        letter-spacing: 0.02em;
+      }
+
+      .ui-subheading {
+        margin: 0;
+        grid-column: 1 / -1;
+        color: var(--text-muted);
+        font-size: 0.92rem;
+      }
+
+      .ui-card {
+        display: grid;
+        gap: 8px;
+        border-radius: 12px;
+        border: 1px solid rgba(181, 210, 255, 0.17);
+        background: rgba(13, 22, 34, 0.74);
+        padding: 12px;
+      }
+
+      .ui-card-title {
+        margin: 0 0 2px;
+        font-size: 0.96rem;
+        color: var(--text-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+      }
+
       .centered {
         position: absolute;
         inset: 0;
         display: grid;
         place-items: center;
+        padding: 20px;
       }
       .list {
         display: grid;
@@ -54,23 +127,326 @@
         gap: 12px;
         align-items: center;
       }
-      .badge {
-        font-size: 12px;
-        background: rgba(255, 255, 255, 0.12);
-        border-radius: 999px;
-        padding: 2px 8px;
-        margin-left: 6px;
+
+      .ui-button {
+        appearance: none;
+        border-radius: 10px;
+        border: 1px solid transparent;
+        color: var(--text);
+        font-size: 0.92rem;
+        font-weight: 600;
+        line-height: 1.2;
+        padding: 10px 12px;
+        cursor: pointer;
+        transition: transform 120ms ease, border-color 120ms ease, background-color 120ms ease;
       }
-      #debugPanel {
-        position: fixed;
-        right: 10px;
-        top: 10px;
-        z-index: 13;
-        display: grid;
+
+      .ui-button:hover {
+        transform: translateY(-1px);
+      }
+
+      .ui-button:disabled {
+        opacity: 0.45;
+        cursor: not-allowed;
+        transform: none;
+      }
+
+      .ui-button-primary {
+        background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+        color: #05211d;
+      }
+
+      .ui-button-secondary {
+        background: rgba(77, 101, 136, 0.35);
+        border-color: rgba(165, 199, 255, 0.2);
+      }
+
+      .ui-button-ghost {
+        background: rgba(82, 102, 132, 0.18);
+        border-color: rgba(176, 201, 241, 0.15);
+      }
+
+      .ui-button-danger {
+        background: rgba(248, 113, 113, 0.2);
+        border-color: rgba(248, 113, 113, 0.55);
+      }
+
+      .ui-icon-button {
+        width: fit-content;
+        min-width: 0;
+        padding: 8px 10px;
+        display: inline-flex;
+        align-items: center;
         gap: 8px;
       }
-      #debugPanel button {
-        width: 160px;
+
+      .ui-icon {
+        font-size: 1.1rem;
+      }
+
+      .ui-icon-label {
+        font-size: 0.8rem;
+        color: var(--text-muted);
+      }
+
+      .ui-hotkey-hint {
+        font-size: 0.74rem;
+        margin-left: 8px;
+        padding: 1px 5px;
+        border-radius: 5px;
+        background: rgba(225, 236, 255, 0.2);
+        border: 1px solid rgba(209, 226, 255, 0.3);
+      }
+
+      .badge,
+      .ui-badge {
+        font-size: 11px;
+        background: rgba(95, 126, 173, 0.35);
+        border: 1px solid rgba(165, 199, 255, 0.25);
+        border-radius: 999px;
+        padding: 3px 8px;
+        margin-left: 8px;
+        color: var(--text-muted);
+      }
+
+      .ui-divider {
+        border: 0;
+        border-top: 1px solid rgba(170, 199, 244, 0.2);
+        margin: 12px 0;
+      }
+
+      .ui-scroll-area {
+        overflow-y: auto;
+        padding-right: 6px;
+      }
+
+      .ui-scroll-area::-webkit-scrollbar {
+        width: 10px;
+      }
+
+      .ui-scroll-area::-webkit-scrollbar-track {
+        background: rgba(129, 159, 208, 0.08);
+        border-radius: 999px;
+      }
+
+      .ui-scroll-area::-webkit-scrollbar-thumb {
+        background: rgba(156, 187, 240, 0.3);
+        border-radius: 999px;
+      }
+
+      .ui-tooltip {
+        color: var(--text-muted);
+        font-size: 0.82rem;
+      }
+
+      .ui-tooltip-compact {
+        font-size: 0.76rem;
+      }
+
+      .ui-tabs {
+        display: grid;
+        gap: 10px;
+      }
+
+      .ui-tab-list {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+
+      .ui-tab {
+        border: 1px solid rgba(171, 196, 238, 0.2);
+        border-radius: 999px;
+        background: rgba(95, 126, 173, 0.2);
+        color: var(--text);
+        padding: 7px 12px;
+        cursor: pointer;
+      }
+
+      .ui-tab.is-active {
+        background: rgba(45, 212, 191, 0.2);
+        border-color: rgba(45, 212, 191, 0.5);
+      }
+
+      .ui-tab-body {
+        display: grid;
+        gap: 10px;
+      }
+
+      #debugIndicator {
+        position: fixed;
+        top: 14px;
+        right: 14px;
+        z-index: 30;
+        border-radius: 999px;
+        padding: 5px 10px;
+        background: rgba(255, 77, 109, 0.22);
+        border: 1px solid rgba(255, 125, 149, 0.55);
+        color: #ffd8df;
+        font-size: 0.75rem;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        cursor: pointer;
+        user-select: none;
+      }
+
+      #debugIndicator.open {
+        background: rgba(45, 212, 191, 0.2);
+        border-color: rgba(45, 212, 191, 0.6);
+        color: #ccfbf1;
+      }
+
+      #debugPanel {
+        position: fixed;
+        top: 0;
+        right: 0;
+        bottom: 0;
+        width: min(420px, 92vw);
+        z-index: 25;
+        padding: 12px;
+        transform: translateX(105%);
+        transition: transform 180ms ease;
+        pointer-events: none;
+      }
+
+      #debugPanel.open {
+        transform: translateX(0);
+        pointer-events: auto;
+      }
+
+      .debug-shell {
+        height: calc(100% - 24px);
+        overflow: hidden;
+      }
+
+      .debug-toggle-row {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 12px;
+        align-items: center;
+        border: 1px solid rgba(176, 201, 241, 0.14);
+        border-radius: 10px;
+        padding: 8px 10px;
+      }
+
+      .debug-toggle-description {
+        font-size: 0.75rem;
+        color: var(--text-muted);
+      }
+
+      .debug-danger {
+        border-radius: 10px;
+        border: 1px solid rgba(248, 113, 113, 0.35);
+        padding: 8px 10px;
+        background: rgba(248, 113, 113, 0.08);
+      }
+
+      .debug-danger > summary {
+        cursor: pointer;
+        font-weight: 600;
+      }
+
+      .mission-hud {
+        position: absolute;
+        right: 12px;
+        bottom: 12px;
+        max-width: min(420px, calc(100vw - 20px));
+      }
+
+      .world-tooltip-overlay {
+        position: fixed;
+        inset: 0;
+        z-index: 22;
+        pointer-events: none;
+      }
+
+      .world-tooltip {
+        position: absolute;
+        min-width: 180px;
+        max-width: 320px;
+        background: rgba(9, 15, 26, 0.92);
+        border: 1px solid rgba(156, 187, 240, 0.45);
+        border-radius: 12px;
+        box-shadow: 0 16px 34px rgba(0, 0, 0, 0.42);
+        padding: 10px 12px;
+        color: var(--text);
+        transition: opacity 110ms ease;
+      }
+
+      .world-tooltip-title {
+        font-weight: 700;
+        margin-bottom: 4px;
+      }
+
+      .world-tooltip-main {
+        font-size: 0.9rem;
+        color: var(--text-muted);
+        margin-bottom: 4px;
+      }
+
+      .world-tooltip-row {
+        display: grid;
+        grid-template-columns: auto 1fr;
+        gap: 10px;
+        margin-top: 2px;
+        font-size: 0.82rem;
+      }
+
+      .world-tooltip-label {
+        color: var(--text-muted);
+      }
+
+      .world-tooltip-value {
+        text-align: right;
+      }
+
+      .world-tooltip-desc {
+        margin: 4px 0;
+        font-size: 0.82rem;
+        color: var(--text-muted);
+      }
+
+      .world-tooltip-chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin: 5px 0 2px;
+      }
+
+      .world-tooltip-chip {
+        border-radius: 999px;
+        border: 1px solid rgba(165, 199, 255, 0.35);
+        background: rgba(95, 126, 173, 0.26);
+        padding: 2px 7px;
+        font-size: 0.74rem;
+      }
+
+      select,
+      input[type="text"] {
+        background: rgba(75, 97, 131, 0.35);
+        color: var(--text);
+        border: 1px solid rgba(176, 201, 241, 0.35);
+        border-radius: 8px;
+        padding: 6px 8px;
+      }
+
+      @media (max-width: 960px), (max-height: 760px) {
+        .panel,
+        .ui-panel {
+          padding: 14px;
+          border-radius: 12px;
+        }
+
+        .centered {
+          align-items: start;
+          padding-top: 14px;
+        }
+
+        .mission-hud {
+          right: 8px;
+          bottom: 8px;
+          max-width: min(96vw, 420px);
+        }
       }
     </style>
   </head>
@@ -78,6 +454,7 @@
     <div id="ui">
       <button id="restartBtn">Restart</button>
     </div>
+    <div id="debugIndicator">DEBUG</div>
     <div id="debugPanel"></div>
     <div id="screenRoot"></div>
     <canvas id="gameCanvas"></canvas>

@@ -3,6 +3,7 @@
     {
       "id": "swarm",
       "name": "Swarm",
+      "description": "Overwhelms lanes with fast, fragile numbers.",
       "baseStats": {
         "hp": 0.65,
         "speed": 165,
@@ -28,6 +29,7 @@
     {
       "id": "tank",
       "name": "Tank",
+      "description": "Slow frontline unit built to absorb heavy punishment.",
       "baseStats": {
         "hp": 4.8,
         "speed": 74,
@@ -53,6 +55,7 @@
     {
       "id": "ranged",
       "name": "Ranged",
+      "description": "Stops to fire from distance instead of rushing towers.",
       "baseStats": {
         "hp": 1.3,
         "speed": 122,
@@ -81,6 +84,7 @@
     {
       "id": "shield",
       "name": "Shield",
+      "description": "Cycles a protective barrier that softens incoming hits.",
       "baseStats": {
         "hp": 2.8,
         "speed": 105,
@@ -110,6 +114,7 @@
     {
       "id": "splitter",
       "name": "Splitter",
+      "description": "Breaks into smaller offspring when defeated mid-lane.",
       "baseStats": {
         "hp": 1.7,
         "speed": 112,
@@ -139,6 +144,7 @@
     {
       "id": "support",
       "name": "Support",
+      "description": "Empowers nearby enemies with speed and armor auras.",
       "baseStats": {
         "hp": 1.4,
         "speed": 98,
@@ -169,6 +175,7 @@
     {
       "id": "splitling",
       "name": "Splitling",
+      "description": "Tiny spawn from splitters that floods weakened defenses.",
       "baseStats": {
         "hp": 0.8,
         "speed": 150,
@@ -194,6 +201,7 @@
     {
       "id": "miniboss_brute",
       "name": "Mini-boss Brute",
+      "description": "Heavy elite bruiser that anchors dangerous escort waves.",
       "baseStats": {
         "hp": 20,
         "speed": 82,
@@ -219,6 +227,7 @@
     {
       "id": "overseer_boss",
       "name": "Overseer",
+      "description": "Phase-based command boss with slam and summon telegraphs.",
       "baseStats": {
         "hp": 120,
         "speed": 75,

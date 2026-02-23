@@ -37,6 +37,7 @@ export interface EnemyDropDefinition {
 export interface EnemyArchetypeDefinition {
   id: string;
   name: string;
+  description?: string;
   baseStats: EnemyBaseStats;
   unitThreatValue: number;
   tags: string[];
