@@ -1,4 +1,5 @@
 import type { Tower, UnitPacket, Vec2, World } from "../sim/World";
+import { armorFromMultiplier } from "../sim/TerritoryControl";
 import type { DifficultyTierId } from "../config/Difficulty";
 import { EnemyFactory } from "./EnemyFactory";
 import type {
@@ -463,6 +464,8 @@ export class WaveDirector {
         packetCaps.armorMin,
         packetCaps.armorMax,
       );
+      packet.baseArmor = armorFromMultiplier(packet.baseArmorMultiplier);
+      packet.effectiveArmor = packet.baseArmor;
 
       this.world.packets.push(this.world.acquirePacket(packet));
 
@@ -572,6 +575,8 @@ export class WaveDirector {
       child.sourceLane = lane.index;
       child.baseSpeedMultiplier = 1;
       child.baseArmorMultiplier = 1;
+      child.baseArmor = armorFromMultiplier(child.baseArmorMultiplier);
+      child.effectiveArmor = child.baseArmor;
       this.world.packets.push(this.world.acquirePacket(child));
     }
   }

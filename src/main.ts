@@ -1235,6 +1235,37 @@ function renderCurrentScreen(
       buff.id = "missionWaveBuff";
       hud.appendChild(buff);
 
+      const selectionCard = createCard("Tower Selection");
+      const selectedTower = createParagraph("Selected Tower: --");
+      selectedTower.id = "missionSelectedTower";
+      selectionCard.appendChild(selectedTower);
+
+      const clusterSize = createParagraph("Cluster Size: --");
+      clusterSize.id = "missionClusterSize";
+      selectionCard.appendChild(clusterSize);
+
+      const bonusesTitle = createParagraph("Active Bonuses:");
+      bonusesTitle.id = "missionClusterBonusesTitle";
+      bonusesTitle.style.marginTop = "4px";
+      selectionCard.appendChild(bonusesTitle);
+
+      const bonusRegen = createParagraph("- Regen +0%");
+      bonusRegen.id = "missionClusterBonusRegen";
+      bonusRegen.style.margin = "2px 0";
+      selectionCard.appendChild(bonusRegen);
+
+      const bonusArmor = createParagraph("- Armor +0%");
+      bonusArmor.id = "missionClusterBonusArmor";
+      bonusArmor.style.margin = "2px 0";
+      selectionCard.appendChild(bonusArmor);
+
+      const bonusVision = createParagraph("- Vision +0%");
+      bonusVision.id = "missionClusterBonusVision";
+      bonusVision.style.margin = "2px 0 0";
+      selectionCard.appendChild(bonusVision);
+
+      hud.appendChild(selectionCard);
+
       if (debugState.showSkillHud) {
         const skillTargetLabel = createParagraph("Skill Target Tower:");
         skillTargetLabel.style.marginTop = "8px";
@@ -1400,33 +1431,72 @@ function syncMissionHud(app: AppState, debugState: DebugUiState): void {
   }
 
   const telemetry = app.game.getWaveTelemetry();
-  if (!telemetry) {
-    return;
-  }
+  const world = app.game.getWorld();
 
   const waveStatus = document.getElementById("missionWaveStatus");
   if (waveStatus instanceof HTMLParagraphElement) {
-    waveStatus.textContent = `Wave: ${telemetry.currentWaveIndex}/${telemetry.totalWaveCount}`;
+    waveStatus.textContent = telemetry
+      ? `Wave: ${telemetry.currentWaveIndex}/${telemetry.totalWaveCount}`
+      : "Wave: --";
   }
 
   const modifiers = document.getElementById("missionWaveModifiers");
   if (modifiers instanceof HTMLParagraphElement) {
-    modifiers.textContent =
-      telemetry.activeModifierNames.length > 0
-        ? `Modifiers: ${telemetry.activeModifierNames.join(", ")}`
-        : "Modifiers: none";
+    modifiers.textContent = telemetry && telemetry.activeModifierNames.length > 0
+      ? `Modifiers: ${telemetry.activeModifierNames.join(", ")}`
+      : "Modifiers: none";
   }
 
   const gold = document.getElementById("missionWaveGold");
   if (gold instanceof HTMLParagraphElement) {
-    gold.textContent = `Gold: ${telemetry.missionGold}`;
+    gold.textContent = telemetry ? `Gold: ${telemetry.missionGold}` : "Gold: 0";
   }
 
   const buff = document.getElementById("missionWaveBuff");
   if (buff instanceof HTMLParagraphElement) {
-    buff.textContent = telemetry.activeBuffId
+    buff.textContent = telemetry && telemetry.activeBuffId
       ? `Buff: ${telemetry.activeBuffId} (${telemetry.activeBuffRemainingSec.toFixed(1)}s)`
       : "Buff: none";
+  }
+
+  const selectedTowerLabel = document.getElementById("missionSelectedTower");
+  const clusterSizeLabel = document.getElementById("missionClusterSize");
+  const bonusRegen = document.getElementById("missionClusterBonusRegen");
+  const bonusArmor = document.getElementById("missionClusterBonusArmor");
+  const bonusVision = document.getElementById("missionClusterBonusVision");
+  const selectedTowerId = app.inputController?.getSelectedTowerId() ?? null;
+  const selectedTower = selectedTowerId ? world.getTowerById(selectedTowerId) : null;
+
+  if (selectedTowerLabel instanceof HTMLParagraphElement) {
+    selectedTowerLabel.textContent = selectedTower
+      ? `Selected Tower: ${selectedTower.id} (${selectedTower.owner})`
+      : "Selected Tower: --";
+  }
+
+  const clusterSize = selectedTower && selectedTower.owner === "player"
+    ? selectedTower.territoryClusterSize
+    : 0;
+  const regenBonusPct = selectedTower && selectedTower.owner === "player"
+    ? selectedTower.territoryRegenBonusPct
+    : 0;
+  const armorBonusPct = selectedTower && selectedTower.owner === "player"
+    ? selectedTower.territoryArmorBonusPct
+    : 0;
+  const visionBonusPct = selectedTower && selectedTower.owner === "player"
+    ? selectedTower.territoryVisionBonusPct
+    : 0;
+
+  if (clusterSizeLabel instanceof HTMLParagraphElement) {
+    clusterSizeLabel.textContent = `Cluster Size: ${clusterSize}`;
+  }
+  if (bonusRegen instanceof HTMLParagraphElement) {
+    bonusRegen.textContent = `- Regen +${Math.round(regenBonusPct * 100)}%`;
+  }
+  if (bonusArmor instanceof HTMLParagraphElement) {
+    bonusArmor.textContent = `- Armor +${Math.round(armorBonusPct * 100)}%`;
+  }
+  if (bonusVision instanceof HTMLParagraphElement) {
+    bonusVision.textContent = `- Vision +${Math.round(visionBonusPct * 100)}%`;
   }
 
   const towerTargetSelect = document.getElementById("missionSkillTarget");
@@ -1492,6 +1562,8 @@ function syncMissionHud(app: AppState, debugState: DebugUiState): void {
   if (balanceDebug instanceof HTMLParagraphElement) {
     if (!app.balanceDiagnosticsEnabled) {
       balanceDebug.textContent = "Balance: diagnostics off";
+    } else if (!telemetry) {
+      balanceDebug.textContent = "Balance: awaiting wave telemetry";
     } else {
       const timeToZero =
         telemetry.timeToZeroTowersEstimateSec === null
@@ -1506,14 +1578,14 @@ function syncMissionHud(app: AppState, debugState: DebugUiState): void {
 
   const preview = document.getElementById("missionWavePreview");
   if (debugState.showWavePreview && preview instanceof HTMLDivElement) {
-    const signature = telemetry.nextWavePreview
+    const signature = (telemetry?.nextWavePreview ?? [])
       .map((item) => `${item.enemyId}:${item.count}`)
       .join("|");
     if (preview.dataset.signature !== signature) {
       preview.dataset.signature = signature;
       preview.replaceChildren();
 
-      if (telemetry.nextWavePreview.length === 0) {
+      if (!telemetry || telemetry.nextWavePreview.length === 0) {
         const empty = createParagraph("No upcoming spawns.");
         empty.style.opacity = "0.8";
         preview.appendChild(empty);
@@ -1953,6 +2025,20 @@ function createMissionLevel(
     tower.maxTroops *= mission.difficulty;
     tower.troops = Math.min(tower.maxTroops, tower.troops * mission.difficulty);
     tower.regenRate *= 1 + (mission.difficulty - 1) * 0.4;
+  }
+
+  for (const tower of level.towers) {
+    tower.baseRegen = tower.regenRate;
+    tower.baseRegenRate = tower.regenRate;
+    if (!Number.isFinite(tower.baseVision) || tower.baseVision <= 0) {
+      tower.baseVision = 170;
+    }
+    tower.effectiveRegen = tower.baseRegen;
+    tower.effectiveVision = tower.baseVision;
+    tower.territoryClusterSize = 0;
+    tower.territoryRegenBonusPct = 0;
+    tower.territoryArmorBonusPct = 0;
+    tower.territoryVisionBonusPct = 0;
   }
 
   level.rules.playerCaptureEfficiencyMul = bonuses.captureEfficiencyMul;
