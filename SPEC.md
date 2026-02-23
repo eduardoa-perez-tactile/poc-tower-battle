@@ -1,7 +1,7 @@
 # Tower Battle PoC Spec (Current Scope)
 
 ## Goal
-Build a playable browser strategy prototype with tower-link control, mission-based runs, meta progression, and M7 enemy/wave variety.
+Build a playable browser strategy prototype with tower-link control, mission-based runs, meta progression, M7 enemy/wave variety, and M8 retention engine expansion.
 
 ## Tech Stack
 - TypeScript (strict)
@@ -26,9 +26,18 @@ Build a playable browser strategy prototype with tower-link control, mission-bas
 - Telegraph rendering and boss hp bar.
 - Mission wave telemetry UI (upcoming preview, active modifiers, mission gold, buff timer).
 
+## M8 retention engine extension
+- Data-driven branching persistent upgrade trees (Offense / Economy / Tactical).
+- Data-driven skills with fixed-tick cooldown manager and mission HUD skill bar.
+- Ascension mutators selectable per run with reward multipliers.
+- Permanent unlock pacing rules evaluated from persistent account progress metrics.
+- Run-start unlock snapshot for deterministic generation and mid-run stability.
+- Backward-compatible save/load migrations (schema v2).
+
 ## Controls
 - Drag from owned tower to target tower to create/replace outgoing link.
 - Right click or `Escape` cancels an active drag.
+- Mission skill cast buttons trigger unlocked tactical skills.
 - Restart button and debug mission controls are available in UI.
 
 ## Core entities
@@ -38,7 +47,7 @@ Build a playable browser strategy prototype with tower-link control, mission-bas
 - `WavePlan`: scheduled spawn entries and applied modifiers for a wave.
 
 ## Rules summary
-- Each tower has max one standard outgoing link.
+- Each tower has max one standard outgoing link (extended via meta tactical upgrades).
 - Sending is continuous while link exists.
 - Packet combat uses ranges, cooldowns, and archetype modifiers.
 - Arrival resolves reinforcement or capture flow.
@@ -48,8 +57,11 @@ Build a playable browser strategy prototype with tower-link control, mission-bas
 ## Data-driven assets
 - `levels/level01.json`
 - `public/data/missions.json`
-- `public/data/meta-upgrades.json`
-- `public/data/enemies.json`
+- `public/data/upgrades.json`
+- `public/data/skills.json`
+- `public/data/ascensions.json`
+- `public/data/unlocks.json`
+- `public/data/enemyArchetypes.json`
 - `public/data/wave-modifiers.json`
 - `public/data/waves-handcrafted.json`
 - `public/data/wave-balance.json`

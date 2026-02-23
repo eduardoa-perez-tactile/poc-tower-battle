@@ -3,6 +3,7 @@ import { Renderer2D } from "../render/Renderer2D";
 import { updateWorld, type SimulationRules } from "../sim/Simulation";
 import { World } from "../sim/World";
 import { WaveDirector, type MissionWaveTelemetry } from "../waves/WaveDirector";
+import { SkillManager, type SkillHudState } from "./SkillManager";
 
 const FIXED_STEP_SEC = 1 / 60;
 const MAX_FRAME_DT_SEC = 0.25;
@@ -29,6 +30,7 @@ export class Game {
   private readonly rules: SimulationRules;
   private readonly aiRules: GameAiRules;
   private readonly waveDirector: WaveDirector | null;
+  private readonly skillManager: SkillManager | null;
   private readonly linkBreakBursts: LinkBreakBurst[];
   private accumulatorSec: number;
   private aiAccumulatorSec: number;
@@ -41,6 +43,7 @@ export class Game {
     rules: SimulationRules,
     aiRules: GameAiRules,
     waveDirector: WaveDirector | null = null,
+    skillManager: SkillManager | null = null,
   ) {
     this.world = world;
     this.renderer = renderer;
@@ -48,6 +51,7 @@ export class Game {
     this.rules = rules;
     this.aiRules = aiRules;
     this.waveDirector = waveDirector;
+    this.skillManager = skillManager;
     this.linkBreakBursts = [];
     this.accumulatorSec = 0;
     this.aiAccumulatorSec = 0;
@@ -89,6 +93,24 @@ export class Game {
     return this.waveDirector?.getDebugMaxWaveIndex() ?? 0;
   }
 
+  getSkillHudState(): SkillHudState[] {
+    return this.skillManager?.getHudState() ?? [];
+  }
+
+  castSkill(skillId: string, targetTowerId?: string): boolean {
+    if (!this.skillManager) {
+      return false;
+    }
+    return this.skillManager.queueCast(skillId, { towerId: targetTowerId });
+  }
+
+  getPlayerTowerIds(): string[] {
+    return this.world.towers
+      .filter((tower) => tower.owner === "player")
+      .map((tower) => tower.id)
+      .sort((a, b) => a.localeCompare(b));
+  }
+
   setBalanceDiagnosticsEnabled(enabled: boolean): void {
     this.waveDirector?.setBalanceDiagnosticsEnabled(enabled);
   }
@@ -108,7 +130,8 @@ export class Game {
     while (this.accumulatorSec >= FIXED_STEP_SEC) {
       this.accumulatorSec -= FIXED_STEP_SEC;
       this.waveDirector?.updatePreStep(FIXED_STEP_SEC);
-      updateWorld(this.world, FIXED_STEP_SEC, this.rules);
+      this.skillManager?.update(FIXED_STEP_SEC, this.world);
+      updateWorld(this.world, FIXED_STEP_SEC, this.rules, this.skillManager?.getTemporaryModifiers());
       this.waveDirector?.updatePostStep(FIXED_STEP_SEC);
       if (!this.waveDirector) {
         this.world.drainTowerCapturedEvents();

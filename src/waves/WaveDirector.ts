@@ -81,6 +81,10 @@ export interface WaveDirectorOptions {
   missionDifficultyScalar: number;
   difficultyTier: DifficultyTierId;
   balanceDiagnosticsEnabled?: boolean;
+  allowedEnemyIds?: string[];
+  rewardGoldMultiplier?: number;
+  bossHpMultiplier?: number;
+  bossExtraPhases?: number;
 }
 
 interface RuntimeWaveState {
@@ -111,6 +115,7 @@ export class WaveDirector {
   private readonly previewsByWave: Map<number, WavePreviewItem[]>;
   private readonly difficultyConfig: DifficultyTierConfig;
   private readonly goldRewardMultiplier: number;
+  private readonly bossCooldownFactor: number;
 
   private currentWaveIndex: number;
   private readonly totalWaveCount: number;
@@ -135,15 +140,20 @@ export class WaveDirector {
     this.content = content;
     this.world = world;
     this.options = options;
-    this.waveGenerator = new WaveGenerator(content);
-    this.enemyFactory = new EnemyFactory(content);
+    const allowedEnemyIds = options.allowedEnemyIds ? new Set(options.allowedEnemyIds) : null;
+    this.waveGenerator = new WaveGenerator(content, allowedEnemyIds);
+    this.enemyFactory = new EnemyFactory(content, {
+      allowedEnemyIds: allowedEnemyIds ?? undefined,
+      bossHpMul: options.bossHpMultiplier,
+    });
     this.lanes = createLanes(world);
     this.modifierById = new Map<string, WaveModifierDefinition>();
     this.packetSnapshots = new Map<string, PacketSnapshot>();
     this.telegraphs = [];
     this.previewsByWave = new Map<number, WavePreviewItem[]>();
     this.difficultyConfig = content.difficultyTiers.difficultyTiers[options.difficultyTier];
-    this.goldRewardMultiplier = this.difficultyConfig.economy.goldMul;
+    this.goldRewardMultiplier = this.difficultyConfig.economy.goldMul * (options.rewardGoldMultiplier ?? 1);
+    this.bossCooldownFactor = 1 / (1 + Math.max(0, options.bossExtraPhases ?? 0) * 0.5);
 
     for (const modifier of content.modifierCatalog.modifiers) {
       this.modifierById.set(modifier.id, modifier);
@@ -425,8 +435,9 @@ export class WaveDirector {
       if (packet.isBoss) {
         this.activeBossPacketId = packet.id;
         this.bossAbilitySchedule = {
-          nextSlamAtSec: this.simulationTimeSec + this.content.balance.boss.slam.cooldownSec,
-          nextSummonAtSec: this.simulationTimeSec + this.content.balance.boss.summon.cooldownSec,
+          nextSlamAtSec: this.simulationTimeSec + this.content.balance.boss.slam.cooldownSec * this.bossCooldownFactor,
+          nextSummonAtSec:
+            this.simulationTimeSec + this.content.balance.boss.summon.cooldownSec * this.bossCooldownFactor,
         };
       }
     }
@@ -565,7 +576,7 @@ export class WaveDirector {
         });
       }
       this.bossAbilitySchedule.nextSlamAtSec =
-        this.simulationTimeSec + this.content.balance.boss.slam.cooldownSec;
+        this.simulationTimeSec + this.content.balance.boss.slam.cooldownSec * this.bossCooldownFactor;
     }
 
     if (this.simulationTimeSec >= this.bossAbilitySchedule.nextSummonAtSec) {
@@ -579,7 +590,7 @@ export class WaveDirector {
         triggerAtSec: this.simulationTimeSec + this.content.balance.boss.summon.windupSec,
       });
       this.bossAbilitySchedule.nextSummonAtSec =
-        this.simulationTimeSec + this.content.balance.boss.summon.cooldownSec;
+        this.simulationTimeSec + this.content.balance.boss.summon.cooldownSec * this.bossCooldownFactor;
     }
   }
 

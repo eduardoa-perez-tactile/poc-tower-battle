@@ -1,0 +1,38 @@
+{
+  "version": 1,
+  "maxSelected": 2,
+  "ascensions": [
+    {
+      "id": "ENEMY_REGEN_PLUS_25",
+      "name": "Enemy Regeneration +25%",
+      "desc": "Enemy towers regenerate troops faster.",
+      "unlocksAt": { "metaLevel": 1 },
+      "effects": [
+        { "type": "ENEMY_REGEN_MUL", "op": "ADD_MUL", "value": 0.25 }
+      ],
+      "reward": { "gloryMul": 1.2, "goldMul": 1.1 }
+    },
+    {
+      "id": "LINKS_DECAY_OVER_TIME",
+      "name": "Links Decay Over Time",
+      "desc": "Active links lose integrity over time.",
+      "unlocksAt": { "metaLevel": 2 },
+      "effects": [
+        { "type": "LINK_DECAY_PER_SEC", "op": "ADD", "value": 3 },
+        { "type": "LINK_DECAY_CAN_BREAK", "op": "SET_BOOL", "value": false }
+      ],
+      "reward": { "gloryMul": 1.18, "goldMul": 1.08 }
+    },
+    {
+      "id": "BOSS_EXTRA_PHASE",
+      "name": "Boss Extra Phase",
+      "desc": "Bosses gain extra HP and an additional ability cycle.",
+      "unlocksAt": { "metaLevel": 3 },
+      "effects": [
+        { "type": "BOSS_HP_MUL", "op": "ADD_MUL", "value": 0.25 },
+        { "type": "BOSS_EXTRA_PHASES", "op": "ADD", "value": 1 }
+      ],
+      "reward": { "gloryMul": 1.25, "goldMul": 1.12 }
+    }
+  ]
+}

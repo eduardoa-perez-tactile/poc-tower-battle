@@ -8,20 +8,33 @@ import { loadLevel, type LoadedLevel } from "./game/LevelLoader";
 import { InputController } from "./input/InputController";
 import { BALANCE_CONFIG } from "./meta/BalanceConfig";
 import {
-  computeMetaModifiers,
+  computeBaseMetaModifiers,
+  computeMetaAccountLevel,
+  createRunUnlockSnapshot,
+  deriveUnlockedSkillIds,
+  evaluateUnlocks,
+  getAscensionRewardMultipliers,
   getNextUpgradeCost,
-  getUpgradeLevel,
+  getPurchasedRank,
+  getUpgradeNodes,
   loadMetaUpgradeCatalog,
+  loadSkillCatalog,
+  loadAscensionCatalog,
+  loadUnlockCatalog,
   purchaseUpgrade,
   refreshUnlocks,
-  type MetaUpgradeDefinition,
+  validateUnlockCatalog,
+  type AscensionCatalog,
+  type MetaUpgradeCatalog,
 } from "./meta/MetaProgression";
 import { calculateMissionGloryReward, calculateRunBonusGlory, type MissionGloryReward } from "./meta/Rewards";
 import { Renderer2D } from "./render/Renderer2D";
 import { loadMissionCatalog, createRunState, type MissionTemplate } from "./run/RunGeneration";
 import {
+  createDefaultMetaModifiers,
   createDefaultMetaProfile,
   type MetaProfile,
+  type MetaModifiers,
   type RunMissionNode,
   type RunState,
   type RunSummary,
@@ -37,10 +50,11 @@ import {
 import { applyTowerArchetypeModifiers, loadDepthContent } from "./sim/DepthConfig";
 import { updateWorld as updateQuickSimWorld } from "./sim/Simulation";
 import { World } from "./sim/World";
-import type { TowerArchetypeCatalog } from "./sim/DepthTypes";
+import { TowerArchetype, type TowerArchetypeCatalog } from "./sim/DepthTypes";
 import type { BalanceBaselinesConfig, DifficultyTierConfig } from "./waves/Definitions";
 import { loadWaveContent } from "./waves/Definitions";
 import { WaveDirector } from "./waves/WaveDirector";
+import { SkillManager } from "./game/SkillManager";
 
 type Screen = "main-menu" | "meta" | "run-map" | "mission" | "run-summary";
 
@@ -54,6 +68,7 @@ interface AppState {
   missionResult: MatchResult;
   missionReward: MissionGloryReward | null;
   balanceDiagnosticsEnabled: boolean;
+  pendingAscensionIds: string[];
 }
 
 const DEBUG_TOOLS_ENABLED = true;
@@ -72,12 +87,23 @@ async function bootstrap(): Promise<void> {
   window.addEventListener("resize", resize);
   resize();
 
-  const [missionTemplates, upgradeCatalog, waveContent, depthContent] = await Promise.all([
+  const [missionTemplates, upgradeCatalog, skillCatalog, ascensionCatalog, unlockCatalog, waveContent, depthContent] = await Promise.all([
     loadMissionCatalog(),
     loadMetaUpgradeCatalog(),
+    loadSkillCatalog(),
+    loadAscensionCatalog(),
+    loadUnlockCatalog(),
     loadWaveContent(),
     loadDepthContent(),
   ]);
+
+  const knownNodeIds = new Set(getUpgradeNodes(upgradeCatalog).map((node) => node.id));
+  validateUnlockCatalog(unlockCatalog, {
+    towerTypes: new Set<string>(Object.values(TowerArchetype)),
+    enemyTypes: new Set<string>(waveContent.enemyCatalog.archetypes.map((entry) => entry.id)),
+    ascensionIds: new Set<string>(ascensionCatalog.ascensions.map((entry) => entry.id)),
+    knownNodeIds,
+  });
 
   const app: AppState = {
     screen: "main-menu",
@@ -89,7 +115,19 @@ async function bootstrap(): Promise<void> {
     missionResult: null,
     missionReward: null,
     balanceDiagnosticsEnabled: DEBUG_TOOLS_ENABLED,
+    pendingAscensionIds: [],
   };
+
+  const initialUnlockEvaluation = evaluateUnlocks(
+    app.metaProfile,
+    unlockCatalog,
+    ascensionCatalog,
+    Object.values(TowerArchetype),
+    waveContent.enemyCatalog.archetypes.map((entry) => entry.id),
+  );
+  app.pendingAscensionIds = app.pendingAscensionIds.filter((id) =>
+    initialUnlockEvaluation.snapshot.ascensionIds.includes(id),
+  );
 
   if (app.runState && !DIFFICULTY_TIER_IDS.includes(app.runState.runModifiers.tier)) {
     app.runState.runModifiers.tier = DEFAULT_DIFFICULTY_TIER;
@@ -101,6 +139,7 @@ async function bootstrap(): Promise<void> {
       app,
       screenRoot,
       upgradeCatalog,
+      ascensionCatalog,
       missionTemplates,
       startNewRun,
       continueRun,
@@ -111,6 +150,7 @@ async function bootstrap(): Promise<void> {
       restartCurrentMission,
       abandonRun,
       purchaseUpgradeById,
+      toggleRunAscension,
       finalizeRun,
       closeSummaryToMenu,
     );
@@ -164,8 +204,25 @@ async function bootstrap(): Promise<void> {
   const startNewRun = (): void => {
     stopMission();
     const seed = Math.floor(Date.now() % 2147483647);
-    const bonuses = computeMetaModifiers(app.metaProfile, upgradeCatalog);
-    const runState = createRunState(seed, missionTemplates, bonuses);
+    const snapshot = createRunUnlockSnapshot(
+      app.metaProfile,
+      unlockCatalog,
+      ascensionCatalog,
+      Object.values(TowerArchetype),
+      waveContent.enemyCatalog,
+    );
+    const selectedAscensions = app.pendingAscensionIds
+      .filter((id) => snapshot.ascensionIds.includes(id))
+      .sort((a, b) => a.localeCompare(b))
+      .slice(0, ascensionCatalog.maxSelected);
+    const bonuses = computeBaseMetaModifiers(app.metaProfile, upgradeCatalog, ascensionCatalog, selectedAscensions);
+    const runState = createRunState({
+      seed,
+      templates: missionTemplates,
+      bonuses,
+      unlockSnapshot: snapshot,
+      selectedAscensionIds: selectedAscensions,
+    });
     app.metaProfile.stats.runsPlayed += 1;
     app.runState = runState;
     app.runSummary = null;
@@ -187,14 +244,22 @@ async function bootstrap(): Promise<void> {
     }
 
     stopMission();
+    const difficultyTierConfig = waveContent.difficultyTiers.difficultyTiers[app.runState.runModifiers.tier];
+    const missionModifiers = applyDifficultyToBaseModifiers(
+      app.runState.startingBonuses,
+      difficultyTierConfig,
+      app.runState.runModifiers.tier,
+      waveContent.balanceBaselines,
+    );
     const baseLevel = await getLevelByPath(mission.levelPath, levelCache);
     const tunedLevel = createMissionLevel(
       baseLevel,
       mission,
-      app.runState.startingBonuses,
+      missionModifiers,
       depthContent.towerArchetypes,
       waveContent.balanceBaselines,
-      waveContent.difficultyTiers.difficultyTiers[app.runState.runModifiers.tier],
+      difficultyTierConfig,
+      app.runState.runUnlockSnapshot.towerTypes,
     );
     const missionDifficultyScalar = mission.difficulty * app.runState.runModifiers.difficulty;
     const world = new World(
@@ -202,17 +267,30 @@ async function bootstrap(): Promise<void> {
       tunedLevel.rules.maxOutgoingLinksPerTower,
       depthContent.linkLevels,
       tunedLevel.initialLinks,
+      missionModifiers.linkIntegrityMul,
     );
     const waveDirector = new WaveDirector(world, waveContent, {
       runSeed: app.runState.seed + app.runState.currentMissionIndex * 911,
       missionDifficultyScalar,
       difficultyTier: app.runState.runModifiers.tier,
       balanceDiagnosticsEnabled: app.balanceDiagnosticsEnabled,
+      allowedEnemyIds:
+        app.runState.runUnlockSnapshot.enemyTypes.length > 0
+          ? app.runState.runUnlockSnapshot.enemyTypes
+          : undefined,
+      rewardGoldMultiplier: app.runState.startingBonuses.rewardGoldMul,
+      bossHpMultiplier: app.runState.startingBonuses.bossHpMul,
+      bossExtraPhases: app.runState.startingBonuses.bossExtraPhases,
     });
 
     const inputController = new InputController(canvas, world);
+    const skillManager = new SkillManager(
+      skillCatalog,
+      deriveUnlockedSkillIds(app.metaProfile, upgradeCatalog),
+      missionModifiers,
+    );
     app.inputController = inputController;
-    app.game = new Game(world, renderer, inputController, tunedLevel.rules, tunedLevel.ai, waveDirector);
+    app.game = new Game(world, renderer, inputController, tunedLevel.rules, tunedLevel.ai, waveDirector, skillManager);
     app.missionResult = null;
     app.missionReward = null;
     app.screen = "mission";
@@ -239,7 +317,7 @@ async function bootstrap(): Promise<void> {
       app.runState.currentMissionIndex,
       mission.difficulty * app.runState.runModifiers.difficulty,
       result === "win",
-      app.runState.startingBonuses.goldEarnedMultiplier,
+      app.runState.startingBonuses.rewardGloryMul,
       getDifficultyGloryMultiplier(
         waveContent.balanceBaselines,
         waveContent.difficultyTiers.difficultyTiers[app.runState.runModifiers.tier],
@@ -275,10 +353,12 @@ async function bootstrap(): Promise<void> {
     const tierConfig = waveContent.difficultyTiers.difficultyTiers[tier];
     const runBonusGlory = calculateRunBonusGlory(
       won,
-      runState.startingBonuses.goldEarnedMultiplier,
+      runState.startingBonuses.rewardGloryMul,
       getDifficultyGloryMultiplier(waveContent.balanceBaselines, tierConfig, tier),
     );
     app.metaProfile.glory += runBonusGlory;
+    app.metaProfile.metaProgress.gloryEarnedTotal += runState.runGloryEarned + runBonusGlory;
+    app.metaProfile.metaProgress.runsCompleted += 1;
     app.metaProfile.stats.bestMissionIndex = Math.max(
       app.metaProfile.stats.bestMissionIndex,
       missionsCompleted,
@@ -286,12 +366,30 @@ async function bootstrap(): Promise<void> {
     app.metaProfile.stats.bestWave = Math.max(app.metaProfile.stats.bestWave, missionsCompleted * 10);
     if (won) {
       app.metaProfile.stats.wins += 1;
+      app.metaProfile.metaProgress.runsWon += 1;
+      app.metaProfile.metaProgress.bossesDefeated += 1;
+      app.metaProfile.metaProgress.highestDifficultyCleared = maxDifficultyTier(
+        app.metaProfile.metaProgress.highestDifficultyCleared,
+        tier,
+      );
+      for (const ascensionId of runState.runAscensionIds) {
+        const previous = app.metaProfile.metaProgress.ascensionsCleared[ascensionId] ?? 0;
+        app.metaProfile.metaProgress.ascensionsCleared[ascensionId] = previous + 1;
+      }
     } else {
       app.metaProfile.stats.losses += 1;
     }
-    const unlockNotifications = refreshUnlocks(app.metaProfile);
+    const unlockResult = evaluateUnlocks(
+      app.metaProfile,
+      unlockCatalog,
+      ascensionCatalog,
+      Object.values(TowerArchetype),
+      waveContent.enemyCatalog.archetypes.map((entry) => entry.id),
+    );
+    const unlockNotifications = unlockResult.newlyUnlockedMessages;
     saveMetaProfile(app.metaProfile);
 
+    const ascensionRewards = getAscensionRewardMultipliers(runState.runAscensionIds, ascensionCatalog);
     app.runSummary = {
       runId: runState.runId,
       won,
@@ -300,6 +398,8 @@ async function bootstrap(): Promise<void> {
       runBonusGlory,
       totalGloryEarned: runState.runGloryEarned + runBonusGlory,
       difficultyTier: tier,
+      ascensionIds: [...runState.runAscensionIds],
+      rewardMultipliers: ascensionRewards,
       appliedDifficultyMultipliers: {
         enemyHpMul: tierConfig.enemy.hpMul,
         enemyDmgMul: tierConfig.enemy.dmgMul,
@@ -339,8 +439,49 @@ async function bootstrap(): Promise<void> {
       return;
     }
 
-    refreshUnlocks(app.metaProfile);
+    refreshUnlocks(
+      app.metaProfile,
+      unlockCatalog,
+      ascensionCatalog,
+      Object.values(TowerArchetype),
+      waveContent.enemyCatalog.archetypes.map((entry) => entry.id),
+    );
+    const unlockSnapshot = createRunUnlockSnapshot(
+      app.metaProfile,
+      unlockCatalog,
+      ascensionCatalog,
+      Object.values(TowerArchetype),
+      waveContent.enemyCatalog,
+    );
+    app.pendingAscensionIds = app.pendingAscensionIds.filter((id) => unlockSnapshot.ascensionIds.includes(id));
     saveMetaProfile(app.metaProfile);
+    render();
+  };
+
+  const toggleRunAscension = (ascensionId: string, enabled: boolean): void => {
+    if (!app.runState) {
+      return;
+    }
+    if (!app.runState.runUnlockSnapshot.ascensionIds.includes(ascensionId)) {
+      return;
+    }
+
+    const set = new Set(app.runState.runAscensionIds);
+    if (enabled) {
+      set.add(ascensionId);
+    } else {
+      set.delete(ascensionId);
+    }
+
+    const nextIds = [...set].sort((a, b) => a.localeCompare(b)).slice(0, ascensionCatalog.maxSelected);
+    app.runState.runAscensionIds = nextIds;
+    app.runState.startingBonuses = computeBaseMetaModifiers(
+      app.metaProfile,
+      upgradeCatalog,
+      ascensionCatalog,
+      nextIds,
+    );
+    saveRunState(app.runState);
     render();
   };
 
@@ -423,27 +564,43 @@ async function bootstrap(): Promise<void> {
     let totalWaveDurationSec = 0;
     let completedRuns = 0;
 
+    const quickSimModifiers = applyDifficultyToBaseModifiers(
+      app.runState.startingBonuses,
+      tierConfig,
+      tierId,
+      waveContent.balanceBaselines,
+    );
+
     const baseLevel = await getLevelByPath(mission.levelPath, levelCache);
     for (let runIndex = 0; runIndex < runCount; runIndex += 1) {
       const level = createMissionLevel(
         baseLevel,
         mission,
-        app.runState.startingBonuses,
+        quickSimModifiers,
         depthContent.towerArchetypes,
         waveContent.balanceBaselines,
         tierConfig,
+        app.runState.runUnlockSnapshot.towerTypes,
       );
       const world = new World(
         level.towers,
         level.rules.maxOutgoingLinksPerTower,
         depthContent.linkLevels,
         level.initialLinks,
+        quickSimModifiers.linkIntegrityMul,
       );
       const waveDirector = new WaveDirector(world, waveContent, {
         runSeed: fixedSeedBase + runIndex * 101,
         missionDifficultyScalar,
         difficultyTier: tierId,
         balanceDiagnosticsEnabled: false,
+        allowedEnemyIds:
+          app.runState.runUnlockSnapshot.enemyTypes.length > 0
+            ? app.runState.runUnlockSnapshot.enemyTypes
+            : undefined,
+        rewardGoldMultiplier: app.runState.startingBonuses.rewardGoldMul,
+        bossHpMultiplier: app.runState.startingBonuses.bossHpMul,
+        bossExtraPhases: app.runState.startingBonuses.bossExtraPhases,
       });
 
       let aiAccumulatorSec = 0;
@@ -555,7 +712,8 @@ async function bootstrap(): Promise<void> {
 function renderCurrentScreen(
   app: AppState,
   screenRoot: HTMLDivElement,
-  upgradeCatalog: MetaUpgradeDefinition[],
+  upgradeCatalog: MetaUpgradeCatalog,
+  ascensionCatalog: AscensionCatalog,
   missionTemplates: MissionTemplate[],
   startNewRun: () => void,
   continueRun: () => void,
@@ -566,6 +724,7 @@ function renderCurrentScreen(
   restartCurrentMission: () => void,
   abandonRun: () => void,
   purchaseUpgradeById: (upgradeId: string) => void,
+  toggleRunAscension: (ascensionId: string, enabled: boolean) => void,
   finalizeRun: (won: boolean) => void,
   closeSummaryToMenu: () => void,
 ): void {
@@ -575,6 +734,7 @@ function renderCurrentScreen(
     const panel = createPanel("Tower Battle: Connect Towers");
     panel.classList.add("centered");
     panel.appendChild(createParagraph(`Glory: ${app.metaProfile.glory}`));
+    panel.appendChild(createParagraph(`Meta Level: ${computeMetaAccountLevel(app.metaProfile)}`));
     panel.appendChild(createParagraph(`Mission Templates: ${missionTemplates.length}`));
     panel.appendChild(createButton("Start New Run", startNewRun));
     const continueBtn = createButton("Continue Run", continueRun);
@@ -594,35 +754,45 @@ function renderCurrentScreen(
     panel.appendChild(createParagraph(`Glory: ${app.metaProfile.glory}`));
     panel.appendChild(
       createParagraph(
-        `Runs: ${app.metaProfile.stats.runsPlayed} | Wins: ${app.metaProfile.stats.wins} | Best Mission: ${app.metaProfile.stats.bestMissionIndex}`,
+        `Meta Level: ${computeMetaAccountLevel(app.metaProfile)} | Runs: ${app.metaProfile.metaProgress.runsCompleted} | Wins: ${app.metaProfile.metaProgress.runsWon} | Glory Spent: ${Math.round(app.metaProfile.metaProgress.glorySpentTotal)}`,
       ),
     );
 
-    const list = document.createElement("div");
-    list.className = "list";
-    for (const upgrade of upgradeCatalog) {
-      const level = getUpgradeLevel(app.metaProfile, upgrade.id);
-      const cost = getNextUpgradeCost(app.metaProfile, upgrade);
-      const row = document.createElement("div");
-      row.className = "meta-row";
+    for (const tree of upgradeCatalog.trees) {
+      const treeHeading = createParagraph(`${tree.name}`);
+      treeHeading.style.marginTop = "10px";
+      treeHeading.style.fontWeight = "bold";
+      panel.appendChild(treeHeading);
 
-      const left = document.createElement("div");
-      left.textContent = `${upgrade.name} Lv ${level}/${upgrade.maxLevel}`;
-      const details = document.createElement("div");
-      details.style.fontSize = "12px";
-      details.style.opacity = "0.8";
-      details.textContent = upgrade.description;
-      left.appendChild(details);
+      const list = document.createElement("div");
+      list.className = "list";
+      for (const node of tree.nodes) {
+        const rank = getPurchasedRank(app.metaProfile, node.id);
+        const cost = getNextUpgradeCost(app.metaProfile, node);
+        const row = document.createElement("div");
+        row.className = "meta-row";
 
-      const buyBtn = createButton(
-        cost === null ? "Maxed" : `Buy (${cost})`,
-        () => purchaseUpgradeById(upgrade.id),
-      );
-      buyBtn.disabled = cost === null || app.metaProfile.glory < cost;
-      row.append(left, buyBtn);
-      list.appendChild(row);
+        const left = document.createElement("div");
+        left.textContent = `${node.name} Lv ${rank}/${node.maxRank}`;
+        const details = document.createElement("div");
+        details.style.fontSize = "12px";
+        details.style.opacity = "0.8";
+        const prereqText = node.prereqs.length > 0
+          ? ` • Req: ${node.prereqs.map((req) => `${req.nodeId}(${req.minRank})`).join(", ")}`
+          : "";
+        details.textContent = `${node.desc}${prereqText}`;
+        left.appendChild(details);
+
+        const buyBtn = createButton(
+          cost === null ? "Maxed" : `Buy (${cost})`,
+          () => purchaseUpgradeById(node.id),
+        );
+        buyBtn.disabled = cost === null || app.metaProfile.glory < cost;
+        row.append(left, buyBtn);
+        list.appendChild(row);
+      }
+      panel.appendChild(list);
     }
-    panel.appendChild(list);
 
     panel.appendChild(createButton("Back", app.runState ? openRunMap : openMainMenu));
     screenRoot.appendChild(wrapCentered(panel));
@@ -668,6 +838,53 @@ function renderCurrentScreen(
     };
     difficultyRow.append(difficultyLabel, difficultySelect);
     panel.appendChild(difficultyRow);
+
+    const ascensionInfo = createParagraph(
+      `Ascensions: ${app.runState.runAscensionIds.length}/${ascensionCatalog.maxSelected}`,
+    );
+    panel.appendChild(ascensionInfo);
+
+    const ascensionList = document.createElement("div");
+    ascensionList.className = "list";
+    for (const ascension of ascensionCatalog.ascensions) {
+      if (!app.runState.runUnlockSnapshot.ascensionIds.includes(ascension.id)) {
+        continue;
+      }
+      const row = document.createElement("div");
+      row.className = "meta-row";
+      const left = document.createElement("div");
+      left.textContent = ascension.name;
+      const details = document.createElement("div");
+      details.style.fontSize = "12px";
+      details.style.opacity = "0.8";
+      details.textContent = `${ascension.desc} • Glory x${ascension.reward.gloryMul.toFixed(2)} • Gold x${ascension.reward.goldMul.toFixed(2)}`;
+      left.appendChild(details);
+
+      const checkbox = document.createElement("input");
+      checkbox.type = "checkbox";
+      checkbox.checked = app.runState.runAscensionIds.includes(ascension.id);
+      checkbox.onchange = () => {
+        toggleRunAscension(ascension.id, checkbox.checked);
+      };
+      if (app.runState.currentMissionIndex > 0) {
+        checkbox.disabled = true;
+      }
+      if (
+        !checkbox.checked &&
+        app.runState.runAscensionIds.length >= ascensionCatalog.maxSelected
+      ) {
+        checkbox.disabled = true;
+      }
+
+      row.append(left, checkbox);
+      ascensionList.appendChild(row);
+    }
+    panel.appendChild(ascensionList);
+
+    const rewardMul = getAscensionRewardMultipliers(app.runState.runAscensionIds, ascensionCatalog);
+    panel.appendChild(
+      createParagraph(`Expected Ascension Rewards: Glory x${rewardMul.gloryMul.toFixed(2)} | Gold x${rewardMul.goldMul.toFixed(2)}`),
+    );
 
     const list = document.createElement("div");
     list.className = "list";
@@ -740,6 +957,24 @@ function renderCurrentScreen(
     buff.id = "missionWaveBuff";
     hud.appendChild(buff);
 
+    const skillTargetLabel = createParagraph("Skill Target Tower:");
+    skillTargetLabel.style.marginTop = "8px";
+    hud.appendChild(skillTargetLabel);
+
+    const skillTarget = document.createElement("select");
+    skillTarget.id = "missionSkillTarget";
+    hud.appendChild(skillTarget);
+
+    const skillBarLabel = createParagraph("Skills:");
+    skillBarLabel.style.marginTop = "8px";
+    hud.appendChild(skillBarLabel);
+
+    const skillBar = document.createElement("div");
+    skillBar.id = "missionSkillBar";
+    skillBar.className = "list";
+    skillBar.style.gap = "6px";
+    hud.appendChild(skillBar);
+
     if (DEBUG_TOOLS_ENABLED) {
       const balanceDebug = createParagraph("Balance: diagnostics off");
       balanceDebug.id = "missionBalanceDebug";
@@ -806,6 +1041,16 @@ function renderCurrentScreen(
     panel.appendChild(createParagraph(`Difficulty Tier: ${app.runSummary.difficultyTier}`));
     panel.appendChild(
       createParagraph(
+        `Ascensions: ${app.runSummary.ascensionIds.length > 0 ? app.runSummary.ascensionIds.join(", ") : "none"}`,
+      ),
+    );
+    panel.appendChild(
+      createParagraph(
+        `Ascension Rewards: Glory x${app.runSummary.rewardMultipliers.gloryMul.toFixed(2)} | Gold x${app.runSummary.rewardMultipliers.goldMul.toFixed(2)}`,
+      ),
+    );
+    panel.appendChild(
+      createParagraph(
         `Applied Multipliers: enemy HP x${app.runSummary.appliedDifficultyMultipliers.enemyHpMul.toFixed(2)}, enemy DMG x${app.runSummary.appliedDifficultyMultipliers.enemyDmgMul.toFixed(2)}, economy Glory x${app.runSummary.appliedDifficultyMultipliers.economyGloryMul.toFixed(2)}`,
       ),
     );
@@ -858,6 +1103,65 @@ function syncMissionHud(app: AppState): void {
     buff.textContent = telemetry.activeBuffId
       ? `Buff: ${telemetry.activeBuffId} (${telemetry.activeBuffRemainingSec.toFixed(1)}s)`
       : "Buff: none";
+  }
+
+  const towerTargetSelect = document.getElementById("missionSkillTarget");
+  if (towerTargetSelect instanceof HTMLSelectElement) {
+    const towerIds = app.game.getPlayerTowerIds();
+    const towerSignature = towerIds.join("|");
+    if (towerTargetSelect.dataset.signature !== towerSignature) {
+      const previous = towerTargetSelect.value;
+      towerTargetSelect.dataset.signature = towerSignature;
+      towerTargetSelect.replaceChildren();
+      for (const towerId of towerIds) {
+        const option = document.createElement("option");
+        option.value = towerId;
+        option.textContent = towerId;
+        if (towerId === previous) {
+          option.selected = true;
+        }
+        towerTargetSelect.appendChild(option);
+      }
+    }
+  }
+
+  const skillBar = document.getElementById("missionSkillBar");
+  if (skillBar instanceof HTMLDivElement) {
+    const skills = app.game.getSkillHudState();
+    const signature = skills
+      .map((skill) => `${skill.id}:${Math.round(skill.cooldownRemainingSec * 10)}`)
+      .join("|");
+    if (skillBar.dataset.signature !== signature) {
+      skillBar.dataset.signature = signature;
+      skillBar.replaceChildren();
+
+      for (const skill of skills) {
+        const row = document.createElement("div");
+        row.className = "meta-row";
+
+        const label = document.createElement("div");
+        label.textContent = `${skill.name} (${skill.targeting})`;
+        const cooldown = document.createElement("div");
+        cooldown.style.fontSize = "12px";
+        cooldown.style.opacity = "0.8";
+        cooldown.textContent = skill.ready
+          ? "Ready"
+          : `Cooldown ${skill.cooldownRemainingSec.toFixed(1)}s`;
+        label.appendChild(cooldown);
+
+        const castBtn = createButton("Cast", () => {
+          const target = document.getElementById("missionSkillTarget");
+          const targetTowerId = target instanceof HTMLSelectElement ? target.value : undefined;
+          const resolvedTarget =
+            skill.targeting === "NONE" ? undefined : targetTowerId;
+          app.game?.castSkill(skill.id, resolvedTarget);
+        });
+        castBtn.disabled = !skill.ready;
+
+        row.append(label, castBtn);
+        skillBar.appendChild(row);
+      }
+    }
   }
 
   const balanceDebug = document.getElementById("missionBalanceDebug");
@@ -1035,22 +1339,71 @@ function cloneLoadedLevel(level: LoadedLevel): LoadedLevel {
   };
 }
 
+function applyDifficultyToBaseModifiers(
+  base: MetaModifiers,
+  difficultyTier: DifficultyTierConfig,
+  tierId: DifficultyTierId,
+  baselines: BalanceBaselinesConfig,
+): MetaModifiers {
+  const resolved: MetaModifiers = {
+    ...createDefaultMetaModifiers(),
+    ...base,
+  };
+
+  resolved.packetSpeedMul *= difficultyTier.player.packetSpeedMul;
+  resolved.towerRegenMul *= difficultyTier.player.regenMul;
+  resolved.startingTroopsMul *= difficultyTier.player.startingTroopsMul;
+  resolved.rewardGoldMul *= difficultyTier.economy.goldMul;
+  resolved.rewardGloryMul *=
+    baselines.economy.gloryMultiplierByDifficulty[tierId] * difficultyTier.economy.gloryMul;
+
+  const packetCaps = baselines.packets.globalCaps;
+  const baseSpeed = Math.max(1, baselines.packets.baseSpeed);
+  const baseDamage = Math.max(0.001, baselines.packets.baseDamage);
+  resolved.packetSpeedMul = clamp(resolved.packetSpeedMul, packetCaps.speedMin / baseSpeed, packetCaps.speedMax / baseSpeed);
+  resolved.packetDamageMul = clamp(resolved.packetDamageMul, packetCaps.damageMin / baseDamage, packetCaps.damageMax / baseDamage);
+  resolved.packetArmorMul = clamp(resolved.packetArmorMul, 0.5, 2.5);
+  resolved.packetArmorAdd = clamp(resolved.packetArmorAdd, -0.5, 2);
+  resolved.towerRegenMul = clamp(resolved.towerRegenMul, 0.2, 3);
+  resolved.towerMaxTroopsMul = clamp(resolved.towerMaxTroopsMul, 0.5, 3);
+  resolved.linkIntegrityMul = clamp(resolved.linkIntegrityMul, 0.5, 3);
+  resolved.linkCostDiscount = clamp(resolved.linkCostDiscount, 0, 0.8);
+  resolved.extraOutgoingLinksAdd = Math.max(0, Math.min(3, Math.round(resolved.extraOutgoingLinksAdd)));
+  resolved.skillCooldownMul = clamp(resolved.skillCooldownMul, 0.35, 1.2);
+  resolved.skillDurationMul = clamp(resolved.skillDurationMul, 0.5, 2.5);
+  resolved.skillPotencyMul = clamp(resolved.skillPotencyMul, 0.5, 3);
+  resolved.startingTroopsMul = clamp(resolved.startingTroopsMul, 0.5, 2.5);
+  resolved.captureEfficiencyMul = clamp(resolved.captureEfficiencyMul, 0.5, 2.5);
+  resolved.enemyRegenMul = clamp(resolved.enemyRegenMul, 0.25, 4);
+  resolved.linkDecayPerSec = clamp(resolved.linkDecayPerSec, 0, 20);
+  resolved.bossHpMul = clamp(resolved.bossHpMul, 0.5, 4);
+  resolved.bossExtraPhases = Math.max(0, Math.min(3, Math.round(resolved.bossExtraPhases)));
+  resolved.rewardGloryMul = clamp(resolved.rewardGloryMul, 0.5, 6);
+  resolved.rewardGoldMul = clamp(resolved.rewardGoldMul, 0.5, 4);
+  return resolved;
+}
+
 function createMissionLevel(
   baseLevel: LoadedLevel,
   mission: RunMissionNode,
-  bonuses: RunState["startingBonuses"],
+  bonuses: MetaModifiers,
   towerArchetypes: TowerArchetypeCatalog,
   baselines: BalanceBaselinesConfig,
   difficultyTier: DifficultyTierConfig,
+  unlockedTowerTypes: string[],
 ): LoadedLevel {
   const level = cloneLoadedLevel(baseLevel);
-  applyBalanceBaselinesToLevelRules(level, baselines, difficultyTier);
+  applyBalanceBaselinesToLevelRules(level, baselines, bonuses);
 
   const regenCaps = baselines.troopRegen.globalRegenCaps;
   const defenseCaps = baselines.towerTroops.defenseMultipliersCaps;
   const troopCapMax = baselines.towerTroops.baseMaxTroops * 2;
+  const unlockedTowerTypeSet = new Set(unlockedTowerTypes);
 
   for (const tower of level.towers) {
+    if (unlockedTowerTypeSet.size > 0 && !unlockedTowerTypeSet.has(tower.archetype)) {
+      tower.archetype = TowerArchetype.STRONGHOLD;
+    }
     applyTowerArchetypeModifiers(tower, towerArchetypes);
     const archetypeRegenMul = baselines.troopRegen.archetypeMultipliers[tower.archetype] ?? 1;
     tower.regenRate = clamp(
@@ -1069,7 +1422,10 @@ function createMissionLevel(
   for (const tower of playerTowers) {
     tower.maxHp *= bonuses.towerHpMultiplier;
     tower.hp = Math.min(tower.maxHp, tower.hp * bonuses.towerHpMultiplier);
-    tower.regenRate = clamp(tower.regenRate * difficultyTier.player.regenMul, regenCaps.min, regenCaps.max);
+    tower.regenRate = clamp(tower.regenRate * bonuses.towerRegenMul, regenCaps.min, regenCaps.max);
+    tower.maxTroops = clamp(tower.maxTroops * bonuses.towerMaxTroopsMul, 10, troopCapMax);
+    tower.packetDamageMultiplier *= bonuses.packetDamageMul;
+    tower.extraOutgoingLinks += bonuses.extraOutgoingLinksAdd;
   }
 
   const troopBonus = bonuses.startingGold / BALANCE_CONFIG.conversion.startingGoldToTroopsRatio;
@@ -1081,7 +1437,7 @@ function createMissionLevel(
   }
 
   for (const tower of playerTowers) {
-    tower.troops = Math.min(tower.maxTroops, tower.troops * difficultyTier.player.startingTroopsMul);
+    tower.troops = Math.min(tower.maxTroops, tower.troops * bonuses.startingTroopsMul);
   }
 
   grantAdditionalStartingTowers(level, difficultyTier.player.startingTowersAdd, baselines);
@@ -1102,6 +1458,13 @@ function createMissionLevel(
     tower.regenRate *= 1 + (mission.difficulty - 1) * 0.4;
   }
 
+  level.rules.playerCaptureEfficiencyMul = bonuses.captureEfficiencyMul;
+  level.rules.playerPacketArmorAdd = bonuses.packetArmorAdd;
+  level.rules.playerPacketArmorMul = bonuses.packetArmorMul;
+  level.rules.enemyRegenMultiplier = bonuses.enemyRegenMul;
+  level.rules.linkDecayPerSec = bonuses.linkDecayPerSec;
+  level.rules.linkDecayCanBreak = bonuses.linkDecayCanBreak;
+
   level.ai.aiMinTroopsToAttack = Math.max(5, level.ai.aiMinTroopsToAttack / mission.difficulty);
   return level;
 }
@@ -1109,13 +1472,20 @@ function createMissionLevel(
 function applyBalanceBaselinesToLevelRules(
   level: LoadedLevel,
   baselines: BalanceBaselinesConfig,
-  difficultyTier: DifficultyTierConfig,
+  bonuses: MetaModifiers,
 ): void {
   level.rules.captureSeedTroops = baselines.towerTroops.captureSeedTroops;
   level.rules.captureRateMultiplier = baselines.towerTroops.captureRateMultiplier;
+  level.rules.playerCaptureEfficiencyMul = 1;
   level.rules.regenMinPerSec = baselines.troopRegen.globalRegenCaps.min;
   level.rules.regenMaxPerSec = baselines.troopRegen.globalRegenCaps.max;
+  level.rules.playerRegenMultiplier = 1;
+  level.rules.enemyRegenMultiplier = 1;
   level.rules.defaultPacketArmor = baselines.packets.baseArmor;
+  level.rules.playerPacketArmorAdd = 0;
+  level.rules.playerPacketArmorMul = 1;
+  level.rules.linkDecayPerSec = 0;
+  level.rules.linkDecayCanBreak = false;
   level.rules.packetStatCaps = { ...baselines.packets.globalCaps };
   level.rules.fightModel = {
     shieldArmorUptimeMultiplier: baselines.packets.fightResolutionModelParams.shieldArmorUptimeMultiplier,
@@ -1123,7 +1493,7 @@ function applyBalanceBaselinesToLevelRules(
     rangedHoldFactor: baselines.packets.fightResolutionModelParams.rangedHoldFactor,
     linkCutterHoldFactor: baselines.packets.fightResolutionModelParams.linkCutterHoldFactor,
   };
-  level.rules.defaultUnit.speedPxPerSec = baselines.packets.baseSpeed * difficultyTier.player.packetSpeedMul;
+  level.rules.defaultUnit.speedPxPerSec = baselines.packets.baseSpeed * bonuses.packetSpeedMul;
   level.rules.defaultUnit.dpsPerUnit = baselines.packets.baseDamage;
   level.rules.defaultUnit.hpPerUnit = Math.max(level.rules.defaultUnit.hpPerUnit, 1);
 }
@@ -1158,6 +1528,20 @@ function getDifficultyGloryMultiplier(
 ): number {
   const baselineMul = baselines.economy.gloryMultiplierByDifficulty[tierId];
   return baselineMul * difficultyTier.economy.gloryMul;
+}
+
+function maxDifficultyTier(left: DifficultyTierId, right: DifficultyTierId): DifficultyTierId {
+  return difficultyTierRank(left) >= difficultyTierRank(right) ? left : right;
+}
+
+function difficultyTierRank(value: DifficultyTierId): number {
+  if (value === "ASCENDED") {
+    return 3;
+  }
+  if (value === "HARD") {
+    return 2;
+  }
+  return 1;
 }
 
 function countPlayerTowers(world: World): number {

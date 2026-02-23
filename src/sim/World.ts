@@ -140,6 +140,7 @@ export class World {
   readonly links: Link[];
   readonly packets: UnitPacket[];
   private readonly maxOutgoingLinksPerTower: number;
+  private readonly linkIntegrityMultiplier: number;
   private readonly packetPool: UnitPacket[];
   private readonly linkLevels: Map<number, LinkLevelDefinition>;
   private readonly linkDestroyedEvents: LinkDestroyedEvent[];
@@ -150,11 +151,13 @@ export class World {
     maxOutgoingLinksPerTower: number,
     linkLevels: Map<number, LinkLevelDefinition>,
     initialLinks: LinkSeed[] = [],
+    linkIntegrityMultiplier = 1,
   ) {
     this.towers = towers.map((tower) => ({ ...tower }));
     this.links = [];
     this.packets = [];
     this.maxOutgoingLinksPerTower = Math.max(0, Math.floor(maxOutgoingLinksPerTower));
+    this.linkIntegrityMultiplier = Math.max(0.1, linkIntegrityMultiplier);
     this.packetPool = [];
     this.linkLevels = new Map<number, LinkLevelDefinition>(linkLevels);
     this.linkDestroyedEvents = [];
@@ -315,9 +318,23 @@ export class World {
     }
   }
 
-  tickLinkRuntime(dtSec: number): void {
-    for (const link of this.links) {
+  tickLinkRuntime(dtSec: number, linkDecayPerSec = 0, linkDecayCanBreak = false): void {
+    for (let i = this.links.length - 1; i >= 0; i -= 1) {
+      const link = this.links[i];
       link.underAttackTimerSec = Math.max(0, link.underAttackTimerSec - dtSec);
+      if (linkDecayPerSec <= 0) {
+        continue;
+      }
+
+      link.integrity -= linkDecayPerSec * dtSec;
+      if (linkDecayCanBreak) {
+        if (link.integrity <= 0) {
+          this.destroyLinkAt(i);
+        }
+        continue;
+      }
+
+      link.integrity = Math.max(1, link.integrity);
     }
   }
 
@@ -418,7 +435,8 @@ export class World {
   private createRuntimeLink(seed: LinkSeed): Link {
     const levelConfig = this.getLinkLevel(seed.level ?? 1);
     const level = levelConfig.level;
-    const maxIntegrity = Math.max(1, seed.maxIntegrity ?? levelConfig.integrity);
+    const baseMaxIntegrity = seed.maxIntegrity ?? levelConfig.integrity;
+    const maxIntegrity = Math.max(1, baseMaxIntegrity * this.linkIntegrityMultiplier);
     const integrity = Math.max(0, Math.min(maxIntegrity, seed.integrity ?? maxIntegrity));
 
     return {

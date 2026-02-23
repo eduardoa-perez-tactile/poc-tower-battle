@@ -1,0 +1,39 @@
+{
+  "version": 1,
+  "skills": [
+    {
+      "id": "GLOBAL_HASTE",
+      "name": "Global Haste",
+      "desc": "All player packets gain speed for a short burst.",
+      "cooldownSec": 30,
+      "durationSec": 6,
+      "targeting": "NONE",
+      "effects": [
+        { "type": "TEMP_PLAYER_PACKET_SPEED_MUL", "op": "ADD_MUL", "value": 0.35 }
+      ]
+    },
+    {
+      "id": "TOWER_SHIELD",
+      "name": "Tower Shield",
+      "desc": "Target tower gains bonus defense for a duration.",
+      "cooldownSec": 24,
+      "durationSec": 7,
+      "targeting": "TOWER",
+      "effects": [
+        { "type": "TEMP_TOWER_DEFENSE_MUL", "op": "ADD_MUL", "value": 0.6 }
+      ]
+    },
+    {
+      "id": "LINK_PURGE",
+      "name": "Link Purge",
+      "desc": "Repair damaged links around a target point.",
+      "cooldownSec": 34,
+      "durationSec": 0,
+      "targeting": "AREA",
+      "radius": 170,
+      "effects": [
+        { "type": "LINK_INTEGRITY_REPAIR", "op": "ADD", "value": 45 }
+      ]
+    }
+  ]
+}
