@@ -1,4 +1,9 @@
 import { Game, type MatchResult } from "./game/Game";
+import {
+  DIFFICULTY_TIER_IDS,
+  DEFAULT_DIFFICULTY_TIER,
+  type DifficultyTierId,
+} from "./config/Difficulty";
 import { loadLevel, type LoadedLevel } from "./game/LevelLoader";
 import { InputController } from "./input/InputController";
 import { BALANCE_CONFIG } from "./meta/BalanceConfig";
@@ -30,8 +35,10 @@ import {
   saveRunState,
 } from "./save/Storage";
 import { applyTowerArchetypeModifiers, loadDepthContent } from "./sim/DepthConfig";
+import { updateWorld as updateQuickSimWorld } from "./sim/Simulation";
 import { World } from "./sim/World";
 import type { TowerArchetypeCatalog } from "./sim/DepthTypes";
+import type { BalanceBaselinesConfig, DifficultyTierConfig } from "./waves/Definitions";
 import { loadWaveContent } from "./waves/Definitions";
 import { WaveDirector } from "./waves/WaveDirector";
 
@@ -46,6 +53,7 @@ interface AppState {
   inputController: InputController | null;
   missionResult: MatchResult;
   missionReward: MissionGloryReward | null;
+  balanceDiagnosticsEnabled: boolean;
 }
 
 const DEBUG_TOOLS_ENABLED = true;
@@ -80,7 +88,13 @@ async function bootstrap(): Promise<void> {
     inputController: null,
     missionResult: null,
     missionReward: null,
+    balanceDiagnosticsEnabled: DEBUG_TOOLS_ENABLED,
   };
+
+  if (app.runState && !DIFFICULTY_TIER_IDS.includes(app.runState.runModifiers.tier)) {
+    app.runState.runModifiers.tier = DEFAULT_DIFFICULTY_TIER;
+    saveRunState(app.runState);
+  }
 
   const render = (): void => {
     renderCurrentScreen(
@@ -109,6 +123,8 @@ async function bootstrap(): Promise<void> {
       forceMissionLose,
       debugSpawnEnemy,
       debugStartWave,
+      toggleBalanceDiagnostics,
+      runQuickSimDebug,
     );
     syncRestartButton(restartBtn, app, restartCurrentMission);
   };
@@ -177,7 +193,10 @@ async function bootstrap(): Promise<void> {
       mission,
       app.runState.startingBonuses,
       depthContent.towerArchetypes,
+      waveContent.balanceBaselines,
+      waveContent.difficultyTiers.difficultyTiers[app.runState.runModifiers.tier],
     );
+    const missionDifficultyScalar = mission.difficulty * app.runState.runModifiers.difficulty;
     const world = new World(
       tunedLevel.towers,
       tunedLevel.rules.maxOutgoingLinksPerTower,
@@ -186,7 +205,9 @@ async function bootstrap(): Promise<void> {
     );
     const waveDirector = new WaveDirector(world, waveContent, {
       runSeed: app.runState.seed + app.runState.currentMissionIndex * 911,
-      missionDifficulty: mission.difficulty * app.runState.runModifiers.difficulty,
+      missionDifficultyScalar,
+      difficultyTier: app.runState.runModifiers.tier,
+      balanceDiagnosticsEnabled: app.balanceDiagnosticsEnabled,
     });
 
     const inputController = new InputController(canvas, world);
@@ -219,6 +240,11 @@ async function bootstrap(): Promise<void> {
       mission.difficulty * app.runState.runModifiers.difficulty,
       result === "win",
       app.runState.startingBonuses.goldEarnedMultiplier,
+      getDifficultyGloryMultiplier(
+        waveContent.balanceBaselines,
+        waveContent.difficultyTiers.difficultyTiers[app.runState.runModifiers.tier],
+        app.runState.runModifiers.tier,
+      ),
     );
     app.metaProfile.glory += missionReward.total;
     app.runState.runGloryEarned += missionReward.total;
@@ -245,7 +271,13 @@ async function bootstrap(): Promise<void> {
     const missionsCompleted = won
       ? runState.missions.length
       : Math.min(runState.currentMissionIndex, runState.missions.length);
-    const runBonusGlory = calculateRunBonusGlory(won, runState.startingBonuses.goldEarnedMultiplier);
+    const tier = runState.runModifiers.tier;
+    const tierConfig = waveContent.difficultyTiers.difficultyTiers[tier];
+    const runBonusGlory = calculateRunBonusGlory(
+      won,
+      runState.startingBonuses.goldEarnedMultiplier,
+      getDifficultyGloryMultiplier(waveContent.balanceBaselines, tierConfig, tier),
+    );
     app.metaProfile.glory += runBonusGlory;
     app.metaProfile.stats.bestMissionIndex = Math.max(
       app.metaProfile.stats.bestMissionIndex,
@@ -267,6 +299,19 @@ async function bootstrap(): Promise<void> {
       missionGlory: runState.runGloryEarned,
       runBonusGlory,
       totalGloryEarned: runState.runGloryEarned + runBonusGlory,
+      difficultyTier: tier,
+      appliedDifficultyMultipliers: {
+        enemyHpMul: tierConfig.enemy.hpMul,
+        enemyDmgMul: tierConfig.enemy.dmgMul,
+        enemySpeedMul: tierConfig.enemy.speedMul,
+        waveIntensityMul: tierConfig.wave.intensityMul,
+        economyGoldMul: tierConfig.economy.goldMul,
+        economyGloryMul: getDifficultyGloryMultiplier(
+          waveContent.balanceBaselines,
+          tierConfig,
+          tier,
+        ),
+      },
       unlockNotifications,
     };
     app.runState = null;
@@ -343,6 +388,122 @@ async function bootstrap(): Promise<void> {
     if (app.game && app.screen === "mission" && app.missionResult === null) {
       app.game.debugStartWave(waveIndex);
     }
+  };
+
+  const toggleBalanceDiagnostics = (): void => {
+    app.balanceDiagnosticsEnabled = !app.balanceDiagnosticsEnabled;
+    if (app.game) {
+      app.game.setBalanceDiagnosticsEnabled(app.balanceDiagnosticsEnabled);
+    }
+    render();
+  };
+
+  const runQuickSimDebug = (): void => {
+    void runQuickSim(24);
+  };
+
+  const runQuickSim = async (runCount: number): Promise<void> => {
+    if (!app.runState) {
+      return;
+    }
+    const mission = getCurrentMission(app.runState);
+    if (!mission) {
+      return;
+    }
+
+    const tierId = app.runState.runModifiers.tier;
+    const tierConfig = waveContent.difficultyTiers.difficultyTiers[tierId];
+    const missionDifficultyScalar = mission.difficulty * app.runState.runModifiers.difficulty;
+    const fixedSeedBase = 13371337;
+    const maxWaves = waveContent.balance.totalWaveCount;
+    const towersOwnedCurveTotals = new Array<number>(maxWaves).fill(0);
+    const gloryCurveTotals = new Array<number>(maxWaves).fill(0);
+
+    let wins = 0;
+    let totalWaveDurationSec = 0;
+    let completedRuns = 0;
+
+    const baseLevel = await getLevelByPath(mission.levelPath, levelCache);
+    for (let runIndex = 0; runIndex < runCount; runIndex += 1) {
+      const level = createMissionLevel(
+        baseLevel,
+        mission,
+        app.runState.startingBonuses,
+        depthContent.towerArchetypes,
+        waveContent.balanceBaselines,
+        tierConfig,
+      );
+      const world = new World(
+        level.towers,
+        level.rules.maxOutgoingLinksPerTower,
+        depthContent.linkLevels,
+        level.initialLinks,
+      );
+      const waveDirector = new WaveDirector(world, waveContent, {
+        runSeed: fixedSeedBase + runIndex * 101,
+        missionDifficultyScalar,
+        difficultyTier: tierId,
+        balanceDiagnosticsEnabled: false,
+      });
+
+      let aiAccumulatorSec = 0;
+      let simSec = 0;
+      let result: MatchResult = null;
+      let lastRecordedWave = 0;
+      const stepSec = 1 / 30;
+
+      while (simSec < 900 && result === null) {
+        waveDirector.updatePreStep(stepSec);
+        updateQuickSimWorld(world, stepSec, level.rules);
+        waveDirector.updatePostStep(stepSec);
+        world.drainTowerCapturedEvents();
+
+        aiAccumulatorSec += stepSec;
+        if (level.ai.aiThinkIntervalSec <= 0) {
+          runQuickSimAiDecision(world, level.ai.aiMinTroopsToAttack);
+        } else {
+          while (aiAccumulatorSec >= level.ai.aiThinkIntervalSec) {
+            aiAccumulatorSec -= level.ai.aiThinkIntervalSec;
+            runQuickSimAiDecision(world, level.ai.aiMinTroopsToAttack);
+          }
+        }
+
+        const telemetry = waveDirector.getTelemetry();
+        const currentWave = telemetry.currentWaveIndex;
+        if (currentWave > lastRecordedWave) {
+          const waveSlot = Math.max(0, Math.min(maxWaves - 1, currentWave - 1));
+          const owned = countPlayerTowers(world);
+          towersOwnedCurveTotals[waveSlot] += owned;
+          gloryCurveTotals[waveSlot] +=
+            telemetry.missionGold *
+            getDifficultyGloryMultiplier(waveContent.balanceBaselines, tierConfig, tierId);
+          lastRecordedWave = currentWave;
+        }
+
+        result = evaluateQuickSimResult(world, waveDirector);
+        simSec += stepSec;
+      }
+
+      if (result === "win") {
+        wins += 1;
+      }
+      totalWaveDurationSec += simSec;
+      completedRuns += 1;
+    }
+
+    const divisor = Math.max(1, completedRuns);
+    const summary = {
+      difficultyTier: tierId,
+      runCount: completedRuns,
+      seedBase: fixedSeedBase,
+      winRate: wins / divisor,
+      averageWaveDurationSec: totalWaveDurationSec / divisor,
+      towersOwnedCurve: towersOwnedCurveTotals.map((value) => value / divisor),
+      gloryEarnedCurve: gloryCurveTotals.map((value) => value / divisor),
+    };
+
+    (window as unknown as { __towerBattleQuickSim?: unknown }).__towerBattleQuickSim = summary;
+    console.log("[QuickSim] Summary", summary);
   };
 
   const stopMission = (): void => {
@@ -480,7 +641,33 @@ function renderCurrentScreen(
 
     panel.appendChild(createParagraph(`Run ID: ${app.runState.runId}`));
     panel.appendChild(createParagraph(`Seed: ${app.runState.seed}`));
+    panel.appendChild(createParagraph(`Difficulty Tier: ${app.runState.runModifiers.tier}`));
     panel.appendChild(createParagraph(`Current Mission: ${app.runState.currentMissionIndex + 1}/${app.runState.missions.length}`));
+
+    const difficultyRow = document.createElement("div");
+    difficultyRow.className = "meta-row";
+    const difficultyLabel = document.createElement("div");
+    difficultyLabel.textContent = "Run Difficulty";
+    const difficultySelect = document.createElement("select");
+    for (const tierId of DIFFICULTY_TIER_IDS) {
+      const option = document.createElement("option");
+      option.value = tierId;
+      option.textContent = tierId;
+      if (tierId === app.runState.runModifiers.tier) {
+        option.selected = true;
+      }
+      difficultySelect.appendChild(option);
+    }
+    difficultySelect.onchange = () => {
+      if (!app.runState) {
+        return;
+      }
+      app.runState.runModifiers.tier = difficultySelect.value as DifficultyTierId;
+      saveRunState(app.runState);
+      openRunMap();
+    };
+    difficultyRow.append(difficultyLabel, difficultySelect);
+    panel.appendChild(difficultyRow);
 
     const list = document.createElement("div");
     list.className = "list";
@@ -497,7 +684,7 @@ function renderCurrentScreen(
       label.textContent = `${index + 1}. ${mission.name}`;
       const badge = document.createElement("span");
       badge.className = "badge";
-      badge.textContent = `${status} • x${mission.difficulty.toFixed(2)}`;
+      badge.textContent = `${status} • x${mission.difficulty.toFixed(2)} • ${app.runState!.runModifiers.tier}`;
       label.appendChild(badge);
       row.appendChild(label);
       list.appendChild(row);
@@ -529,7 +716,7 @@ function renderCurrentScreen(
       if (mission) {
         hud.appendChild(
           createParagraph(
-            `${mission.name} (${app.runState.currentMissionIndex + 1}/${app.runState.missions.length}) • Difficulty x${mission.difficulty.toFixed(2)}`,
+            `${mission.name} (${app.runState.currentMissionIndex + 1}/${app.runState.missions.length}) • Difficulty x${mission.difficulty.toFixed(2)} • ${app.runState.runModifiers.tier}`,
           ),
         );
       }
@@ -552,6 +739,14 @@ function renderCurrentScreen(
     const buff = createParagraph("Buff: none");
     buff.id = "missionWaveBuff";
     hud.appendChild(buff);
+
+    if (DEBUG_TOOLS_ENABLED) {
+      const balanceDebug = createParagraph("Balance: diagnostics off");
+      balanceDebug.id = "missionBalanceDebug";
+      balanceDebug.style.fontSize = "12px";
+      balanceDebug.style.opacity = "0.9";
+      hud.appendChild(balanceDebug);
+    }
 
     const previewLabel = createParagraph("Upcoming:");
     previewLabel.style.marginBottom = "4px";
@@ -608,6 +803,12 @@ function renderCurrentScreen(
     panel.appendChild(createParagraph(`Mission Glory: ${app.runSummary.missionGlory}`));
     panel.appendChild(createParagraph(`Run Bonus Glory: ${app.runSummary.runBonusGlory}`));
     panel.appendChild(createParagraph(`Total Glory Earned: ${app.runSummary.totalGloryEarned}`));
+    panel.appendChild(createParagraph(`Difficulty Tier: ${app.runSummary.difficultyTier}`));
+    panel.appendChild(
+      createParagraph(
+        `Applied Multipliers: enemy HP x${app.runSummary.appliedDifficultyMultipliers.enemyHpMul.toFixed(2)}, enemy DMG x${app.runSummary.appliedDifficultyMultipliers.enemyDmgMul.toFixed(2)}, economy Glory x${app.runSummary.appliedDifficultyMultipliers.economyGloryMul.toFixed(2)}`,
+      ),
+    );
 
     if (app.runSummary.unlockNotifications.length > 0) {
       panel.appendChild(createParagraph("New unlocks:"));
@@ -659,6 +860,22 @@ function syncMissionHud(app: AppState): void {
       : "Buff: none";
   }
 
+  const balanceDebug = document.getElementById("missionBalanceDebug");
+  if (balanceDebug instanceof HTMLParagraphElement) {
+    if (!app.balanceDiagnosticsEnabled) {
+      balanceDebug.textContent = "Balance: diagnostics off";
+    } else {
+      const timeToZero =
+        telemetry.timeToZeroTowersEstimateSec === null
+          ? "∞"
+          : `${telemetry.timeToZeroTowersEstimateSec.toFixed(1)}s`;
+      balanceDebug.textContent =
+        `Balance: ${telemetry.difficultyTier} | pressure ${telemetry.wavePressureScore.toFixed(1)} | ` +
+        `towers ${telemetry.playerTowersOwned} | avg troops ${telemetry.avgTroopsPerOwnedTower.toFixed(1)} | ` +
+        `pkt/s ${telemetry.packetsSentPerSec.toFixed(2)} | ttz ${timeToZero}`;
+    }
+  }
+
   const preview = document.getElementById("missionWavePreview");
   if (preview instanceof HTMLDivElement) {
     const signature = telemetry.nextWavePreview
@@ -693,6 +910,8 @@ function renderDebugPanel(
   forceMissionLose: () => void,
   debugSpawnEnemy: (enemyId: string, elite: boolean) => void,
   debugStartWave: (waveIndex: number) => void,
+  toggleBalanceDiagnostics: () => void,
+  runQuickSimDebug: () => void,
 ): void {
   debugPanel.replaceChildren();
   if (!DEBUG_TOOLS_ENABLED) {
@@ -708,6 +927,14 @@ function renderDebugPanel(
   const forceLoseBtn = createButton("Debug: Mission Lose", forceMissionLose);
   forceLoseBtn.disabled = !canForceEnd;
   debugPanel.appendChild(forceLoseBtn);
+  const balanceBtn = createButton(
+    app.balanceDiagnosticsEnabled ? "Debug: Balance HUD ON" : "Debug: Balance HUD OFF",
+    toggleBalanceDiagnostics,
+  );
+  debugPanel.appendChild(balanceBtn);
+  const quickSimBtn = createButton("Debug: Quick Sim x24", runQuickSimDebug);
+  quickSimBtn.disabled = app.runState === null;
+  debugPanel.appendChild(quickSimBtn);
 
   if (!app.game || app.screen !== "mission" || app.missionResult !== null) {
     return;
@@ -801,6 +1028,8 @@ function cloneLoadedLevel(level: LoadedLevel): LoadedLevel {
     rules: {
       ...level.rules,
       defaultUnit: { ...level.rules.defaultUnit },
+      packetStatCaps: { ...level.rules.packetStatCaps },
+      fightModel: { ...level.rules.fightModel },
     },
     ai: { ...level.ai },
   };
@@ -811,10 +1040,27 @@ function createMissionLevel(
   mission: RunMissionNode,
   bonuses: RunState["startingBonuses"],
   towerArchetypes: TowerArchetypeCatalog,
+  baselines: BalanceBaselinesConfig,
+  difficultyTier: DifficultyTierConfig,
 ): LoadedLevel {
   const level = cloneLoadedLevel(baseLevel);
+  applyBalanceBaselinesToLevelRules(level, baselines, difficultyTier);
+
+  const regenCaps = baselines.troopRegen.globalRegenCaps;
+  const defenseCaps = baselines.towerTroops.defenseMultipliersCaps;
+  const troopCapMax = baselines.towerTroops.baseMaxTroops * 2;
+
   for (const tower of level.towers) {
     applyTowerArchetypeModifiers(tower, towerArchetypes);
+    const archetypeRegenMul = baselines.troopRegen.archetypeMultipliers[tower.archetype] ?? 1;
+    tower.regenRate = clamp(
+      tower.regenRate * baselines.troopRegen.baseRegenPerSec * archetypeRegenMul,
+      regenCaps.min,
+      regenCaps.max,
+    );
+    tower.maxTroops = clamp(tower.maxTroops, 10, troopCapMax);
+    tower.baseMaxTroops = tower.maxTroops;
+    tower.defenseMultiplier = clamp(tower.defenseMultiplier, defenseCaps.min, defenseCaps.max);
     tower.troops = Math.min(tower.maxTroops, tower.troops);
   }
   const playerTowers = level.towers.filter((tower) => tower.owner === "player");
@@ -823,6 +1069,7 @@ function createMissionLevel(
   for (const tower of playerTowers) {
     tower.maxHp *= bonuses.towerHpMultiplier;
     tower.hp = Math.min(tower.maxHp, tower.hp * bonuses.towerHpMultiplier);
+    tower.regenRate = clamp(tower.regenRate * difficultyTier.player.regenMul, regenCaps.min, regenCaps.max);
   }
 
   const troopBonus = bonuses.startingGold / BALANCE_CONFIG.conversion.startingGoldToTroopsRatio;
@@ -832,6 +1079,12 @@ function createMissionLevel(
       tower.troops = Math.min(tower.maxTroops, tower.troops + perTowerBonus);
     }
   }
+
+  for (const tower of playerTowers) {
+    tower.troops = Math.min(tower.maxTroops, tower.troops * difficultyTier.player.startingTroopsMul);
+  }
+
+  grantAdditionalStartingTowers(level, difficultyTier.player.startingTowersAdd, baselines);
 
   if (bonuses.strongholdStartLevel >= 2 && playerTowers.length > 0) {
     const stronghold = playerTowers[0];
@@ -853,11 +1106,131 @@ function createMissionLevel(
   return level;
 }
 
+function applyBalanceBaselinesToLevelRules(
+  level: LoadedLevel,
+  baselines: BalanceBaselinesConfig,
+  difficultyTier: DifficultyTierConfig,
+): void {
+  level.rules.captureSeedTroops = baselines.towerTroops.captureSeedTroops;
+  level.rules.captureRateMultiplier = baselines.towerTroops.captureRateMultiplier;
+  level.rules.regenMinPerSec = baselines.troopRegen.globalRegenCaps.min;
+  level.rules.regenMaxPerSec = baselines.troopRegen.globalRegenCaps.max;
+  level.rules.defaultPacketArmor = baselines.packets.baseArmor;
+  level.rules.packetStatCaps = { ...baselines.packets.globalCaps };
+  level.rules.fightModel = {
+    shieldArmorUptimeMultiplier: baselines.packets.fightResolutionModelParams.shieldArmorUptimeMultiplier,
+    combatHoldFactor: baselines.packets.fightResolutionModelParams.combatHoldFactor,
+    rangedHoldFactor: baselines.packets.fightResolutionModelParams.rangedHoldFactor,
+    linkCutterHoldFactor: baselines.packets.fightResolutionModelParams.linkCutterHoldFactor,
+  };
+  level.rules.defaultUnit.speedPxPerSec = baselines.packets.baseSpeed * difficultyTier.player.packetSpeedMul;
+  level.rules.defaultUnit.dpsPerUnit = baselines.packets.baseDamage;
+  level.rules.defaultUnit.hpPerUnit = Math.max(level.rules.defaultUnit.hpPerUnit, 1);
+}
+
+function grantAdditionalStartingTowers(
+  level: LoadedLevel,
+  additionalTowers: number,
+  baselines: BalanceBaselinesConfig,
+): void {
+  const count = Math.max(0, Math.floor(additionalTowers));
+  if (count <= 0) {
+    return;
+  }
+
+  const neutral = level.towers
+    .filter((tower) => tower.owner === "neutral")
+    .sort((a, b) => a.id.localeCompare(b.id));
+  const captureTroops = baselines.towerTroops.captureSeedTroops;
+
+  for (let i = 0; i < count && i < neutral.length; i += 1) {
+    const tower = neutral[i];
+    tower.owner = "player";
+    tower.hp = tower.maxHp;
+    tower.troops = Math.min(tower.maxTroops, Math.max(captureTroops, tower.troops));
+  }
+}
+
+function getDifficultyGloryMultiplier(
+  baselines: BalanceBaselinesConfig,
+  difficultyTier: DifficultyTierConfig,
+  tierId: DifficultyTierId,
+): number {
+  const baselineMul = baselines.economy.gloryMultiplierByDifficulty[tierId];
+  return baselineMul * difficultyTier.economy.gloryMul;
+}
+
+function countPlayerTowers(world: World): number {
+  let count = 0;
+  for (const tower of world.towers) {
+    if (tower.owner === "player") {
+      count += 1;
+    }
+  }
+  return count;
+}
+
+function evaluateQuickSimResult(world: World, waveDirector: WaveDirector): MatchResult {
+  const playerTowers = countPlayerTowers(world);
+  if (playerTowers === 0) {
+    return "lose";
+  }
+  if (waveDirector.isFinished()) {
+    return "win";
+  }
+  return null;
+}
+
+function runQuickSimAiDecision(world: World, minTroopsToAttack: number): void {
+  const playerTowers = world.towers.filter((tower) => tower.owner === "player");
+  if (playerTowers.length === 0) {
+    return;
+  }
+
+  const candidateSources = world.towers.filter(
+    (tower) => tower.owner === "enemy" && tower.troops >= minTroopsToAttack,
+  );
+  if (candidateSources.length === 0) {
+    return;
+  }
+
+  let bestSourceId = "";
+  let bestTargetId = "";
+  let bestScore = Number.POSITIVE_INFINITY;
+  let bestKey = "";
+
+  for (const source of candidateSources) {
+    for (const target of playerTowers) {
+      if (target.id === source.id) {
+        continue;
+      }
+
+      const score =
+        Math.hypot(target.x - source.x, target.y - source.y) + 2 * (target.troops + target.hp);
+      const key = `${source.id}->${target.id}`;
+      if (score < bestScore || (score === bestScore && (bestKey === "" || key < bestKey))) {
+        bestScore = score;
+        bestSourceId = source.id;
+        bestTargetId = target.id;
+        bestKey = key;
+      }
+    }
+  }
+
+  if (bestSourceId && bestTargetId) {
+    world.setOutgoingLink(bestSourceId, bestTargetId);
+  }
+}
+
 function getCurrentMission(runState: RunState): RunMissionNode | null {
   if (runState.currentMissionIndex < 0 || runState.currentMissionIndex >= runState.missions.length) {
     return null;
   }
   return runState.missions[runState.currentMissionIndex];
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, value));
 }
 
 function createPanel(title: string): HTMLDivElement {

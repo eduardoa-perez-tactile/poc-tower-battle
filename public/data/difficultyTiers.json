@@ -1,0 +1,89 @@
+{
+  "version": 1,
+  "difficultyTiers": {
+    "NORMAL": {
+      "enemy": {
+        "hpMul": 1,
+        "dmgMul": 1,
+        "speedMul": 1,
+        "spawnCountMul": 1
+      },
+      "wave": {
+        "intensityMul": 1,
+        "eliteChanceMul": 1,
+        "minibossChanceMul": 1,
+        "bossHpMul": 1,
+        "earlyIntensityRampPerWave": 0.06,
+        "midIntensityRampPerWave": 0.09,
+        "lateIntensityRampPerWave": 0.12,
+        "minibossGuaranteeWave": 5
+      },
+      "player": {
+        "regenMul": 1,
+        "packetSpeedMul": 1,
+        "startingTowersAdd": 0,
+        "startingTroopsMul": 1
+      },
+      "economy": {
+        "goldMul": 1,
+        "gloryMul": 1
+      }
+    },
+    "HARD": {
+      "enemy": {
+        "hpMul": 1.2,
+        "dmgMul": 1.12,
+        "speedMul": 1.08,
+        "spawnCountMul": 1.15
+      },
+      "wave": {
+        "intensityMul": 1.15,
+        "eliteChanceMul": 1.2,
+        "minibossChanceMul": 1.2,
+        "bossHpMul": 1.2,
+        "earlyIntensityRampPerWave": 0.08,
+        "midIntensityRampPerWave": 0.11,
+        "lateIntensityRampPerWave": 0.14,
+        "minibossGuaranteeWave": 4
+      },
+      "player": {
+        "regenMul": 0.98,
+        "packetSpeedMul": 1,
+        "startingTowersAdd": 0,
+        "startingTroopsMul": 0.98
+      },
+      "economy": {
+        "goldMul": 1.08,
+        "gloryMul": 1.15
+      }
+    },
+    "ASCENDED": {
+      "enemy": {
+        "hpMul": 1.38,
+        "dmgMul": 1.26,
+        "speedMul": 1.14,
+        "spawnCountMul": 1.32
+      },
+      "wave": {
+        "intensityMul": 1.32,
+        "eliteChanceMul": 1.45,
+        "minibossChanceMul": 1.42,
+        "bossHpMul": 1.45,
+        "earlyIntensityRampPerWave": 0.1,
+        "midIntensityRampPerWave": 0.14,
+        "lateIntensityRampPerWave": 0.18,
+        "minibossGuaranteeWave": 3
+      },
+      "player": {
+        "regenMul": 0.95,
+        "packetSpeedMul": 0.98,
+        "startingTowersAdd": 0,
+        "startingTroopsMul": 0.95
+      },
+      "economy": {
+        "goldMul": 1.16,
+        "gloryMul": 1.35
+      }
+    }
+  }
+}

@@ -5,6 +5,7 @@ import {
   type MetaProfile,
   type RunState,
 } from "./Schema";
+import { DEFAULT_DIFFICULTY_TIER, toDifficultyTierId } from "../config/Difficulty";
 
 const META_PROFILE_KEY = "tower-battle.meta-profile";
 const RUN_STATE_KEY = "tower-battle.run-state";
@@ -130,6 +131,7 @@ function migrateRunState(raw: unknown): RunState | null {
     missions,
     runModifiers: {
       difficulty: asNumber(raw.runModifiers.difficulty, 1),
+      tier: toDifficultyTierId(raw.runModifiers.tier ?? DEFAULT_DIFFICULTY_TIER),
     },
     inventory: {
       relics: Array.isArray(inventory.relics) ? inventory.relics.filter(isString) : [],

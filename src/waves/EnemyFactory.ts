@@ -1,4 +1,5 @@
 import type { Owner, UnitPacket } from "../sim/World";
+import type { DifficultyTierId } from "../config/Difficulty";
 import type { EnemyArchetypeDefinition, LoadedWaveContent } from "./Definitions";
 
 export interface EnemySpawnRequest {
@@ -8,7 +9,8 @@ export interface EnemySpawnRequest {
   archetypeId: string;
   count: number;
   waveIndex: number;
-  difficultyTier: number;
+  difficultyTier: DifficultyTierId;
+  missionDifficultyScalar: number;
   isElite: boolean;
   isBoss: boolean;
 }
@@ -44,9 +46,11 @@ export class EnemyFactory {
   createEnemyPacket(request: EnemySpawnRequest): UnitPacket {
     const archetype = this.getArchetype(request.archetypeId);
     const scaling = this.content.balance.scaling;
+    const tierConfig = this.content.difficultyTiers.difficultyTiers[request.difficultyTier];
+    const caps = this.content.balanceBaselines.packets.globalCaps;
 
     const waveFactor = Math.max(0, request.waveIndex - 1);
-    const difficultyFactor = Math.max(0, request.difficultyTier - 1);
+    const difficultyFactor = Math.max(0, request.missionDifficultyScalar - 1);
     const hpScale = 1 + waveFactor * scaling.hpPerWave + difficultyFactor * scaling.hpPerDifficultyTier;
     const damageScale =
       1 + waveFactor * scaling.damagePerWave + difficultyFactor * scaling.damagePerDifficultyTier;
@@ -54,12 +58,30 @@ export class EnemyFactory {
 
     const eliteScale = request.isElite ? this.content.balance.elite.hpMultiplier : 1;
     const eliteDamageScale = request.isElite ? this.content.balance.elite.damageMultiplier : 1;
-    const bossHpScale = request.isBoss ? this.content.balance.boss.hpMultiplier : 1;
+    const bossHpScale = request.isBoss
+      ? this.content.balance.boss.hpMultiplier * tierConfig.wave.bossHpMul
+      : 1;
     const bossDamageScale = request.isBoss ? this.content.balance.boss.damageMultiplier : 1;
 
-    const hpPerUnit = archetype.baseStats.hp * hpScale * eliteScale * bossHpScale;
-    const dpsPerUnit = archetype.baseStats.damage * damageScale * eliteDamageScale * bossDamageScale;
-    const speedPxPerSec = archetype.baseStats.speed * speedScale;
+    const hpPerUnit = clamp(
+      archetype.baseStats.hp * hpScale * tierConfig.enemy.hpMul * eliteScale * bossHpScale,
+      caps.hpMin,
+      caps.hpMax,
+    );
+    const dpsPerUnit = clamp(
+      archetype.baseStats.damage *
+        damageScale *
+        tierConfig.enemy.dmgMul *
+        eliteDamageScale *
+        bossDamageScale,
+      caps.damageMin,
+      caps.damageMax,
+    );
+    const speedPxPerSec = clamp(
+      archetype.baseStats.speed * speedScale * tierConfig.enemy.speedMul,
+      caps.speedMin,
+      caps.speedMax,
+    );
     const attackCooldownSec = Math.max(0.12, archetype.baseStats.attackCooldown);
 
     const behavior = archetype.behavior ?? {};
@@ -121,4 +143,8 @@ export class EnemyFactory {
       sourceWaveIndex: request.waveIndex,
     };
   }
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, value));
 }

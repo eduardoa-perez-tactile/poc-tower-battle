@@ -109,6 +109,9 @@ function parseRules(value: Record<string, unknown>): LevelRules {
     throw new Error("rules.defaultUnit must be an object");
   }
 
+  const packetCaps = isObject(value.packetStatCaps) ? value.packetStatCaps : {};
+  const fightModel = isObject(value.fightModel) ? value.fightModel : {};
+
   return {
     maxOutgoingLinksPerTower: asNumber(
       value.maxOutgoingLinksPerTower,
@@ -116,6 +119,33 @@ function parseRules(value: Record<string, unknown>): LevelRules {
     ),
     collisionDistancePx: asNumber(value.collisionDistancePx, "rules.collisionDistancePx"),
     captureSeedTroops: asNumber(value.captureSeedTroops, "rules.captureSeedTroops"),
+    captureRateMultiplier: asOptionalNumber(value.captureRateMultiplier, "rules.captureRateMultiplier") ?? 1,
+    regenMinPerSec: asOptionalNumber(value.regenMinPerSec, "rules.regenMinPerSec") ?? 0,
+    regenMaxPerSec: asOptionalNumber(value.regenMaxPerSec, "rules.regenMaxPerSec") ?? 8,
+    defaultPacketArmor: asOptionalNumber(value.defaultPacketArmor, "rules.defaultPacketArmor") ?? 1,
+    packetStatCaps: {
+      speedMin: asOptionalNumber(packetCaps.speedMin, "rules.packetStatCaps.speedMin") ?? 25,
+      speedMax: asOptionalNumber(packetCaps.speedMax, "rules.packetStatCaps.speedMax") ?? 420,
+      damageMin: asOptionalNumber(packetCaps.damageMin, "rules.packetStatCaps.damageMin") ?? 0.2,
+      damageMax: asOptionalNumber(packetCaps.damageMax, "rules.packetStatCaps.damageMax") ?? 14,
+      hpMin: asOptionalNumber(packetCaps.hpMin, "rules.packetStatCaps.hpMin") ?? 0.2,
+      hpMax: asOptionalNumber(packetCaps.hpMax, "rules.packetStatCaps.hpMax") ?? 220,
+      armorMin: asOptionalNumber(packetCaps.armorMin, "rules.packetStatCaps.armorMin") ?? 0.2,
+      armorMax: asOptionalNumber(packetCaps.armorMax, "rules.packetStatCaps.armorMax") ?? 4,
+    },
+    fightModel: {
+      shieldArmorUptimeMultiplier:
+        asOptionalNumber(
+          fightModel.shieldArmorUptimeMultiplier,
+          "rules.fightModel.shieldArmorUptimeMultiplier",
+        ) ?? 1.8,
+      combatHoldFactor:
+        asOptionalNumber(fightModel.combatHoldFactor, "rules.fightModel.combatHoldFactor") ?? 0.45,
+      rangedHoldFactor:
+        asOptionalNumber(fightModel.rangedHoldFactor, "rules.fightModel.rangedHoldFactor") ?? 0.65,
+      linkCutterHoldFactor:
+        asOptionalNumber(fightModel.linkCutterHoldFactor, "rules.fightModel.linkCutterHoldFactor") ?? 0.4,
+    },
     sendRatePerSec: asNumber(value.sendRatePerSec, "rules.sendRatePerSec"),
     defaultUnit: {
       speedPxPerSec: asNumber(

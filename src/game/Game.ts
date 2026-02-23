@@ -89,6 +89,14 @@ export class Game {
     return this.waveDirector?.getDebugMaxWaveIndex() ?? 0;
   }
 
+  setBalanceDiagnosticsEnabled(enabled: boolean): void {
+    this.waveDirector?.setBalanceDiagnosticsEnabled(enabled);
+  }
+
+  isBalanceDiagnosticsEnabled(): boolean {
+    return this.waveDirector?.isBalanceDiagnosticsEnabled() ?? false;
+  }
+
   private update(dtSec: number): void {
     if (this.matchResult) {
       return;

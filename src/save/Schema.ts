@@ -1,3 +1,5 @@
+import type { DifficultyTierId } from "../config/Difficulty";
+
 export const META_SCHEMA_VERSION = 1;
 export const RUN_SCHEMA_VERSION = 1;
 
@@ -46,6 +48,7 @@ export interface RunState {
   missions: RunMissionNode[];
   runModifiers: {
     difficulty: number;
+    tier: DifficultyTierId;
   };
   inventory: RunInventory;
   startingBonuses: MetaModifiers;
@@ -59,6 +62,15 @@ export interface RunSummary {
   missionGlory: number;
   runBonusGlory: number;
   totalGloryEarned: number;
+  difficultyTier: DifficultyTierId;
+  appliedDifficultyMultipliers: {
+    enemyHpMul: number;
+    enemyDmgMul: number;
+    enemySpeedMul: number;
+    waveIntensityMul: number;
+    economyGoldMul: number;
+    economyGloryMul: number;
+  };
   unlockNotifications: string[];
 }
 

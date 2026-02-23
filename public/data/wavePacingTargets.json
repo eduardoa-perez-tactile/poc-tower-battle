@@ -1,0 +1,158 @@
+{
+  "version": 1,
+  "targets": [
+    {
+      "waveStart": 1,
+      "waveEnd": 2,
+      "byDifficulty": {
+        "NORMAL": {
+          "expectedPlayerTowersOwnedMin": 2,
+          "expectedPlayerTowersOwnedMax": 4,
+          "expectedAvgTroopsPerTowerMin": 16,
+          "expectedAvgTroopsPerTowerMax": 48,
+          "expectedEnemyPressureScoreRange": {
+            "min": 22,
+            "max": 58
+          },
+          "expectedWaveDurationSecRange": {
+            "min": 8,
+            "max": 28
+          },
+          "expectedLossRiskBand": "low"
+        },
+        "HARD": {
+          "expectedPlayerTowersOwnedMin": 2,
+          "expectedPlayerTowersOwnedMax": 3,
+          "expectedAvgTroopsPerTowerMin": 14,
+          "expectedAvgTroopsPerTowerMax": 40,
+          "expectedEnemyPressureScoreRange": {
+            "min": 28,
+            "max": 70
+          },
+          "expectedWaveDurationSecRange": {
+            "min": 8,
+            "max": 30
+          },
+          "expectedLossRiskBand": "low"
+        },
+        "ASCENDED": {
+          "expectedPlayerTowersOwnedMin": 1,
+          "expectedPlayerTowersOwnedMax": 3,
+          "expectedAvgTroopsPerTowerMin": 10,
+          "expectedAvgTroopsPerTowerMax": 36,
+          "expectedEnemyPressureScoreRange": {
+            "min": 34,
+            "max": 90
+          },
+          "expectedWaveDurationSecRange": {
+            "min": 8,
+            "max": 33
+          },
+          "expectedLossRiskBand": "med"
+        }
+      }
+    },
+    {
+      "waveStart": 3,
+      "waveEnd": 4,
+      "byDifficulty": {
+        "NORMAL": {
+          "expectedPlayerTowersOwnedMin": 2,
+          "expectedPlayerTowersOwnedMax": 4,
+          "expectedAvgTroopsPerTowerMin": 14,
+          "expectedAvgTroopsPerTowerMax": 42,
+          "expectedEnemyPressureScoreRange": {
+            "min": 48,
+            "max": 120
+          },
+          "expectedWaveDurationSecRange": {
+            "min": 12,
+            "max": 40
+          },
+          "expectedLossRiskBand": "med"
+        },
+        "HARD": {
+          "expectedPlayerTowersOwnedMin": 2,
+          "expectedPlayerTowersOwnedMax": 3,
+          "expectedAvgTroopsPerTowerMin": 12,
+          "expectedAvgTroopsPerTowerMax": 36,
+          "expectedEnemyPressureScoreRange": {
+            "min": 62,
+            "max": 150
+          },
+          "expectedWaveDurationSecRange": {
+            "min": 12,
+            "max": 43
+          },
+          "expectedLossRiskBand": "med"
+        },
+        "ASCENDED": {
+          "expectedPlayerTowersOwnedMin": 1,
+          "expectedPlayerTowersOwnedMax": 3,
+          "expectedAvgTroopsPerTowerMin": 8,
+          "expectedAvgTroopsPerTowerMax": 30,
+          "expectedEnemyPressureScoreRange": {
+            "min": 82,
+            "max": 190
+          },
+          "expectedWaveDurationSecRange": {
+            "min": 12,
+            "max": 46
+          },
+          "expectedLossRiskBand": "high"
+        }
+      }
+    },
+    {
+      "waveStart": 5,
+      "waveEnd": 6,
+      "byDifficulty": {
+        "NORMAL": {
+          "expectedPlayerTowersOwnedMin": 1,
+          "expectedPlayerTowersOwnedMax": 3,
+          "expectedAvgTroopsPerTowerMin": 8,
+          "expectedAvgTroopsPerTowerMax": 28,
+          "expectedEnemyPressureScoreRange": {
+            "min": 90,
+            "max": 230
+          },
+          "expectedWaveDurationSecRange": {
+            "min": 14,
+            "max": 55
+          },
+          "expectedLossRiskBand": "high"
+        },
+        "HARD": {
+          "expectedPlayerTowersOwnedMin": 1,
+          "expectedPlayerTowersOwnedMax": 2,
+          "expectedAvgTroopsPerTowerMin": 6,
+          "expectedAvgTroopsPerTowerMax": 22,
+          "expectedEnemyPressureScoreRange": {
+            "min": 118,
+            "max": 280
+          },
+          "expectedWaveDurationSecRange": {
+            "min": 14,
+            "max": 58
+          },
+          "expectedLossRiskBand": "high"
+        },
+        "ASCENDED": {
+          "expectedPlayerTowersOwnedMin": 0,
+          "expectedPlayerTowersOwnedMax": 2,
+          "expectedAvgTroopsPerTowerMin": 4,
+          "expectedAvgTroopsPerTowerMax": 18,
+          "expectedEnemyPressureScoreRange": {
+            "min": 145,
+            "max": 340
+          },
+          "expectedWaveDurationSecRange": {
+            "min": 14,
+            "max": 62
+          },
+          "expectedLossRiskBand": "high"
+        }
+      }
+    }
+  ]
+}

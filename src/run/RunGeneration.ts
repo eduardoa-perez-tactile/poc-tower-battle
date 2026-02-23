@@ -1,4 +1,5 @@
 import { createDefaultMetaModifiers, RUN_SCHEMA_VERSION, type MetaModifiers, type RunMissionNode, type RunState } from "../save/Schema";
+import { DEFAULT_DIFFICULTY_TIER } from "../config/Difficulty";
 
 export interface MissionTemplate {
   id: string;
@@ -36,6 +37,7 @@ export function createRunState(seed: number, templates: MissionTemplate[], bonus
     missions,
     runModifiers: {
       difficulty: 1,
+      tier: DEFAULT_DIFFICULTY_TIER,
     },
     inventory: {
       relics: [],

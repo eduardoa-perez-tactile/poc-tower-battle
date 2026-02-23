@@ -6,10 +6,34 @@ export interface UnitRuleSet {
   hpPerUnit: number;
 }
 
+export interface SimulationPacketStatCaps {
+  speedMin: number;
+  speedMax: number;
+  damageMin: number;
+  damageMax: number;
+  hpMin: number;
+  hpMax: number;
+  armorMin: number;
+  armorMax: number;
+}
+
+export interface SimulationFightModel {
+  shieldArmorUptimeMultiplier: number;
+  combatHoldFactor: number;
+  rangedHoldFactor: number;
+  linkCutterHoldFactor: number;
+}
+
 export interface SimulationRules {
   sendRatePerSec: number;
   collisionDistancePx: number;
   captureSeedTroops: number;
+  captureRateMultiplier: number;
+  regenMinPerSec: number;
+  regenMaxPerSec: number;
+  defaultPacketArmor: number;
+  packetStatCaps: SimulationPacketStatCaps;
+  fightModel: SimulationFightModel;
   defaultUnit: UnitRuleSet;
 }
 
@@ -19,9 +43,9 @@ let packetSequence = 0;
 export function updateWorld(world: World, dtSec: number, rules: SimulationRules): void {
   world.tickLinkRuntime(dtSec);
   applyOverchargeDrain(world, dtSec);
-  regenTowers(world, dtSec);
+  regenTowers(world, dtSec, rules);
   sendTroops(world, dtSec, rules);
-  preparePacketRuntime(world, dtSec);
+  preparePacketRuntime(world, dtSec, rules);
   applySupportAuras(world);
   resolvePacketCombat(world, dtSec, rules);
   movePackets(world, dtSec, rules);
@@ -44,7 +68,11 @@ function applyOverchargeDrain(world: World, dtSec: number): void {
   }
 }
 
-function regenTowers(world: World, dtSec: number): void {
+function clamp(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, value));
+}
+
+function regenTowers(world: World, dtSec: number, rules: SimulationRules): void {
   const auraBonuses = computeTowerAuraBonuses(world);
 
   for (const tower of world.towers) {
@@ -54,7 +82,8 @@ function regenTowers(world: World, dtSec: number): void {
 
     const auraBonus = auraBonuses.get(tower.id) ?? 0;
     const regenRate = tower.regenRate * (1 + auraBonus);
-    tower.troops = Math.min(tower.maxTroops, tower.troops + regenRate * dtSec);
+    const clampedRegenRate = clamp(regenRate, rules.regenMinPerSec, rules.regenMaxPerSec);
+    tower.troops = Math.min(tower.maxTroops, tower.troops + clampedRegenRate * dtSec);
   }
 }
 
@@ -118,12 +147,12 @@ function sendTroops(world: World, dtSec: number, rules: SimulationRules): void {
         continue;
       }
 
-      world.packets.push(createPacket(world, link, tower, sendPerLink, rules.defaultUnit));
+      world.packets.push(createPacket(world, link, tower, sendPerLink, rules.defaultUnit, rules));
     }
   }
 }
 
-function preparePacketRuntime(world: World, dtSec: number): void {
+function preparePacketRuntime(world: World, dtSec: number, rules: SimulationRules): void {
   for (const packet of world.packets) {
     packet.ageSec += dtSec;
     packet.attackCooldownRemainingSec = Math.max(0, packet.attackCooldownRemainingSec - dtSec);
@@ -135,7 +164,7 @@ function preparePacketRuntime(world: World, dtSec: number): void {
     if (packet.shieldCycleSec > 0 && packet.shieldUptimeSec > 0) {
       const timeInCycle = packet.ageSec % packet.shieldCycleSec;
       if (timeInCycle <= packet.shieldUptimeSec) {
-        packet.tempArmorMultiplier *= 1.8;
+        packet.tempArmorMultiplier *= rules.fightModel.shieldArmorUptimeMultiplier;
       }
     }
   }
@@ -212,7 +241,10 @@ function resolvePacketCombat(world: World, dtSec: number, rules: SimulationRules
         damageAtoB = packetA.count * packetA.dpsPerUnit * dtSec;
         packetA.attackCooldownRemainingSec = positiveOrOne(packetA.attackCooldownSec);
         if (packetA.canStopToShoot) {
-          packetA.holdRemainingSec = Math.max(packetA.holdRemainingSec, packetA.attackCooldownSec * 0.45);
+          packetA.holdRemainingSec = Math.max(
+            packetA.holdRemainingSec,
+            packetA.attackCooldownSec * rules.fightModel.combatHoldFactor,
+          );
         }
       }
 
@@ -221,7 +253,10 @@ function resolvePacketCombat(world: World, dtSec: number, rules: SimulationRules
         damageBtoA = packetB.count * packetB.dpsPerUnit * dtSec;
         packetB.attackCooldownRemainingSec = positiveOrOne(packetB.attackCooldownSec);
         if (packetB.canStopToShoot) {
-          packetB.holdRemainingSec = Math.max(packetB.holdRemainingSec, packetB.attackCooldownSec * 0.45);
+          packetB.holdRemainingSec = Math.max(
+            packetB.holdRemainingSec,
+            packetB.attackCooldownSec * rules.fightModel.combatHoldFactor,
+          );
         }
       }
 
@@ -311,7 +346,10 @@ function moveLinkCutterPacket(
     if (distance({ x: packet.worldX, y: packet.worldY }, linkMid) <= packet.attackRangePx) {
       const integrityDamage = packet.linkIntegrityDamagePerSec * packet.count * dtSec;
       world.damageLinkIntegrity(targetLink.id, integrityDamage);
-      packet.holdRemainingSec = Math.max(packet.holdRemainingSec, packet.attackCooldownSec * 0.4);
+      packet.holdRemainingSec = Math.max(
+        packet.holdRemainingSec,
+        packet.attackCooldownSec * rules.fightModel.linkCutterHoldFactor,
+      );
     }
     return;
   }
@@ -335,7 +373,10 @@ function moveLinkCutterPacket(
   const damage = packet.count * packet.dpsPerUnit * dtSec;
   applyDamageToTower(fallbackTower, damage);
   packet.attackCooldownRemainingSec = positiveOrOne(packet.attackCooldownSec);
-  packet.holdRemainingSec = Math.max(packet.holdRemainingSec, packet.attackCooldownSec * 0.45);
+  packet.holdRemainingSec = Math.max(
+    packet.holdRemainingSec,
+    packet.attackCooldownSec * rules.fightModel.combatHoldFactor,
+  );
 
   if (fallbackTower.hp <= 0) {
     captureTower(world, fallbackTower, packet.owner, rules.captureSeedTroops);
@@ -431,7 +472,10 @@ function resolveRangedSiege(
   const damage = packet.count * packet.dpsPerUnit * dtSec;
   applyDamageToTower(targetTower, damage);
   packet.attackCooldownRemainingSec = positiveOrOne(packet.attackCooldownSec);
-  packet.holdRemainingSec = Math.max(packet.holdRemainingSec, packet.attackCooldownSec * 0.65);
+  packet.holdRemainingSec = Math.max(
+    packet.holdRemainingSec,
+    packet.attackCooldownSec * rules.fightModel.rangedHoldFactor,
+  );
 
   if (targetTower.hp > 0) {
     return true;
@@ -457,7 +501,8 @@ function resolveArrival(world: World, packet: UnitPacket, rules: SimulationRules
     return;
   }
 
-  const incomingStrength = packet.count * targetTower.captureSpeedTakenMultiplier;
+  const incomingStrength =
+    packet.count * targetTower.captureSpeedTakenMultiplier * rules.captureRateMultiplier;
   const defendersRemaining = targetTower.troops - incomingStrength;
   if (defendersRemaining >= 0) {
     targetTower.troops = defendersRemaining;
@@ -497,21 +542,31 @@ function createPacket(
   originTower: Tower,
   count: number,
   unit: UnitRuleSet,
+  rules: SimulationRules,
 ): UnitPacket {
   packetSequence += 1;
 
   const packetDamageMultiplier = originTower.packetDamageMultiplier * (1 + link.damageBonus);
+  const caps = rules.packetStatCaps;
+  const speedPxPerSec = clamp(unit.speedPxPerSec, caps.speedMin, caps.speedMax);
+  const dpsPerUnit = clamp(unit.dpsPerUnit * packetDamageMultiplier, caps.damageMin, caps.damageMax);
+  const hpPerUnit = clamp(unit.hpPerUnit, caps.hpMin, caps.hpMax);
+  const baseArmorMultiplier = clamp(
+    rules.defaultPacketArmor + link.armorBonus,
+    caps.armorMin,
+    caps.armorMax,
+  );
 
   const packet: UnitPacket = {
     id: `pkt-${packetSequence}`,
     owner: originTower.owner,
     count,
     baseCount: count,
-    speedPxPerSec: unit.speedPxPerSec,
+    speedPxPerSec,
     baseSpeedMultiplier: 1,
-    dpsPerUnit: unit.dpsPerUnit * packetDamageMultiplier,
-    baseDpsPerUnit: unit.dpsPerUnit * packetDamageMultiplier,
-    hpPerUnit: unit.hpPerUnit,
+    dpsPerUnit,
+    baseDpsPerUnit: dpsPerUnit,
+    hpPerUnit,
     linkId: link.id,
     progress01: 0,
     archetypeId: "basic",
@@ -544,7 +599,7 @@ function createPacket(
     isBoss: false,
     bossEnraged: false,
     ageSec: 0,
-    baseArmorMultiplier: 1 + link.armorBonus,
+    baseArmorMultiplier,
     tempSpeedMultiplier: 1,
     tempArmorMultiplier: 1,
     sourceLane: -1,
