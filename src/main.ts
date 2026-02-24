@@ -84,6 +84,10 @@ import { renderLevelSelectScreen } from "./ui/screens/LevelSelectScreen";
 import { renderMissionSelectScreen } from "./ui/screens/MissionSelectScreen";
 import { renderStageSelectScreen } from "./ui/screens/StageSelectScreen";
 import { WorldTooltipOverlay } from "./ui/WorldTooltipOverlay";
+import { GameplayHUD } from "./ui/hud/GameplayHUD";
+import { buildHudViewModel } from "./ui/hud/buildHudViewModel";
+import type { SkillTriggerRequest } from "./ui/hud/TacticalZone";
+import type { HudToastInput } from "./ui/hud/types";
 
 type Screen =
   | "title"
@@ -127,6 +131,7 @@ interface MissionHudSignals {
   objectiveMilestonePct: number;
   playerTowers: number;
   enemyTowers: number;
+  clusterBonusActive: boolean;
 }
 
 interface AppState {
@@ -248,6 +253,52 @@ async function bootstrap(): Promise<void> {
     saveRunState(app.runState);
   }
 
+  let gameplayHud: GameplayHUD;
+  const triggerSkillCast = (request: SkillTriggerRequest): void => {
+    if (app.screen !== "mission" || !app.game || app.missionResult !== null || app.missionPaused) {
+      return;
+    }
+    const skillState = app.game.getSkillHudState().find((skill) => skill.id === request.skillId);
+    if (!skillState) {
+      return;
+    }
+    if (!skillState.ready) {
+      gameplayHud.pushToast({
+        type: "info",
+        title: `${skillState.name} Cooling Down`,
+        body: `${skillState.cooldownRemainingSec.toFixed(1)}s remaining.`,
+        ttl: 1500,
+      });
+      return;
+    }
+    const targetTowerId =
+      request.targeting === "NONE"
+        ? undefined
+        : app.inputController?.getSelectedTowerId() ?? undefined;
+    if (request.targeting !== "NONE" && !targetTowerId) {
+      gameplayHud.pushToast({
+        type: "warning",
+        title: "No Target Tower",
+        body: "Select a player tower before casting this skill.",
+        ttl: 1700,
+      });
+      return;
+    }
+    const casted = app.game.castSkill(request.skillId, targetTowerId);
+    if (!casted) {
+      gameplayHud.pushToast({
+        type: "danger",
+        title: "Skill Cast Failed",
+        body: "Command was not accepted by the skill manager.",
+        ttl: 1700,
+      });
+    }
+  };
+  gameplayHud = new GameplayHUD({
+    canvas,
+    onSkillTrigger: triggerSkillCast,
+  });
+
   const enemyArchetypesById = new Map(
     waveContent.enemyCatalog.archetypes.map((archetype) => [archetype.id, archetype] as const),
   );
@@ -266,6 +317,7 @@ async function bootstrap(): Promise<void> {
     "beforeunload",
     () => {
       worldTooltipOverlay.dispose();
+      gameplayHud.dispose();
     },
     { once: true },
   );
@@ -297,6 +349,7 @@ async function bootstrap(): Promise<void> {
       generateDraftLevel,
       saveDraftLevel,
       startCampaignMissionById,
+      gameplayHud,
       debugState,
       setMissionPaused,
     );
@@ -555,7 +608,13 @@ async function bootstrap(): Promise<void> {
         objectiveText: mission.objectiveText,
       };
       resetMissionHudUiState(app);
-      pushMissionEvent(app, "Mission deployed. Hold the network and watch the command feed.", "neutral");
+      gameplayHud.reset();
+      pushMissionEvent(
+        app,
+        "Mission deployed. Hold the network and watch incoming threat telemetry.",
+        "neutral",
+        (toast) => gameplayHud.pushToast(toast),
+      );
       renderer.setMapRenderData(baseLevel.mapRenderData ?? null);
       app.screen = "mission";
       render();
@@ -629,7 +688,13 @@ async function bootstrap(): Promise<void> {
     app.missionPaused = false;
     app.activeMissionContext = { mode: "run" };
     resetMissionHudUiState(app);
-    pushMissionEvent(app, "Run mission deployed. First assault expected shortly.", "neutral");
+    gameplayHud.reset();
+    pushMissionEvent(
+      app,
+      "Run mission deployed. First assault expected shortly.",
+      "neutral",
+      (toast) => gameplayHud.pushToast(toast),
+    );
     renderer.setMapRenderData(tunedLevel.mapRenderData ?? null);
     app.screen = "mission";
     saveRunState(app.runState);
@@ -918,6 +983,27 @@ async function bootstrap(): Promise<void> {
     void runQuickSim(24);
   };
 
+  const castSkillByHotkey = (key: string): boolean => {
+    if (app.screen !== "mission" || !app.game || app.missionResult !== null || app.missionPaused) {
+      return false;
+    }
+
+    const index = Number.parseInt(key, 10);
+    if (!Number.isFinite(index) || index < 1 || index > 9) {
+      return false;
+    }
+
+    const skill = app.game.getSkillHudState()[index - 1];
+    if (!skill) {
+      return false;
+    }
+    triggerSkillCast({
+      skillId: skill.id,
+      targeting: skill.targeting,
+    });
+    return true;
+  };
+
   const runQuickSim = async (runCount: number): Promise<void> => {
     if (!app.runState) {
       return;
@@ -1047,7 +1133,9 @@ async function bootstrap(): Promise<void> {
     app.missionReward = null;
     app.missionPaused = false;
     resetMissionHudUiState(app);
+    gameplayHud.reset();
     renderer.setMapRenderData(null);
+    renderer.clear();
   };
 
   window.addEventListener("keydown", (event) => {
@@ -1096,6 +1184,11 @@ async function bootstrap(): Promise<void> {
       }
     }
 
+    if (!isTyping && castSkillByHotkey(key)) {
+      event.preventDefault();
+      return;
+    }
+
     if ((key === "r" || key === "R") && !isTyping) {
       restartCurrentMission();
     }
@@ -1138,7 +1231,7 @@ async function bootstrap(): Promise<void> {
     uiSyncAccumulatorSec += dtSec;
     if (uiSyncAccumulatorSec >= 0.1) {
       uiSyncAccumulatorSec = 0;
-      syncMissionHud(app, debugUiStore.getState());
+      syncMissionHud(app, debugUiStore.getState(), gameplayHud);
       if (debugUiStore.getState().debugOpen && (app.debugTab === "run" || app.debugTab === "sim")) {
         renderDebugPanel(
           debugPanel,
@@ -1186,43 +1279,123 @@ function renderCurrentScreen(
   generateDraftLevel: () => void,
   saveDraftLevel: () => Promise<void>,
   startCampaignMissionById: (missionId: string) => Promise<void>,
+  gameplayHud: GameplayHUD,
   debugState: DebugUiState,
   setMissionPaused: (paused: boolean) => void,
 ): void {
   screenRoot.replaceChildren();
 
   if (app.screen === "title") {
-    const panel = createPanel("Tower Battle: Connect Towers", "Command linked towers. Hold lanes. Break the siege.");
-    panel.classList.add("menu-panel", "title-panel");
+    const wrapper = document.createElement("div");
+    wrapper.className = "centered splash-centered";
 
-    const heroCard = createCard("Welcome Commander");
-    heroCard.appendChild(
-      createParagraph(
-        "Direct your network by dragging links between towers. Your economy and control decide every wave.",
-      ),
-    );
-    heroCard.appendChild(
-      createParagraph(
-        "Progress through missions, unlock meta upgrades, and take on ascension modifiers for harder runs.",
-      ),
-    );
-    panel.appendChild(heroCard);
+    const shell = document.createElement("section");
+    shell.className = "splash-shell";
+    shell.onclick = () => {
+      openMainMenu();
+    };
 
-    const controlsCard = createCard("Core Controls");
-    controlsCard.appendChild(createParagraph("Mouse drag: create outgoing links"));
-    controlsCard.appendChild(createParagraph("Right click / Esc: cancel drag"));
-    controlsCard.appendChild(createParagraph("D: open debug menu"));
-    controlsCard.appendChild(createParagraph("P or Esc during mission: pause menu"));
-    panel.appendChild(controlsCard);
+    const status = document.createElement("div");
+    status.className = "splash-status";
+    const statusTime = document.createElement("span");
+    statusTime.className = "splash-status-time";
+    statusTime.textContent = "9:41";
+    const statusIcons = document.createElement("div");
+    statusIcons.className = "splash-status-icons";
+    const statusSignal = document.createElement("span");
+    statusSignal.className = "splash-status-icon splash-status-bars";
+    statusSignal.innerHTML = "<i></i><i></i><i></i>";
+    const statusWifi = document.createElement("span");
+    statusWifi.className = "splash-status-icon splash-status-dot";
+    const statusBattery = document.createElement("span");
+    statusBattery.className = "splash-status-icon splash-status-battery";
+    statusIcons.append(statusSignal, statusWifi, statusBattery);
+    status.append(statusTime, statusIcons);
 
-    panel.appendChild(
-      createButton("Enter Command", openMainMenu, {
-        variant: "primary",
-        primaryAction: true,
-        hotkey: "Enter",
-      }),
-    );
-    screenRoot.appendChild(wrapCentered(panel));
+    const hero = document.createElement("div");
+    hero.className = "splash-hero";
+
+    const emblemWrap = document.createElement("div");
+    emblemWrap.className = "splash-emblem-wrap";
+    const emblemGlow = document.createElement("div");
+    emblemGlow.className = "splash-emblem-glow";
+    const emblem = document.createElement("div");
+    emblem.className = "splash-emblem";
+    const icon = document.createElement("div");
+    icon.className = "splash-icon";
+    const topBar = document.createElement("div");
+    topBar.className = "splash-icon-top";
+    const body = document.createElement("div");
+    body.className = "splash-icon-body";
+    const bodyEye = document.createElement("div");
+    bodyEye.className = "splash-icon-eye";
+    const bodySlot = document.createElement("div");
+    bodySlot.className = "splash-icon-slot";
+    body.append(bodyEye, bodySlot);
+    const bottomBar = document.createElement("div");
+    bottomBar.className = "splash-icon-bottom";
+    icon.append(topBar, body, bottomBar);
+    emblem.appendChild(icon);
+    emblemWrap.append(emblemGlow, emblem);
+
+    const titleWrap = document.createElement("div");
+    titleWrap.className = "splash-title-wrap";
+    const title = document.createElement("h1");
+    title.className = "splash-title";
+    title.innerHTML = "<span>Grid</span>Defense";
+    const subtitle = document.createElement("p");
+    subtitle.className = "splash-subtitle";
+    subtitle.textContent = "Strategic Tactical Response";
+    const summary = document.createElement("p");
+    summary.className = "splash-summary";
+    summary.textContent = "Command linked towers. Hold lanes. Break the siege.";
+    titleWrap.append(title, subtitle, summary);
+
+    hero.append(emblemWrap, titleWrap);
+
+    const footer = document.createElement("div");
+    footer.className = "splash-footer";
+
+    const loading = document.createElement("div");
+    loading.className = "splash-loading";
+    const loadingTop = document.createElement("div");
+    loadingTop.className = "splash-loading-top";
+    const loadingLabel = document.createElement("span");
+    loadingLabel.textContent = "Initializing Systems";
+    const loadingPct = document.createElement("span");
+    loadingPct.textContent = "84%";
+    loadingTop.append(loadingLabel, loadingPct);
+    const loadingTrack = document.createElement("div");
+    loadingTrack.className = "splash-loading-track";
+    const loadingFill = document.createElement("div");
+    loadingFill.className = "splash-loading-fill";
+    loadingFill.style.width = "84%";
+    loadingTrack.appendChild(loadingFill);
+    loading.append(loadingTop, loadingTrack);
+
+    const cta = document.createElement("div");
+    cta.className = "splash-cta";
+    const ctaText = document.createElement("p");
+    ctaText.className = "splash-cta-text";
+    ctaText.textContent = "Tap screen to begin";
+    const ctaDot = document.createElement("div");
+    ctaDot.className = "splash-cta-dot";
+    cta.append(ctaText, ctaDot);
+
+    const startBtn = createButton("Press Enter", openMainMenu, { variant: "ghost", hotkey: "Enter" });
+    startBtn.classList.add("splash-start-btn");
+    startBtn.onclick = (event) => {
+      event.stopPropagation();
+      openMainMenu();
+    };
+
+    const homeIndicator = document.createElement("div");
+    homeIndicator.className = "splash-home-indicator";
+
+    footer.append(loading, cta, startBtn, homeIndicator);
+    shell.append(status, hero, footer);
+    wrapper.appendChild(shell);
+    screenRoot.appendChild(wrapper);
     return;
   }
 
@@ -1604,7 +1777,7 @@ function renderCurrentScreen(
 
     const footer = document.createElement("div");
     footer.className = "menu-footer campaign-footer";
-    const backBtn = createButton("Back", app.runState ? openRunMap : openMainMenu, {
+    const backBtn = createButton("Back", openMainMenu, {
       variant: "ghost",
       escapeAction: true,
       hotkey: "Esc",
@@ -1762,118 +1935,8 @@ function renderCurrentScreen(
   }
 
   if (app.screen === "mission") {
-    if (debugState.showMissionHud) {
-      const hud = document.createElement("section");
-      hud.className = "panel ui-panel mission-hud mission-command-shell";
-
-      const header = document.createElement("header");
-      header.className = "mission-command-header";
-      const overline = document.createElement("p");
-      overline.className = "mission-command-overline";
-      overline.textContent = app.activeMissionContext?.mode === "campaign" ? "Campaign Operation" : "Run Operation";
-      const missionTitle = document.createElement("h3");
-      missionTitle.id = "missionHudTitle";
-      missionTitle.className = "mission-command-title";
-      missionTitle.textContent = app.activeMissionContext?.mode === "campaign"
-        ? app.activeMissionContext.missionName
-        : app.runState
-          ? `${getCurrentMission(app.runState)?.name ?? "Mission"} (${app.runState.currentMissionIndex + 1}/${app.runState.missions.length})`
-          : "Mission";
-      const objective = document.createElement("p");
-      objective.id = "missionObjectiveText";
-      objective.className = "mission-command-objective";
-      objective.textContent = app.activeMissionContext?.mode === "campaign"
-        ? app.activeMissionContext.objectiveText
-        : "Survive all scheduled waves and keep at least one tower.";
-      header.append(overline, missionTitle, objective);
-      hud.appendChild(header);
-
-      const statsGrid = document.createElement("div");
-      statsGrid.className = "mission-stats-grid";
-      statsGrid.append(
-        createMissionHudStat("Wave", "Wave --", "missionWaveStatus"),
-        createMissionHudStat("Next Assault", "Waiting", "missionWaveCountdown"),
-        createMissionHudStat("Mission Gold", "0", "missionWaveGold"),
-        createMissionHudStat("Modifier Stack", "None", "missionWaveModifiers"),
-        createMissionHudStat("Active Buff", "None", "missionWaveBuff"),
-        createMissionHudStat("Goal Progress", "--", "missionGoalProgress"),
-      );
-      hud.appendChild(statsGrid);
-
-      const focusCard = document.createElement("div");
-      focusCard.className = "mission-focus-card";
-      focusCard.appendChild(createMissionHudLabel("Tower Focus"));
-      const selectedTower = createParagraph("Selected Tower: --");
-      selectedTower.id = "missionSelectedTower";
-      selectedTower.className = "mission-focus-main";
-      focusCard.appendChild(selectedTower);
-      const clusterSize = createParagraph("Cluster Size: --");
-      clusterSize.id = "missionClusterSize";
-      clusterSize.className = "mission-focus-sub";
-      focusCard.appendChild(clusterSize);
-
-      const bonusRow = document.createElement("div");
-      bonusRow.className = "mission-bonus-row";
-      const bonusRegen = createMissionBonusChip("Regen +0%", "missionClusterBonusRegen");
-      const bonusArmor = createMissionBonusChip("Armor +0%", "missionClusterBonusArmor");
-      const bonusVision = createMissionBonusChip("Vision +0%", "missionClusterBonusVision");
-      bonusRow.append(bonusRegen, bonusArmor, bonusVision);
-      focusCard.appendChild(bonusRow);
-      hud.appendChild(focusCard);
-
-      const dataGrid = document.createElement("div");
-      dataGrid.className = "mission-feed-grid";
-
-      const eventCard = document.createElement("div");
-      eventCard.className = "mission-feed-card";
-      eventCard.appendChild(createMissionHudLabel("Command Feed"));
-      const eventFeed = document.createElement("div");
-      eventFeed.id = "missionEventFeed";
-      eventFeed.className = "mission-event-feed";
-      eventCard.appendChild(eventFeed);
-      dataGrid.appendChild(eventCard);
-
-      if (debugState.showWavePreview) {
-        const previewCard = document.createElement("div");
-        previewCard.className = "mission-feed-card";
-        previewCard.appendChild(createMissionHudLabel("Upcoming Threats"));
-        const preview = document.createElement("div");
-        preview.id = "missionWavePreview";
-        preview.className = "mission-wave-preview-list";
-        previewCard.appendChild(preview);
-        dataGrid.appendChild(previewCard);
-      }
-      hud.appendChild(dataGrid);
-
-      if (debugState.showSkillHud) {
-        const skillCard = document.createElement("div");
-        skillCard.className = "mission-skill-card";
-        skillCard.appendChild(createMissionHudLabel("Skill Control"));
-
-        const skillTargetLabel = document.createElement("p");
-        skillTargetLabel.className = "mission-skill-target-label";
-        skillTargetLabel.textContent = "Target Tower";
-        skillCard.appendChild(skillTargetLabel);
-
-        const skillTarget = document.createElement("select");
-        skillTarget.id = "missionSkillTarget";
-        skillCard.appendChild(skillTarget);
-
-        const skillBar = document.createElement("div");
-        skillBar.id = "missionSkillBar";
-        skillBar.className = "list mission-skill-list";
-        skillCard.appendChild(createScrollArea(skillBar, { maxHeight: "min(16vh, 170px)" }));
-        hud.appendChild(skillCard);
-      }
-
-      if (DEBUG_TOOLS_ENABLED) {
-        const balanceDebug = createParagraph("Balance: diagnostics off");
-        balanceDebug.id = "missionBalanceDebug";
-        balanceDebug.className = "mission-balance-debug";
-        hud.appendChild(balanceDebug);
-      }
-
-      screenRoot.appendChild(hud);
+    if (debugState.showMissionHud && app.missionResult === null) {
+      screenRoot.appendChild(gameplayHud.getElement());
     }
 
     if (app.missionPaused && app.missionResult === null) {
@@ -2103,213 +2166,28 @@ function renderCurrentScreen(
   }
 }
 
-function syncMissionHud(app: AppState, debugState: DebugUiState): void {
+function syncMissionHud(app: AppState, debugState: DebugUiState, gameplayHud: GameplayHUD): void {
   if (app.screen !== "mission" || !app.game || app.missionResult || !debugState.showMissionHud) {
+    gameplayHud.clearOverlays();
     return;
   }
 
   const telemetry = app.game.getWaveTelemetry();
   const world = app.game.getWorld();
-  updateMissionEventFeed(app, telemetry, world);
+  updateMissionEventFeed(app, telemetry, world, (toast) => {
+    gameplayHud.pushToast(toast);
+  });
 
-  const waveText = telemetry
-    ? `Wave ${Math.max(1, telemetry.currentWaveIndex)}/${telemetry.totalWaveCount}${telemetry.activeWaveInProgress ? " • Active" : ""}`
-    : "Wave --";
-  setMissionHudText("missionWaveStatus", waveText);
-
-  const nextWaveText = telemetry
-    ? telemetry.nextWaveStartsInSec !== null
-      ? `Incoming in ${Math.ceil(telemetry.nextWaveStartsInSec)}s`
-      : telemetry.activeWaveInProgress
-        ? "Assault active"
-        : "Final assault complete"
-    : "Waiting";
-  setMissionHudText("missionWaveCountdown", nextWaveText);
-
-  const completedWaves = telemetry
-    ? telemetry.currentWaveIndex - (telemetry.activeWaveInProgress ? 1 : 0)
-    : 0;
-  const goalPct = telemetry ? Math.round((Math.max(0, completedWaves) / Math.max(1, telemetry.totalWaveCount)) * 100) : 0;
-  setMissionHudText(
-    "missionGoalProgress",
-    telemetry
-      ? `${Math.max(0, completedWaves)}/${telemetry.totalWaveCount} waves secured (${goalPct}%)`
-      : "--",
-  );
-  setMissionHudText("missionWaveModifiers", telemetry && telemetry.activeModifierNames.length > 0
-    ? telemetry.activeModifierNames.join(", ")
-    : "None");
-  setMissionHudText("missionWaveGold", telemetry ? `${telemetry.missionGold}` : "0");
-  setMissionHudText(
-    "missionWaveBuff",
-    telemetry && telemetry.activeBuffId
-      ? `${telemetry.activeBuffId} (${telemetry.activeBuffRemainingSec.toFixed(1)}s)`
-      : "None",
-  );
-
-  const selectedTowerLabel = document.getElementById("missionSelectedTower");
-  const clusterSizeLabel = document.getElementById("missionClusterSize");
-  const bonusRegen = document.getElementById("missionClusterBonusRegen");
-  const bonusArmor = document.getElementById("missionClusterBonusArmor");
-  const bonusVision = document.getElementById("missionClusterBonusVision");
-  const selectedTowerId = app.inputController?.getSelectedTowerId() ?? null;
-  const selectedTower = selectedTowerId ? world.getTowerById(selectedTowerId) : null;
-
-  if (selectedTowerLabel instanceof HTMLParagraphElement) {
-    selectedTowerLabel.textContent = selectedTower
-      ? `Selected Tower: ${selectedTower.id} (${selectedTower.owner})`
-      : "Selected Tower: --";
-  }
-
-  const clusterSize = selectedTower && selectedTower.owner === "player"
-    ? selectedTower.territoryClusterSize
-    : 0;
-  const regenBonusPct = selectedTower && selectedTower.owner === "player"
-    ? selectedTower.territoryRegenBonusPct
-    : 0;
-  const armorBonusPct = selectedTower && selectedTower.owner === "player"
-    ? selectedTower.territoryArmorBonusPct
-    : 0;
-  const visionBonusPct = selectedTower && selectedTower.owner === "player"
-    ? selectedTower.territoryVisionBonusPct
-    : 0;
-
-  if (clusterSizeLabel instanceof HTMLParagraphElement) {
-    clusterSizeLabel.textContent = `Cluster Size: ${clusterSize}`;
-  }
-  if (bonusRegen instanceof HTMLParagraphElement) {
-    bonusRegen.textContent = `Regen +${Math.round(regenBonusPct * 100)}%`;
-  }
-  if (bonusArmor instanceof HTMLParagraphElement) {
-    bonusArmor.textContent = `Armor +${Math.round(armorBonusPct * 100)}%`;
-  }
-  if (bonusVision instanceof HTMLParagraphElement) {
-    bonusVision.textContent = `Vision +${Math.round(visionBonusPct * 100)}%`;
-  }
-
-  const towerTargetSelect = document.getElementById("missionSkillTarget");
-  if (debugState.showSkillHud && towerTargetSelect instanceof HTMLSelectElement) {
-    const towerIds = app.game.getPlayerTowerIds();
-    const towerSignature = towerIds.join("|");
-    if (towerTargetSelect.dataset.signature !== towerSignature) {
-      const previous = towerTargetSelect.value;
-      towerTargetSelect.dataset.signature = towerSignature;
-      towerTargetSelect.replaceChildren();
-      for (const towerId of towerIds) {
-        const option = document.createElement("option");
-        option.value = towerId;
-        option.textContent = towerId;
-        if (towerId === previous) {
-          option.selected = true;
-        }
-        towerTargetSelect.appendChild(option);
-      }
-    }
-  }
-
-  const skillBar = document.getElementById("missionSkillBar");
-  if (debugState.showSkillHud && skillBar instanceof HTMLDivElement) {
-    const skills = app.game.getSkillHudState();
-    const signature = skills
-      .map((skill) => `${skill.id}:${Math.round(skill.cooldownRemainingSec * 10)}`)
-      .join("|");
-    if (skillBar.dataset.signature !== signature) {
-      skillBar.dataset.signature = signature;
-      skillBar.replaceChildren();
-
-      for (const skill of skills) {
-        const row = document.createElement("div");
-        row.className = "meta-row mission-skill-row";
-
-        const label = document.createElement("div");
-        label.textContent = `${skill.name} (${skill.targeting})`;
-        const cooldown = document.createElement("div");
-        cooldown.style.fontSize = "12px";
-        cooldown.style.opacity = "0.8";
-        cooldown.textContent = skill.ready
-          ? "Ready"
-          : `Cooldown ${skill.cooldownRemainingSec.toFixed(1)}s`;
-        label.appendChild(cooldown);
-
-        const castBtn = createButton("Cast", () => {
-          const target = document.getElementById("missionSkillTarget");
-          const targetTowerId = target instanceof HTMLSelectElement ? target.value : undefined;
-          const resolvedTarget =
-            skill.targeting === "NONE" ? undefined : targetTowerId;
-          app.game?.castSkill(skill.id, resolvedTarget);
-        });
-        castBtn.disabled = !skill.ready;
-
-        row.append(label, castBtn);
-        skillBar.appendChild(row);
-      }
-    }
-  }
-
-  const balanceDebug = document.getElementById("missionBalanceDebug");
-  if (balanceDebug instanceof HTMLElement) {
-    if (!app.balanceDiagnosticsEnabled) {
-      balanceDebug.textContent = "Balance: diagnostics off";
-    } else if (!telemetry) {
-      balanceDebug.textContent = "Balance: awaiting wave telemetry";
-    } else {
-      const timeToZero =
-        telemetry.timeToZeroTowersEstimateSec === null
-          ? "∞"
-          : `${telemetry.timeToZeroTowersEstimateSec.toFixed(1)}s`;
-      balanceDebug.textContent =
-        `Balance: ${telemetry.difficultyTier} | pressure ${telemetry.wavePressureScore.toFixed(1)} | ` +
-        `towers ${telemetry.playerTowersOwned} | avg troops ${telemetry.avgTroopsPerOwnedTower.toFixed(1)} | ` +
-        `pkt/s ${telemetry.packetsSentPerSec.toFixed(2)} | ttz ${timeToZero}`;
-    }
-  }
-
-  const preview = document.getElementById("missionWavePreview");
-  if (debugState.showWavePreview && preview instanceof HTMLDivElement) {
-    const signature = (telemetry?.nextWavePreview ?? [])
-      .map((item) => `${item.enemyId}:${item.count}`)
-      .join("|");
-    if (preview.dataset.signature !== signature) {
-      preview.dataset.signature = signature;
-      preview.replaceChildren();
-
-      if (!telemetry || telemetry.nextWavePreview.length === 0) {
-        const empty = document.createElement("p");
-        empty.className = "mission-preview-empty";
-        empty.textContent = telemetry?.activeWaveInProgress ? "Current assault in progress." : "No upcoming spawns.";
-        preview.appendChild(empty);
-      } else {
-        for (const item of telemetry.nextWavePreview) {
-          const row = document.createElement("div");
-          row.className = "mission-preview-row";
-          row.textContent = `${item.icon} ${item.enemyId} x${item.count}`;
-          preview.appendChild(row);
-        }
-      }
-    }
-  }
-
-  const eventFeed = document.getElementById("missionEventFeed");
-  if (eventFeed instanceof HTMLDivElement) {
-    const signature = app.missionEvents.map((entry) => `${entry.id}:${entry.tone}:${entry.message}`).join("|");
-    if (eventFeed.dataset.signature !== signature) {
-      eventFeed.dataset.signature = signature;
-      eventFeed.replaceChildren();
-      if (app.missionEvents.length === 0) {
-        const empty = document.createElement("p");
-        empty.className = "mission-event-empty";
-        empty.textContent = "No command events yet.";
-        eventFeed.appendChild(empty);
-      } else {
-        for (const entry of app.missionEvents) {
-          const row = document.createElement("div");
-          row.className = `mission-event-row mission-event-${entry.tone}`;
-          row.textContent = entry.message;
-          eventFeed.appendChild(row);
-        }
-      }
-    }
-  }
+  const vm = buildHudViewModel({
+    game: app.game,
+    missionTitle: getMissionHudTitle(app),
+    objectiveText: getMissionHudObjective(app),
+    selectedTowerId: app.inputController?.getSelectedTowerId() ?? null,
+    showSkills: debugState.showSkillHud,
+    showLogDrawer: debugState.debugOpen,
+    missionEvents: app.missionEvents,
+  });
+  gameplayHud.update(vm);
 }
 
 function renderDebugPanel(
@@ -3031,6 +2909,7 @@ function createDefaultMissionHudSignals(): MissionHudSignals {
     objectiveMilestonePct: 0,
     playerTowers: -1,
     enemyTowers: -1,
+    clusterBonusActive: false,
   };
 }
 
@@ -3044,22 +2923,21 @@ function pushMissionEvent(
   app: AppState,
   message: string,
   tone: MissionEventEntry["tone"],
+  notifyToast?: (toast: HudToastInput) => void,
 ): void {
+  const entry: MissionEventEntry = {
+    id: app.missionEventSeq + 1,
+    tone,
+    message,
+  };
   app.missionEventSeq += 1;
   app.missionEvents = [
-    {
-      id: app.missionEventSeq,
-      tone,
-      message,
-    },
+    entry,
     ...app.missionEvents,
-  ].slice(0, 10);
-}
+  ].slice(0, 16);
 
-function setMissionHudText(id: string, text: string): void {
-  const element = document.getElementById(id);
-  if (element instanceof HTMLElement) {
-    element.textContent = text;
+  if (notifyToast) {
+    notifyToast(toMissionToast(entry));
   }
 }
 
@@ -3068,31 +2946,6 @@ function createMissionHudLabel(text: string): HTMLParagraphElement {
   label.className = "mission-block-label";
   label.textContent = text;
   return label;
-}
-
-function createMissionHudStat(label: string, value: string, id: string): HTMLDivElement {
-  const tile = document.createElement("div");
-  tile.className = "mission-stat-tile";
-
-  const title = document.createElement("p");
-  title.className = "mission-stat-label";
-  title.textContent = label;
-
-  const body = document.createElement("p");
-  body.className = "mission-stat-value";
-  body.id = id;
-  body.textContent = value;
-
-  tile.append(title, body);
-  return tile;
-}
-
-function createMissionBonusChip(text: string, id: string): HTMLParagraphElement {
-  const chip = document.createElement("p");
-  chip.className = "mission-bonus-chip";
-  chip.id = id;
-  chip.textContent = text;
-  return chip;
 }
 
 function createMissionResultStat(label: string, value: string): HTMLDivElement {
@@ -3111,7 +2964,29 @@ function createMissionResultStat(label: string, value: string): HTMLDivElement {
   return card;
 }
 
-function updateMissionEventFeed(app: AppState, telemetry: MissionWaveTelemetry | null, world: World): void {
+function getMissionHudTitle(app: AppState): string {
+  if (app.activeMissionContext?.mode === "campaign") {
+    return app.activeMissionContext.missionName;
+  }
+  if (app.runState) {
+    return `${getCurrentMission(app.runState)?.name ?? "Mission"} (${app.runState.currentMissionIndex + 1}/${app.runState.missions.length})`;
+  }
+  return "Mission";
+}
+
+function getMissionHudObjective(app: AppState): string {
+  if (app.activeMissionContext?.mode === "campaign") {
+    return app.activeMissionContext.objectiveText;
+  }
+  return "Survive all scheduled waves and keep at least one tower.";
+}
+
+function updateMissionEventFeed(
+  app: AppState,
+  telemetry: MissionWaveTelemetry | null,
+  world: World,
+  notifyToast: (toast: HudToastInput) => void,
+): void {
   if (!telemetry) {
     return;
   }
@@ -3121,17 +2996,22 @@ function updateMissionEventFeed(app: AppState, telemetry: MissionWaveTelemetry |
   const waveActive = telemetry.activeWaveInProgress;
 
   if (signals.waveIndex === 0 && currentWave > 0) {
-    pushMissionEvent(app, `Wave ${currentWave} assault detected.`, "warning");
+    pushMissionEvent(app, `Wave ${currentWave} assault detected.`, "warning", notifyToast);
   } else if (currentWave > signals.waveIndex) {
-    pushMissionEvent(app, `Wave ${currentWave} assault started.`, "warning");
+    pushMissionEvent(app, `Wave ${currentWave} assault started.`, "warning", notifyToast);
   } else if (signals.waveActive && !waveActive && currentWave > 0) {
-    pushMissionEvent(app, `Wave ${currentWave} cleared.`, "success");
+    pushMissionEvent(app, `Wave ${currentWave} cleared.`, "success", notifyToast);
   }
 
   const nextWaveBucket = getWaveCountdownBucket(telemetry.nextWaveStartsInSec);
   if (nextWaveBucket !== null && nextWaveBucket !== signals.nextWaveBucket) {
     const incomingWave = Math.min(telemetry.totalWaveCount, telemetry.currentWaveIndex + 1);
-    pushMissionEvent(app, `Incoming wave ${incomingWave} in ${Math.ceil(telemetry.nextWaveStartsInSec ?? 0)}s.`, "warning");
+    pushMissionEvent(
+      app,
+      `Incoming wave ${incomingWave} in ${Math.ceil(telemetry.nextWaveStartsInSec ?? 0)}s.`,
+      "warning",
+      notifyToast,
+    );
   }
 
   const completedWaves = telemetry.currentWaveIndex - (telemetry.activeWaveInProgress ? 1 : 0);
@@ -3144,6 +3024,7 @@ function updateMissionEventFeed(app: AppState, telemetry: MissionWaveTelemetry |
         ? "Mission objective complete. All wave goals secured."
         : `Objective progress: ${milestone}% complete.`,
       "success",
+      notifyToast,
     );
   }
 
@@ -3162,10 +3043,25 @@ function updateMissionEventFeed(app: AppState, telemetry: MissionWaveTelemetry |
       app,
       delta > 0 ? `Territory gained: +${delta} tower${delta > 1 ? "s" : ""}.` : `Territory lost: ${Math.abs(delta)} tower.`,
       delta > 0 ? "success" : "warning",
+      notifyToast,
     );
   }
   if (signals.enemyTowers > 0 && enemyTowers === 0) {
-    pushMissionEvent(app, "Enemy tower network collapsed.", "success");
+    pushMissionEvent(app, "Enemy tower network collapsed.", "success", notifyToast);
+  }
+
+  let clusterBonusActive = false;
+  for (const tower of world.towers) {
+    if (tower.owner !== "player") {
+      continue;
+    }
+    if ((tower.territoryClusterSize ?? 0) >= 3) {
+      clusterBonusActive = true;
+      break;
+    }
+  }
+  if (clusterBonusActive && !signals.clusterBonusActive) {
+    pushMissionEvent(app, "Cluster bonus online: regen boost activated.", "success", notifyToast);
   }
 
   signals.waveIndex = currentWave;
@@ -3174,6 +3070,21 @@ function updateMissionEventFeed(app: AppState, telemetry: MissionWaveTelemetry |
   signals.objectiveMilestonePct = Math.max(signals.objectiveMilestonePct, milestone);
   signals.playerTowers = playerTowers;
   signals.enemyTowers = enemyTowers;
+  signals.clusterBonusActive = clusterBonusActive;
+}
+
+function toMissionToast(entry: MissionEventEntry): HudToastInput {
+  const typeByTone: Record<MissionEventEntry["tone"], HudToastInput["type"]> = {
+    neutral: "info",
+    warning: "warning",
+    success: "success",
+  };
+  return {
+    type: typeByTone[entry.tone],
+    title: entry.tone === "warning" ? "Threat Alert" : entry.tone === "success" ? "Tactical Update" : "Command",
+    body: entry.message,
+    ttl: entry.tone === "warning" ? 2400 : 2200,
+  };
 }
 
 function getWaveCountdownBucket(nextWaveStartsInSec: number | null): number | null {
