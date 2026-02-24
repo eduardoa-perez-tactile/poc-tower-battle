@@ -2189,7 +2189,6 @@
       .gameplay-hud {
         position: fixed;
         inset: 0;
-        z-index: 19;
         pointer-events: none;
       }
 
@@ -2342,7 +2341,6 @@
         display: flex;
         align-items: stretch;
         pointer-events: auto;
-        z-index: 19;
       }
 
       .hud-wave-tab {
@@ -2847,29 +2845,65 @@
         }
 
         .hud-top-bar {
-          grid-template-columns: 1fr;
-          align-items: stretch;
+          grid-template-columns: minmax(0, 1fr) auto auto;
+          align-items: center;
           gap: 8px;
           top: 8px;
           left: 8px;
           right: 8px;
-          min-height: 0;
+          min-height: 44px;
           padding: 8px;
         }
 
-        .hud-top-left,
-        .hud-top-center,
+        .hud-top-left {
+          justify-content: flex-start;
+          gap: 6px;
+          min-width: 0;
+          overflow: hidden;
+        }
+
+        .hud-top-center {
+          justify-content: center;
+          gap: 6px;
+        }
+
         .hud-top-right {
-          justify-content: space-between;
-          flex-wrap: wrap;
+          justify-content: flex-end;
+          gap: 6px;
         }
 
         .hud-top-mission-title {
-          max-width: 100%;
+          max-width: 16ch;
+          font-size: 0.64rem;
+        }
+
+        .hud-top-countdown {
+          display: none;
+        }
+
+        .hud-top-metric {
+          display: flex;
+          align-items: baseline;
+          gap: 3px;
+          min-width: auto;
+        }
+
+        .hud-top-metric-label {
+          display: none;
+        }
+
+        .hud-top-metric-value {
+          font-size: 0.72rem;
+        }
+
+        .hud-action-btn,
+        .hud-speed-btn {
+          padding: 4px 7px;
+          font-size: 0.64rem;
         }
 
         .hud-wave-intel {
-          top: 120px;
+          top: 62px;
           right: 8px;
         }
 
@@ -2887,6 +2921,29 @@
           right: 8px;
           bottom: 8px;
           width: min(280px, calc(100vw - 16px));
+        }
+      }
+
+      @media (max-width: 860px) {
+        .hud-objective-card,
+        .hud-tower-inspector {
+          width: min(240px, calc(50vw - 12px));
+        }
+      }
+
+      @media (max-width: 640px) {
+        .hud-objective-card {
+          left: 8px;
+          right: 8px;
+          bottom: 8px;
+          width: auto;
+        }
+
+        .hud-tower-inspector {
+          left: 8px;
+          right: 8px;
+          bottom: 126px;
+          width: auto;
         }
       }
 
