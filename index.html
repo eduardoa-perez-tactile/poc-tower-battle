@@ -319,31 +319,100 @@
       }
 
       .campaign-meta-tree-card {
-        border: 1px solid rgba(148, 186, 255, 0.22);
-        border-radius: 12px;
-        background: rgba(11, 21, 35, 0.82);
-        padding: 10px;
+        border: 1px solid var(--meta-accent-soft, rgba(148, 186, 255, 0.22));
+        border-radius: 14px;
+        background:
+          radial-gradient(280px 130px at 0% -20%, var(--meta-accent-soft, rgba(148, 186, 255, 0.2)), transparent),
+          linear-gradient(160deg, rgba(11, 21, 35, 0.9), rgba(8, 16, 30, 0.9));
+        padding: 11px;
         display: grid;
-        gap: 10px;
+        gap: 11px;
+        position: relative;
+        overflow: hidden;
+        box-shadow: 0 12px 30px rgba(2, 10, 22, 0.45);
+      }
+
+      .campaign-meta-tree-card::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        border-radius: inherit;
+        border: 1px solid color-mix(in srgb, var(--meta-accent, #6ea8ff) 45%, transparent);
+        opacity: 0.28;
+        pointer-events: none;
       }
 
       .campaign-meta-tree-header {
         display: grid;
-        gap: 4px;
+        gap: 8px;
+      }
+
+      .campaign-meta-tree-top {
+        display: grid;
+        grid-template-columns: auto 1fr;
+        gap: 10px;
+        align-items: center;
+      }
+
+      .campaign-meta-tree-emblem {
+        width: 34px;
+        height: 34px;
+        border-radius: 10px;
+        display: grid;
+        place-items: center;
+        font-size: 0.76rem;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        color: #f3f8ff;
+        background: linear-gradient(150deg, var(--meta-accent, #6ea8ff), rgba(9, 16, 30, 0.95));
+        box-shadow: 0 0 20px var(--meta-accent-halo, rgba(110, 168, 255, 0.35));
       }
 
       .campaign-meta-tree-title {
         margin: 0;
-        font-size: 0.98rem;
-        letter-spacing: 0.06em;
+        font-size: 0.94rem;
+        letter-spacing: 0.08em;
         text-transform: uppercase;
-        color: rgba(222, 235, 255, 0.9);
+        color: rgba(229, 240, 255, 0.96);
       }
 
       .campaign-meta-tree-subtitle {
         margin: 0;
-        font-size: 0.74rem;
-        color: rgba(193, 210, 237, 0.76);
+        font-size: 0.72rem;
+        color: rgba(196, 214, 243, 0.78);
+      }
+
+      .campaign-meta-tree-summary {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+
+      .campaign-meta-tree-summary-copy {
+        font-size: 0.72rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: rgba(205, 222, 248, 0.74);
+      }
+
+      .campaign-meta-tree-rank {
+        font-size: 0.8rem;
+        font-weight: 700;
+        color: color-mix(in srgb, var(--meta-accent, #6ea8ff) 78%, #ffffff 22%);
+      }
+
+      .campaign-meta-tree-progress {
+        height: 7px;
+        border-radius: 999px;
+        background: rgba(91, 114, 154, 0.32);
+        overflow: hidden;
+      }
+
+      .campaign-meta-tree-progress-fill {
+        height: 100%;
+        border-radius: inherit;
+        background: linear-gradient(90deg, color-mix(in srgb, var(--meta-accent, #6ea8ff) 82%, #ffffff 18%), var(--meta-accent, #6ea8ff));
+        box-shadow: 0 0 12px var(--meta-accent-halo, rgba(110, 168, 255, 0.35));
       }
 
       .campaign-meta-node-scroll {
@@ -357,22 +426,54 @@
 
       .campaign-meta-node-row {
         border: 1px solid rgba(148, 186, 255, 0.16);
-        border-radius: 10px;
-        background: rgba(16, 28, 45, 0.68);
-        padding: 8px;
+        border-radius: 12px;
+        background: rgba(15, 27, 43, 0.74);
+        padding: 9px;
         display: grid;
         gap: 8px;
+        transition: border-color 140ms ease, transform 140ms ease, background-color 140ms ease;
+      }
+
+      .campaign-meta-node-row.is-affordable {
+        border-color: color-mix(in srgb, var(--meta-accent, #6ea8ff) 55%, transparent);
+        background: rgba(19, 34, 55, 0.82);
+      }
+
+      .campaign-meta-node-row.is-maxed {
+        border-color: rgba(74, 222, 128, 0.35);
+        background: rgba(17, 35, 34, 0.68);
       }
 
       .campaign-meta-node-copy {
         display: grid;
-        gap: 4px;
+        gap: 6px;
+      }
+
+      .campaign-meta-node-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
       }
 
       .campaign-meta-node-name {
         margin: 0;
-        font-size: 0.83rem;
+        font-size: 0.82rem;
+        font-weight: 700;
+        letter-spacing: 0.01em;
         color: rgba(232, 242, 255, 0.95);
+      }
+
+      .campaign-meta-rank-pill {
+        border-radius: 999px;
+        padding: 2px 8px;
+        font-size: 0.64rem;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: color-mix(in srgb, var(--meta-accent, #6ea8ff) 85%, #ffffff 15%);
+        border: 1px solid color-mix(in srgb, var(--meta-accent, #6ea8ff) 45%, transparent);
+        background: color-mix(in srgb, var(--meta-accent-soft, rgba(110, 168, 255, 0.24)) 75%, rgba(14, 24, 38, 0.8));
       }
 
       .campaign-meta-node-details {
@@ -381,9 +482,44 @@
         color: rgba(189, 206, 233, 0.8);
       }
 
+      .campaign-meta-node-prereqs {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 5px;
+      }
+
+      .campaign-meta-prereq-pill {
+        border-radius: 999px;
+        padding: 2px 7px;
+        font-size: 0.62rem;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: rgba(203, 218, 245, 0.78);
+        border: 1px solid rgba(148, 186, 255, 0.18);
+        background: rgba(44, 66, 99, 0.33);
+      }
+
+      .campaign-meta-node-progress {
+        height: 5px;
+        border-radius: 999px;
+        background: rgba(88, 111, 151, 0.3);
+        overflow: hidden;
+      }
+
+      .campaign-meta-node-progress-fill {
+        height: 100%;
+        border-radius: inherit;
+        background: linear-gradient(90deg, color-mix(in srgb, var(--meta-accent, #6ea8ff) 72%, #ffffff 28%), var(--meta-accent, #6ea8ff));
+      }
+
       .campaign-meta-buy-btn {
         width: 100%;
         min-height: 38px;
+        border-radius: 10px;
+        font-size: 0.78rem;
+        letter-spacing: 0.03em;
+        text-transform: uppercase;
+        font-weight: 700;
       }
 
       .campaign-generator-shell {

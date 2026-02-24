@@ -1433,19 +1433,68 @@ function renderCurrentScreen(
 
     const trees = document.createElement("div");
     trees.className = "campaign-meta-tree-row";
-    for (const tree of upgradeCatalog.trees) {
+    for (const [treeIndex, tree] of upgradeCatalog.trees.entries()) {
       const treeCard = document.createElement("article");
       treeCard.className = "campaign-meta-tree-card";
+      const accent = getMetaTreeAccent(treeIndex);
+      treeCard.style.setProperty("--meta-accent", accent.primary);
+      treeCard.style.setProperty("--meta-accent-soft", accent.soft);
+      treeCard.style.setProperty("--meta-accent-halo", accent.halo);
+
+      let earnedRanks = 0;
+      let maxRanks = 0;
+      let unlockedNodes = 0;
+      for (const node of tree.nodes) {
+        const rank = getPurchasedRank(app.metaProfile, node.id);
+        earnedRanks += rank;
+        maxRanks += node.maxRank;
+        if (rank > 0) {
+          unlockedNodes += 1;
+        }
+      }
+      const treeProgressPercent = maxRanks > 0 ? Math.round((earnedRanks / maxRanks) * 100) : 0;
 
       const treeHeader = document.createElement("div");
       treeHeader.className = "campaign-meta-tree-header";
+
+      const treeHeaderTop = document.createElement("div");
+      treeHeaderTop.className = "campaign-meta-tree-top";
+      const treeEmblem = document.createElement("div");
+      treeEmblem.className = "campaign-meta-tree-emblem";
+      treeEmblem.textContent = tree.name
+        .split(" ")
+        .map((token) => token.charAt(0))
+        .join("")
+        .slice(0, 2)
+        .toUpperCase();
+      const treeHeaderCopy = document.createElement("div");
       const treeTitle = document.createElement("h3");
       treeTitle.className = "campaign-meta-tree-title";
       treeTitle.textContent = tree.name;
       const treeSubtitle = document.createElement("p");
       treeSubtitle.className = "campaign-meta-tree-subtitle";
-      treeSubtitle.textContent = `${tree.nodes.length} upgrades • Spend Glory to rank up`;
-      treeHeader.append(treeTitle, treeSubtitle);
+      treeSubtitle.textContent = `${tree.nodes.length} upgrades • ${unlockedNodes}/${tree.nodes.length} activated`;
+      treeHeaderCopy.append(treeTitle, treeSubtitle);
+      treeHeaderTop.append(treeEmblem, treeHeaderCopy);
+
+      const treeSummary = document.createElement("div");
+      treeSummary.className = "campaign-meta-tree-summary";
+      const treeSummaryCopy = document.createElement("span");
+      treeSummaryCopy.className = "campaign-meta-tree-summary-copy";
+      treeSummaryCopy.textContent = `${earnedRanks}/${maxRanks} ranks`;
+      const treeRank = document.createElement("span");
+      treeRank.className = "campaign-meta-tree-rank";
+      treeRank.textContent = `${treeProgressPercent}%`;
+      treeSummary.append(treeSummaryCopy, treeRank);
+
+      const treeProgressTrack = document.createElement("div");
+      treeProgressTrack.className = "campaign-meta-tree-progress";
+      const treeProgressFill = document.createElement("div");
+      treeProgressFill.className = "campaign-meta-tree-progress-fill";
+      treeProgressFill.style.width = `${treeProgressPercent}%`;
+      treeProgressTrack.appendChild(treeProgressFill);
+
+      treeHeader.append(treeHeaderTop, treeSummary, treeProgressTrack);
       treeCard.appendChild(treeHeader);
 
       const list = document.createElement("div");
@@ -1455,19 +1504,49 @@ function renderCurrentScreen(
         const cost = getNextUpgradeCost(app.metaProfile, node);
         const row = document.createElement("div");
         row.className = "campaign-meta-node-row";
+        if (cost === null) {
+          row.classList.add("is-maxed");
+        } else if (app.metaProfile.glory >= cost) {
+          row.classList.add("is-affordable");
+        } else {
+          row.classList.add("is-unaffordable");
+        }
 
         const left = document.createElement("div");
         left.className = "campaign-meta-node-copy";
+        const nameRow = document.createElement("div");
+        nameRow.className = "campaign-meta-node-head";
         const name = document.createElement("p");
         name.className = "campaign-meta-node-name";
-        name.textContent = `${node.name} Lv ${rank}/${node.maxRank}`;
+        name.textContent = node.name;
+        const rankPill = document.createElement("span");
+        rankPill.className = "campaign-meta-rank-pill";
+        rankPill.textContent = `Lv ${rank}/${node.maxRank}`;
+        nameRow.append(name, rankPill);
         const details = document.createElement("div");
         details.className = "campaign-meta-node-details";
-        const prereqText = node.prereqs.length > 0
-          ? ` • Req: ${node.prereqs.map((req) => `${req.nodeId}(${req.minRank})`).join(", ")}`
-          : "";
-        details.textContent = `${node.desc}${prereqText}`;
-        left.append(name, details);
+        details.textContent = node.desc;
+        left.append(nameRow, details);
+
+        if (node.prereqs.length > 0) {
+          const prereqWrap = document.createElement("div");
+          prereqWrap.className = "campaign-meta-node-prereqs";
+          for (const prereq of node.prereqs) {
+            const pill = document.createElement("span");
+            pill.className = "campaign-meta-prereq-pill";
+            pill.textContent = `${formatMetaNodeLabel(prereq.nodeId)} ${prereq.minRank}+`;
+            prereqWrap.appendChild(pill);
+          }
+          left.appendChild(prereqWrap);
+        }
+
+        const nodeProgressTrack = document.createElement("div");
+        nodeProgressTrack.className = "campaign-meta-node-progress";
+        const nodeProgressFill = document.createElement("div");
+        nodeProgressFill.className = "campaign-meta-node-progress-fill";
+        nodeProgressFill.style.width = `${(rank / Math.max(1, node.maxRank)) * 100}%`;
+        nodeProgressTrack.appendChild(nodeProgressFill);
+        left.appendChild(nodeProgressTrack);
 
         const buyBtn = createButton(
           cost === null ? "Maxed" : `Buy (${cost})`,
@@ -2768,6 +2847,23 @@ function createCampaignProgressCard(input: {
   track.appendChild(fill);
   card.appendChild(track);
   return card;
+}
+
+function getMetaTreeAccent(index: number): { primary: string; soft: string; halo: string } {
+  const palette = [
+    { primary: "#6ea8ff", soft: "rgba(110, 168, 255, 0.24)", halo: "rgba(110, 168, 255, 0.35)" },
+    { primary: "#34d399", soft: "rgba(52, 211, 153, 0.24)", halo: "rgba(52, 211, 153, 0.35)" },
+    { primary: "#f59e0b", soft: "rgba(245, 158, 11, 0.24)", halo: "rgba(245, 158, 11, 0.35)" },
+    { primary: "#c084fc", soft: "rgba(192, 132, 252, 0.24)", halo: "rgba(192, 132, 252, 0.35)" },
+  ] as const;
+  return palette[index % palette.length];
+}
+
+function formatMetaNodeLabel(nodeId: string): string {
+  return nodeId
+    .split("-")
+    .map((token) => token.charAt(0).toUpperCase() + token.slice(1))
+    .join(" ");
 }
 
 function showToast(screenRoot: HTMLDivElement, message: string): void {
