@@ -1286,37 +1286,116 @@ function renderCurrentScreen(
   screenRoot.replaceChildren();
 
   if (app.screen === "title") {
-    const panel = createPanel("Tower Battle: Connect Towers", "Command linked towers. Hold lanes. Break the siege.");
-    panel.classList.add("menu-panel", "title-panel");
+    const wrapper = document.createElement("div");
+    wrapper.className = "centered splash-centered";
 
-    const heroCard = createCard("Welcome Commander");
-    heroCard.appendChild(
-      createParagraph(
-        "Direct your network by dragging links between towers. Your economy and control decide every wave.",
-      ),
-    );
-    heroCard.appendChild(
-      createParagraph(
-        "Progress through missions, unlock meta upgrades, and take on ascension modifiers for harder runs.",
-      ),
-    );
-    panel.appendChild(heroCard);
+    const shell = document.createElement("section");
+    shell.className = "splash-shell";
+    shell.onclick = () => {
+      openMainMenu();
+    };
 
-    const controlsCard = createCard("Core Controls");
-    controlsCard.appendChild(createParagraph("Mouse drag: create outgoing links"));
-    controlsCard.appendChild(createParagraph("Right click / Esc: cancel drag"));
-    controlsCard.appendChild(createParagraph("D: open debug menu"));
-    controlsCard.appendChild(createParagraph("P or Esc during mission: pause menu"));
-    panel.appendChild(controlsCard);
+    const status = document.createElement("div");
+    status.className = "splash-status";
+    const statusTime = document.createElement("span");
+    statusTime.className = "splash-status-time";
+    statusTime.textContent = "9:41";
+    const statusIcons = document.createElement("div");
+    statusIcons.className = "splash-status-icons";
+    const statusSignal = document.createElement("span");
+    statusSignal.className = "splash-status-icon splash-status-bars";
+    statusSignal.innerHTML = "<i></i><i></i><i></i>";
+    const statusWifi = document.createElement("span");
+    statusWifi.className = "splash-status-icon splash-status-dot";
+    const statusBattery = document.createElement("span");
+    statusBattery.className = "splash-status-icon splash-status-battery";
+    statusIcons.append(statusSignal, statusWifi, statusBattery);
+    status.append(statusTime, statusIcons);
 
-    panel.appendChild(
-      createButton("Enter Command", openMainMenu, {
-        variant: "primary",
-        primaryAction: true,
-        hotkey: "Enter",
-      }),
-    );
-    screenRoot.appendChild(wrapCentered(panel));
+    const hero = document.createElement("div");
+    hero.className = "splash-hero";
+
+    const emblemWrap = document.createElement("div");
+    emblemWrap.className = "splash-emblem-wrap";
+    const emblemGlow = document.createElement("div");
+    emblemGlow.className = "splash-emblem-glow";
+    const emblem = document.createElement("div");
+    emblem.className = "splash-emblem";
+    const icon = document.createElement("div");
+    icon.className = "splash-icon";
+    const topBar = document.createElement("div");
+    topBar.className = "splash-icon-top";
+    const body = document.createElement("div");
+    body.className = "splash-icon-body";
+    const bodyEye = document.createElement("div");
+    bodyEye.className = "splash-icon-eye";
+    const bodySlot = document.createElement("div");
+    bodySlot.className = "splash-icon-slot";
+    body.append(bodyEye, bodySlot);
+    const bottomBar = document.createElement("div");
+    bottomBar.className = "splash-icon-bottom";
+    icon.append(topBar, body, bottomBar);
+    emblem.appendChild(icon);
+    emblemWrap.append(emblemGlow, emblem);
+
+    const titleWrap = document.createElement("div");
+    titleWrap.className = "splash-title-wrap";
+    const title = document.createElement("h1");
+    title.className = "splash-title";
+    title.innerHTML = "<span>Grid</span>Defense";
+    const subtitle = document.createElement("p");
+    subtitle.className = "splash-subtitle";
+    subtitle.textContent = "Strategic Tactical Response";
+    const summary = document.createElement("p");
+    summary.className = "splash-summary";
+    summary.textContent = "Command linked towers. Hold lanes. Break the siege.";
+    titleWrap.append(title, subtitle, summary);
+
+    hero.append(emblemWrap, titleWrap);
+
+    const footer = document.createElement("div");
+    footer.className = "splash-footer";
+
+    const loading = document.createElement("div");
+    loading.className = "splash-loading";
+    const loadingTop = document.createElement("div");
+    loadingTop.className = "splash-loading-top";
+    const loadingLabel = document.createElement("span");
+    loadingLabel.textContent = "Initializing Systems";
+    const loadingPct = document.createElement("span");
+    loadingPct.textContent = "84%";
+    loadingTop.append(loadingLabel, loadingPct);
+    const loadingTrack = document.createElement("div");
+    loadingTrack.className = "splash-loading-track";
+    const loadingFill = document.createElement("div");
+    loadingFill.className = "splash-loading-fill";
+    loadingFill.style.width = "84%";
+    loadingTrack.appendChild(loadingFill);
+    loading.append(loadingTop, loadingTrack);
+
+    const cta = document.createElement("div");
+    cta.className = "splash-cta";
+    const ctaText = document.createElement("p");
+    ctaText.className = "splash-cta-text";
+    ctaText.textContent = "Tap screen to begin";
+    const ctaDot = document.createElement("div");
+    ctaDot.className = "splash-cta-dot";
+    cta.append(ctaText, ctaDot);
+
+    const startBtn = createButton("Press Enter", openMainMenu, { variant: "ghost", hotkey: "Enter" });
+    startBtn.classList.add("splash-start-btn");
+    startBtn.onclick = (event) => {
+      event.stopPropagation();
+      openMainMenu();
+    };
+
+    const homeIndicator = document.createElement("div");
+    homeIndicator.className = "splash-home-indicator";
+
+    footer.append(loading, cta, startBtn, homeIndicator);
+    shell.append(status, hero, footer);
+    wrapper.appendChild(shell);
+    screenRoot.appendChild(wrapper);
     return;
   }
 
