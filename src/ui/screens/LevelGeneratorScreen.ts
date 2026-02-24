@@ -1,4 +1,4 @@
-import { createButton, createCard, createPanel } from "../../components/ui/primitives";
+import { createButton } from "../../components/ui/primitives";
 import {
   createGridWorldTransform,
   gridBoundsWorld,
@@ -44,17 +44,29 @@ export interface LevelGeneratorScreenProps {
 }
 
 export function renderLevelGeneratorScreen(props: LevelGeneratorScreenProps): HTMLDivElement {
-  const panel = createPanel("Level Generator", "Generate tile-grid levels and save them as JSON");
-  panel.classList.add("menu-panel", "menu-panel-wide");
+  const panel = document.createElement("div");
+  panel.className = "panel ui-panel menu-panel menu-panel-wide campaign-shell campaign-generator-shell";
+  panel.appendChild(createScreenHeader("Level Generator", "Forge New Battlefield"));
+  panel.appendChild(
+    createProgressCard({
+      title: "Generator Controls",
+      subtitle: `Seed ${props.seed} • ${props.level.grid.width}x${props.level.grid.height} grid`,
+      value: props.sizePreset.toUpperCase(),
+      label: "Map Size",
+      percent: props.sizePreset === "small" ? 34 : props.sizePreset === "medium" ? 66 : 100,
+    }),
+  );
 
-  const controls = createCard("Generator Controls");
-  controls.appendChild(createParagraph(`Seed: ${props.seed}`));
+  const controls = document.createElement("section");
+  controls.className = "campaign-generator-controls";
 
   const sizeRow = document.createElement("div");
-  sizeRow.className = "meta-row";
+  sizeRow.className = "meta-row campaign-generator-size-row";
   const sizeLabel = document.createElement("label");
+  sizeLabel.className = "campaign-generator-size-label";
   sizeLabel.textContent = "Map Size";
   const sizeSelect = document.createElement("select");
+  sizeSelect.className = "campaign-generator-size-select";
   for (const preset of ["small", "medium", "big"] as const) {
     const option = document.createElement("option");
     option.value = preset;
@@ -70,39 +82,110 @@ export function renderLevelGeneratorScreen(props: LevelGeneratorScreenProps): HT
   controls.appendChild(sizeRow);
 
   const actionRow = document.createElement("div");
-  actionRow.className = "menu-footer";
-  actionRow.appendChild(createButton("Generate", props.onGenerate, { variant: "primary" }));
-  actionRow.appendChild(createButton("Save", props.onSave, { variant: "secondary" }));
+  actionRow.className = "menu-footer campaign-footer";
+  const generateBtn = createButton("Generate", props.onGenerate, { variant: "primary" });
+  generateBtn.classList.add("campaign-footer-btn");
+  const saveBtn = createButton("Save", props.onSave, { variant: "secondary" });
+  saveBtn.classList.add("campaign-footer-btn");
+  actionRow.append(generateBtn, saveBtn);
   controls.appendChild(actionRow);
 
   panel.appendChild(controls);
 
-  const previewCard = createCard("Live Preview");
-  previewCard.appendChild(createParagraph(`${props.level.name} • ${props.level.grid.width}x${props.level.grid.height}`));
-  previewCard.appendChild(
-    createParagraph("Controls: Mouse wheel zoom • Drag background to pan • Drag a node to move it on the grid."),
-  );
+  const previewCard = document.createElement("section");
+  previewCard.className = "campaign-generator-preview-card";
+  const previewTitle = document.createElement("h3");
+  previewTitle.className = "campaign-generator-preview-title";
+  previewTitle.textContent = `${props.level.name} • Live Preview`;
+  const previewSubtitle = document.createElement("p");
+  previewSubtitle.className = "campaign-generator-preview-subtitle";
+  previewSubtitle.textContent = "Mouse wheel zoom • Drag background to pan • Drag node to reposition";
+  previewCard.append(previewTitle, previewSubtitle);
 
   const previewCanvas = document.createElement("canvas");
   previewCanvas.width = 860;
   previewCanvas.height = 420;
   previewCanvas.style.width = "100%";
-  previewCanvas.style.borderRadius = "10px";
-  previewCanvas.style.border = "1px solid rgba(171, 196, 238, 0.25)";
-  previewCanvas.style.background = "rgba(9, 15, 24, 0.82)";
+  previewCanvas.style.borderRadius = "12px";
+  previewCanvas.style.border = "1px solid rgba(148, 186, 255, 0.28)";
+  previewCanvas.style.background = "rgba(7, 14, 27, 0.92)";
   previewCanvas.style.touchAction = "none";
   attachInteractivePreview(previewCanvas, props.level, `${props.seed}:${props.sizePreset}`);
   previewCard.appendChild(previewCanvas);
 
-  previewCard.appendChild(createParagraph(`Nodes: ${props.level.nodes.length} • Edges: ${props.level.edges.length}`));
+  const telemetry = document.createElement("p");
+  telemetry.className = "campaign-generator-preview-stats";
+  telemetry.textContent = `Nodes: ${props.level.nodes.length} • Edges: ${props.level.edges.length} • Missions: ${props.level.missions.length}`;
+  previewCard.appendChild(telemetry);
   panel.appendChild(previewCard);
 
   const footer = document.createElement("div");
-  footer.className = "menu-footer";
-  footer.appendChild(createButton("Back", props.onBack, { variant: "ghost", escapeAction: true, hotkey: "Esc" }));
+  footer.className = "menu-footer campaign-footer";
+  const backBtn = createButton("Back", props.onBack, { variant: "ghost", escapeAction: true, hotkey: "Esc" });
+  backBtn.classList.add("campaign-footer-btn");
+  footer.appendChild(backBtn);
   panel.appendChild(footer);
 
   return panel;
+}
+
+function createScreenHeader(title: string, subtitle: string): HTMLElement {
+  const header = document.createElement("header");
+  header.className = "campaign-screen-header";
+
+  const overline = document.createElement("p");
+  overline.className = "campaign-overline";
+  overline.textContent = subtitle;
+
+  const heading = document.createElement("h2");
+  heading.className = "campaign-screen-title";
+  heading.textContent = title;
+
+  header.append(overline, heading);
+  return header;
+}
+
+function createProgressCard(input: {
+  title: string;
+  subtitle: string;
+  value: string;
+  label: string;
+  percent: number;
+}): HTMLElement {
+  const card = document.createElement("section");
+  card.className = "campaign-progress-card";
+
+  const top = document.createElement("div");
+  top.className = "campaign-progress-top";
+
+  const text = document.createElement("div");
+  const title = document.createElement("p");
+  title.className = "campaign-progress-title";
+  title.textContent = input.title;
+  const subtitle = document.createElement("p");
+  subtitle.className = "campaign-progress-subtitle";
+  subtitle.textContent = input.subtitle;
+  text.append(title, subtitle);
+
+  const valueWrap = document.createElement("div");
+  valueWrap.className = "campaign-progress-value";
+  valueWrap.textContent = input.value;
+  const label = document.createElement("span");
+  label.className = "campaign-progress-value-label";
+  label.textContent = input.label;
+  valueWrap.appendChild(label);
+
+  top.append(text, valueWrap);
+  card.appendChild(top);
+
+  const track = document.createElement("div");
+  track.className = "campaign-progress-track";
+  const fill = document.createElement("div");
+  fill.className = "campaign-progress-fill";
+  fill.style.width = `${Math.max(0, Math.min(100, input.percent))}%`;
+  track.appendChild(fill);
+  card.appendChild(track);
+  return card;
 }
 
 function attachInteractivePreview(canvas: HTMLCanvasElement, level: LevelJson, viewKey: string): void {
@@ -429,11 +512,4 @@ function canPlaceNodeAt(level: LevelJson, nodeId: string, x: number, y: number):
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
-}
-
-function createParagraph(text: string): HTMLParagraphElement {
-  const paragraph = document.createElement("p");
-  paragraph.textContent = text;
-  paragraph.style.margin = "6px 0";
-  return paragraph;
 }

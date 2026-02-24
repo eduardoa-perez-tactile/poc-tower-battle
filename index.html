@@ -16,6 +16,9 @@
         --text-muted: rgba(226, 238, 255, 0.78);
         --accent: #2dd4bf;
         --accent-strong: #14b8a6;
+        --campaign-accent: #2b6cee;
+        --campaign-accent-strong: #1e4bc9;
+        --campaign-accent-soft: rgba(43, 108, 238, 0.2);
         --danger: #f87171;
         --shadow: 0 20px 42px rgba(2, 9, 19, 0.5);
       }
@@ -155,6 +158,796 @@
         grid-template-columns: 1fr auto;
         gap: 12px;
         align-items: center;
+      }
+
+      .campaign-main-menu {
+        width: min(92vw, 700px);
+        display: grid;
+        gap: 14px;
+        padding: 20px;
+        background:
+          radial-gradient(480px 220px at 18% -5%, rgba(43, 108, 238, 0.2), transparent),
+          radial-gradient(420px 240px at 100% 100%, rgba(79, 70, 229, 0.18), transparent),
+          linear-gradient(165deg, rgba(16, 26, 43, 0.92), rgba(10, 18, 34, 0.96));
+      }
+
+      .campaign-topbar {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .campaign-topbar-badge {
+        width: 34px;
+        height: 34px;
+        border-radius: 999px;
+        border: 1px solid rgba(157, 189, 255, 0.5);
+        background: rgba(43, 108, 238, 0.22);
+        display: grid;
+        place-items: center;
+        font-size: 0.72rem;
+        font-weight: 700;
+        letter-spacing: 0.1em;
+        color: #dbeafe;
+      }
+
+      .campaign-topbar-title {
+        margin: 0;
+        font-size: 0.78rem;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: rgba(215, 228, 255, 0.72);
+      }
+
+      .campaign-main-hero {
+        border: 1px solid rgba(148, 186, 255, 0.24);
+        border-radius: 14px;
+        padding: 14px;
+        background: rgba(10, 20, 35, 0.58);
+      }
+
+      .campaign-overline {
+        margin: 0;
+        text-transform: uppercase;
+        font-size: 0.7rem;
+        letter-spacing: 0.16em;
+        color: rgba(203, 218, 247, 0.75);
+      }
+
+      .campaign-main-heading {
+        margin: 4px 0 0;
+        font-size: clamp(1.8rem, 5vw, 2.5rem);
+        line-height: 0.95;
+        letter-spacing: 0.02em;
+      }
+
+      .campaign-main-heading span {
+        color: #7eb0ff;
+      }
+
+      .campaign-main-subtitle {
+        margin: 8px 0 0;
+        color: rgba(225, 236, 255, 0.8);
+        line-height: 1.35;
+        font-size: 0.88rem;
+      }
+
+      .campaign-main-actions {
+        display: grid;
+        gap: 10px;
+      }
+
+      .campaign-main-action {
+        width: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        text-align: left;
+        min-height: 52px;
+        border-radius: 12px;
+        padding: 12px 14px;
+        font-size: 0.96rem;
+      }
+
+      .campaign-main-action.ui-button-primary {
+        background: linear-gradient(140deg, var(--campaign-accent), var(--campaign-accent-strong));
+        border-color: rgba(135, 177, 255, 0.58);
+        color: #f8fbff;
+        box-shadow: 0 10px 24px rgba(19, 64, 168, 0.4);
+      }
+
+      .campaign-main-action.ui-button-secondary {
+        background: rgba(90, 121, 173, 0.2);
+        border-color: rgba(158, 193, 255, 0.24);
+      }
+
+      .campaign-main-stats {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 9px;
+      }
+
+      .campaign-info-pill {
+        display: grid;
+        gap: 2px;
+        padding: 8px 10px;
+        border-radius: 10px;
+        border: 1px solid rgba(148, 186, 255, 0.2);
+        background: rgba(12, 22, 37, 0.65);
+      }
+
+      .campaign-info-pill-label {
+        font-size: 0.66rem;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: rgba(209, 224, 247, 0.7);
+      }
+
+      .campaign-info-pill-value {
+        font-size: 0.95rem;
+        color: #eff5ff;
+      }
+
+      .campaign-shell {
+        display: grid;
+        gap: 12px;
+        background:
+          radial-gradient(420px 220px at 20% -8%, rgba(43, 108, 238, 0.15), transparent),
+          linear-gradient(160deg, rgba(11, 19, 32, 0.95), rgba(8, 15, 27, 0.95));
+      }
+
+      .campaign-profile-shell {
+        width: min(92vw, 900px);
+      }
+
+      .campaign-profile-card {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+        gap: 9px;
+      }
+
+      .campaign-meta-shell {
+        width: min(95vw, 1260px);
+      }
+
+      .campaign-meta-tree-row {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(280px, 1fr));
+        gap: 12px;
+        overflow-x: auto;
+        padding-bottom: 4px;
+      }
+
+      .campaign-meta-tree-card {
+        border: 1px solid var(--meta-accent-soft, rgba(148, 186, 255, 0.22));
+        border-radius: 14px;
+        background:
+          radial-gradient(280px 130px at 0% -20%, var(--meta-accent-soft, rgba(148, 186, 255, 0.2)), transparent),
+          linear-gradient(160deg, rgba(11, 21, 35, 0.9), rgba(8, 16, 30, 0.9));
+        padding: 11px;
+        display: grid;
+        gap: 11px;
+        position: relative;
+        overflow: hidden;
+        box-shadow: 0 12px 30px rgba(2, 10, 22, 0.45);
+      }
+
+      .campaign-meta-tree-card::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        border-radius: inherit;
+        border: 1px solid color-mix(in srgb, var(--meta-accent, #6ea8ff) 45%, transparent);
+        opacity: 0.28;
+        pointer-events: none;
+      }
+
+      .campaign-meta-tree-header {
+        display: grid;
+        gap: 8px;
+      }
+
+      .campaign-meta-tree-top {
+        display: grid;
+        grid-template-columns: auto 1fr;
+        gap: 10px;
+        align-items: center;
+      }
+
+      .campaign-meta-tree-emblem {
+        width: 34px;
+        height: 34px;
+        border-radius: 10px;
+        display: grid;
+        place-items: center;
+        font-size: 0.76rem;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        color: #f3f8ff;
+        background: linear-gradient(150deg, var(--meta-accent, #6ea8ff), rgba(9, 16, 30, 0.95));
+        box-shadow: 0 0 20px var(--meta-accent-halo, rgba(110, 168, 255, 0.35));
+      }
+
+      .campaign-meta-tree-title {
+        margin: 0;
+        font-size: 0.94rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: rgba(229, 240, 255, 0.96);
+      }
+
+      .campaign-meta-tree-subtitle {
+        margin: 0;
+        font-size: 0.72rem;
+        color: rgba(196, 214, 243, 0.78);
+      }
+
+      .campaign-meta-tree-summary {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+
+      .campaign-meta-tree-summary-copy {
+        font-size: 0.72rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: rgba(205, 222, 248, 0.74);
+      }
+
+      .campaign-meta-tree-rank {
+        font-size: 0.8rem;
+        font-weight: 700;
+        color: color-mix(in srgb, var(--meta-accent, #6ea8ff) 78%, #ffffff 22%);
+      }
+
+      .campaign-meta-tree-progress {
+        height: 7px;
+        border-radius: 999px;
+        background: rgba(91, 114, 154, 0.32);
+        overflow: hidden;
+      }
+
+      .campaign-meta-tree-progress-fill {
+        height: 100%;
+        border-radius: inherit;
+        background: linear-gradient(90deg, color-mix(in srgb, var(--meta-accent, #6ea8ff) 82%, #ffffff 18%), var(--meta-accent, #6ea8ff));
+        box-shadow: 0 0 12px var(--meta-accent-halo, rgba(110, 168, 255, 0.35));
+      }
+
+      .campaign-meta-node-scroll {
+        padding-right: 4px;
+      }
+
+      .campaign-meta-node-list {
+        display: grid;
+        gap: 8px;
+      }
+
+      .campaign-meta-node-row {
+        border: 1px solid rgba(148, 186, 255, 0.16);
+        border-radius: 12px;
+        background: rgba(15, 27, 43, 0.74);
+        padding: 9px;
+        display: grid;
+        gap: 8px;
+        transition: border-color 140ms ease, transform 140ms ease, background-color 140ms ease;
+      }
+
+      .campaign-meta-node-row.is-affordable {
+        border-color: color-mix(in srgb, var(--meta-accent, #6ea8ff) 55%, transparent);
+        background: rgba(19, 34, 55, 0.82);
+      }
+
+      .campaign-meta-node-row.is-maxed {
+        border-color: rgba(74, 222, 128, 0.35);
+        background: rgba(17, 35, 34, 0.68);
+      }
+
+      .campaign-meta-node-copy {
+        display: grid;
+        gap: 6px;
+      }
+
+      .campaign-meta-node-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+      }
+
+      .campaign-meta-node-name {
+        margin: 0;
+        font-size: 0.82rem;
+        font-weight: 700;
+        letter-spacing: 0.01em;
+        color: rgba(232, 242, 255, 0.95);
+      }
+
+      .campaign-meta-rank-pill {
+        border-radius: 999px;
+        padding: 2px 8px;
+        font-size: 0.64rem;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: color-mix(in srgb, var(--meta-accent, #6ea8ff) 85%, #ffffff 15%);
+        border: 1px solid color-mix(in srgb, var(--meta-accent, #6ea8ff) 45%, transparent);
+        background: color-mix(in srgb, var(--meta-accent-soft, rgba(110, 168, 255, 0.24)) 75%, rgba(14, 24, 38, 0.8));
+      }
+
+      .campaign-meta-node-details {
+        font-size: 0.74rem;
+        line-height: 1.35;
+        color: rgba(189, 206, 233, 0.8);
+      }
+
+      .campaign-meta-node-prereqs {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 5px;
+      }
+
+      .campaign-meta-prereq-pill {
+        border-radius: 999px;
+        padding: 2px 7px;
+        font-size: 0.62rem;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: rgba(203, 218, 245, 0.78);
+        border: 1px solid rgba(148, 186, 255, 0.18);
+        background: rgba(44, 66, 99, 0.33);
+      }
+
+      .campaign-meta-node-progress {
+        height: 5px;
+        border-radius: 999px;
+        background: rgba(88, 111, 151, 0.3);
+        overflow: hidden;
+      }
+
+      .campaign-meta-node-progress-fill {
+        height: 100%;
+        border-radius: inherit;
+        background: linear-gradient(90deg, color-mix(in srgb, var(--meta-accent, #6ea8ff) 72%, #ffffff 28%), var(--meta-accent, #6ea8ff));
+      }
+
+      .campaign-meta-buy-btn {
+        width: 100%;
+        min-height: 38px;
+        border-radius: 10px;
+        font-size: 0.78rem;
+        letter-spacing: 0.03em;
+        text-transform: uppercase;
+        font-weight: 700;
+      }
+
+      .campaign-generator-shell {
+        width: min(94vw, 1100px);
+      }
+
+      .campaign-generator-controls {
+        border: 1px solid rgba(148, 186, 255, 0.24);
+        border-radius: 12px;
+        padding: 12px;
+        background: rgba(12, 24, 40, 0.72);
+        display: grid;
+        gap: 10px;
+      }
+
+      .campaign-generator-size-row {
+        border: 1px solid rgba(148, 186, 255, 0.2);
+        border-radius: 10px;
+        padding: 8px 10px;
+      }
+
+      .campaign-generator-size-label {
+        font-size: 0.78rem;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: rgba(206, 222, 246, 0.78);
+      }
+
+      .campaign-generator-size-select {
+        background: rgba(10, 18, 31, 0.85);
+        color: rgba(235, 243, 255, 0.95);
+        border: 1px solid rgba(148, 186, 255, 0.22);
+        border-radius: 8px;
+        padding: 6px 8px;
+      }
+
+      .campaign-generator-preview-card {
+        border: 1px solid rgba(148, 186, 255, 0.24);
+        border-radius: 12px;
+        padding: 12px;
+        background:
+          radial-gradient(360px 180px at 15% -12%, rgba(43, 108, 238, 0.2), transparent),
+          rgba(8, 18, 33, 0.85);
+        display: grid;
+        gap: 10px;
+      }
+
+      .campaign-generator-preview-title {
+        margin: 0;
+        font-size: clamp(1rem, 2vw, 1.24rem);
+      }
+
+      .campaign-generator-preview-subtitle {
+        margin: 0;
+        font-size: 0.78rem;
+        color: rgba(205, 220, 245, 0.8);
+      }
+
+      .campaign-generator-preview-stats {
+        margin: 0;
+        font-size: 0.8rem;
+        color: rgba(206, 221, 247, 0.8);
+      }
+
+      .campaign-screen-header {
+        display: grid;
+        gap: 4px;
+      }
+
+      .campaign-screen-title {
+        margin: 0;
+        font-size: clamp(1.2rem, 2.7vw, 1.8rem);
+        letter-spacing: 0.01em;
+      }
+
+      .campaign-progress-card {
+        display: grid;
+        gap: 10px;
+        border: 1px solid rgba(148, 186, 255, 0.24);
+        border-radius: 12px;
+        padding: 12px;
+        background: rgba(13, 25, 42, 0.75);
+      }
+
+      .campaign-progress-top {
+        display: flex;
+        justify-content: space-between;
+        gap: 10px;
+        align-items: center;
+      }
+
+      .campaign-progress-title {
+        margin: 0;
+        font-size: 0.88rem;
+        text-transform: uppercase;
+        letter-spacing: 0.09em;
+        color: rgba(204, 221, 250, 0.84);
+      }
+
+      .campaign-progress-subtitle {
+        margin: 4px 0 0;
+        font-size: 0.83rem;
+        color: rgba(213, 227, 250, 0.72);
+      }
+
+      .campaign-progress-value {
+        display: grid;
+        justify-items: end;
+        font-size: 1.3rem;
+        font-weight: 700;
+        color: #deebff;
+      }
+
+      .campaign-progress-value-label {
+        font-size: 0.65rem;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: rgba(203, 217, 245, 0.68);
+      }
+
+      .campaign-progress-track {
+        height: 8px;
+        border-radius: 999px;
+        background: rgba(119, 151, 207, 0.3);
+        overflow: hidden;
+      }
+
+      .campaign-progress-fill {
+        height: 100%;
+        border-radius: inherit;
+        background: linear-gradient(90deg, #4f8cff, #2b6cee);
+        box-shadow: 0 0 14px rgba(43, 108, 238, 0.5);
+      }
+
+      .campaign-status-pill {
+        display: inline-flex;
+        align-items: center;
+        width: fit-content;
+        border-radius: 999px;
+        padding: 4px 9px;
+        font-size: 0.62rem;
+        font-weight: 700;
+        letter-spacing: 0.09em;
+        text-transform: uppercase;
+        border: 1px solid transparent;
+      }
+
+      .campaign-status-pill.is-open {
+        color: #dbeafe;
+        border-color: rgba(147, 197, 253, 0.5);
+        background: rgba(59, 130, 246, 0.18);
+      }
+
+      .campaign-status-pill.is-completed {
+        color: #d1fae5;
+        border-color: rgba(74, 222, 128, 0.45);
+        background: rgba(34, 197, 94, 0.2);
+      }
+
+      .campaign-status-pill.is-locked {
+        color: rgba(198, 210, 233, 0.76);
+        border-color: rgba(148, 163, 184, 0.28);
+        background: rgba(71, 85, 105, 0.26);
+      }
+
+      .campaign-stage-rail {
+        display: grid;
+        grid-auto-flow: column;
+        grid-auto-columns: minmax(250px, 1fr);
+        gap: 12px;
+        overflow-x: auto;
+        padding-bottom: 6px;
+      }
+
+      .campaign-stage-card {
+        border-radius: 14px;
+        border: 1px solid rgba(148, 186, 255, 0.18);
+        background: rgba(9, 19, 33, 0.78);
+        overflow: hidden;
+        display: grid;
+        min-height: 290px;
+        grid-template-rows: 1.15fr 1fr;
+      }
+
+      .campaign-stage-card.is-locked {
+        opacity: 0.7;
+      }
+
+      .campaign-stage-card.is-completed {
+        border-color: rgba(110, 231, 183, 0.35);
+      }
+
+      .campaign-stage-preview {
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-end;
+        gap: 6px;
+        padding: 12px;
+        border-bottom: 1px solid rgba(148, 186, 255, 0.2);
+        background: var(--campaign-stage-gradient, linear-gradient(145deg, rgba(43, 108, 238, 0.45), rgba(16, 28, 54, 0.9)));
+      }
+
+      .campaign-stage-title {
+        margin: 0;
+        font-size: 1.15rem;
+      }
+
+      .campaign-stage-subtitle {
+        margin: 0;
+        font-size: 0.78rem;
+        color: rgba(223, 235, 255, 0.84);
+      }
+
+      .campaign-stage-body {
+        display: grid;
+        gap: 12px;
+        align-content: space-between;
+        padding: 12px;
+      }
+
+      .campaign-stage-detail {
+        margin: 0;
+        font-size: 0.83rem;
+        line-height: 1.4;
+        color: rgba(213, 226, 248, 0.74);
+      }
+
+      .campaign-stage-action {
+        width: 100%;
+        min-height: 42px;
+      }
+
+      .campaign-level-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 12px;
+      }
+
+      .campaign-level-card {
+        border-radius: 14px;
+        border: 1px solid rgba(148, 186, 255, 0.2);
+        background: rgba(11, 21, 35, 0.78);
+        overflow: hidden;
+        display: grid;
+      }
+
+      .campaign-level-card.is-locked {
+        opacity: 0.68;
+      }
+
+      .campaign-level-card.is-completed {
+        border-color: rgba(110, 231, 183, 0.36);
+      }
+
+      .campaign-level-preview {
+        min-height: 80px;
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        padding: 10px;
+        background:
+          radial-gradient(220px 120px at 15% -20%, rgba(43, 108, 238, 0.35), transparent),
+          linear-gradient(140deg, rgba(24, 44, 78, 0.86), rgba(10, 18, 31, 0.95));
+      }
+
+      .campaign-level-index {
+        font-size: 1.2rem;
+        font-weight: 700;
+        color: rgba(205, 221, 249, 0.8);
+      }
+
+      .campaign-level-body {
+        display: grid;
+        gap: 8px;
+        padding: 10px;
+      }
+
+      .campaign-level-title {
+        margin: 0;
+        font-size: 1rem;
+      }
+
+      .campaign-level-meta {
+        margin: 0;
+        font-size: 0.77rem;
+        letter-spacing: 0.03em;
+        color: rgba(202, 217, 242, 0.84);
+      }
+
+      .campaign-level-source {
+        margin: 0;
+        font-size: 0.74rem;
+        color: rgba(182, 198, 224, 0.8);
+      }
+
+      .campaign-level-action {
+        width: 100%;
+      }
+
+      .campaign-mission-rail {
+        display: grid;
+        grid-auto-flow: column;
+        grid-auto-columns: minmax(280px, 1fr);
+        gap: 12px;
+        overflow-x: auto;
+        padding-bottom: 6px;
+      }
+
+      .campaign-mission-rail-card {
+        border-radius: 14px;
+        border: 1px solid rgba(148, 186, 255, 0.22);
+        background: rgba(9, 19, 33, 0.8);
+        overflow: hidden;
+        min-height: 320px;
+        display: grid;
+        grid-template-rows: 1.1fr 1fr;
+      }
+
+      .campaign-mission-rail-card.is-locked {
+        opacity: 0.68;
+      }
+
+      .campaign-mission-rail-card.is-completed {
+        border-color: rgba(110, 231, 183, 0.35);
+      }
+
+      .campaign-mission-preview {
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-end;
+        gap: 6px;
+        padding: 12px;
+        border-bottom: 1px solid rgba(148, 186, 255, 0.2);
+        background: var(--campaign-mission-preview, linear-gradient(145deg, rgba(43, 108, 238, 0.45), rgba(16, 28, 54, 0.9)));
+      }
+
+      .campaign-mission-preview-title {
+        margin: 0;
+        font-size: 1.08rem;
+      }
+
+      .campaign-mission-preview-subtitle {
+        margin: 0;
+        font-size: 0.78rem;
+        color: rgba(221, 235, 255, 0.86);
+      }
+
+      .campaign-mission-body {
+        display: grid;
+        align-content: space-between;
+        gap: 10px;
+        padding: 12px;
+      }
+
+      .campaign-mission-objective {
+        margin: 0;
+        font-size: 0.83rem;
+        line-height: 1.42;
+        color: rgba(211, 224, 246, 0.82);
+      }
+
+      .campaign-mission-meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+
+      .campaign-meta-chip {
+        display: inline-flex;
+        border-radius: 999px;
+        padding: 3px 8px;
+        font-size: 0.68rem;
+        color: rgba(219, 233, 255, 0.85);
+        background: rgba(48, 76, 125, 0.36);
+        border: 1px solid rgba(145, 177, 230, 0.24);
+      }
+
+      .campaign-mission-action {
+        width: 100%;
+      }
+
+      .campaign-footer {
+        margin-top: 2px;
+      }
+
+      .campaign-footer-btn {
+        min-width: 120px;
+      }
+
+      @media (max-width: 840px) {
+        .campaign-stage-rail {
+          grid-auto-columns: minmax(220px, 86vw);
+        }
+
+        .campaign-mission-rail {
+          grid-auto-columns: minmax(240px, 86vw);
+        }
+
+        .campaign-meta-tree-row {
+          grid-template-columns: repeat(3, minmax(250px, 84vw));
+        }
+      }
+
+      @media (max-width: 620px) {
+        .campaign-main-menu {
+          padding: 16px;
+          gap: 12px;
+        }
+
+        .campaign-main-stats {
+          grid-template-columns: 1fr;
+        }
+
+        .campaign-level-grid {
+          grid-template-columns: 1fr;
+        }
+
+        .campaign-profile-card {
+          grid-template-columns: 1fr;
+        }
+
+        .mission-result-stats {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .campaign-footer-btn {
+          flex: 1 1 100%;
+        }
       }
 
       .ui-button {
@@ -378,14 +1171,383 @@
       .mission-hud {
         position: absolute;
         right: 12px;
-        bottom: 12px;
-        max-width: min(420px, calc(100vw - 20px));
+        top: 12px;
+        width: min(470px, calc(100vw - 24px));
+        max-height: calc(100vh - 24px);
+        overflow-y: auto;
       }
+
+      .mission-command-shell {
+        display: grid;
+        gap: 10px;
+        padding: 12px;
+        background:
+          radial-gradient(340px 180px at 18% -16%, rgba(43, 108, 238, 0.24), transparent),
+          linear-gradient(165deg, rgba(10, 18, 30, 0.94), rgba(7, 13, 24, 0.95));
+        border-color: rgba(133, 176, 255, 0.28);
+        box-shadow: 0 20px 38px rgba(0, 0, 0, 0.48);
+      }
+
+      .mission-command-header {
+        display: grid;
+        gap: 4px;
+        border: 1px solid rgba(140, 182, 255, 0.2);
+        border-radius: 12px;
+        padding: 10px;
+        background: rgba(11, 21, 36, 0.76);
+      }
+
+      .mission-command-overline {
+        margin: 0;
+        font-size: 0.66rem;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: rgba(196, 213, 241, 0.8);
+      }
+
+      .mission-command-title {
+        margin: 0;
+        font-size: 1rem;
+      }
+
+      .mission-command-objective {
+        margin: 0;
+        font-size: 0.78rem;
+        line-height: 1.32;
+        color: rgba(206, 221, 247, 0.84);
+      }
+
+      .mission-stats-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+      }
+
+      .mission-stat-tile {
+        border-radius: 10px;
+        border: 1px solid rgba(142, 180, 246, 0.2);
+        background: rgba(11, 21, 35, 0.72);
+        padding: 8px 9px;
+        display: grid;
+        gap: 3px;
+      }
+
+      .mission-stat-label {
+        margin: 0;
+        font-size: 0.63rem;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: rgba(198, 216, 244, 0.75);
+      }
+
+      .mission-stat-value {
+        margin: 0;
+        font-size: 0.79rem;
+        color: rgba(237, 244, 255, 0.95);
+      }
+
+      .mission-focus-card,
+      .mission-feed-card,
+      .mission-skill-card {
+        border-radius: 11px;
+        border: 1px solid rgba(142, 180, 246, 0.2);
+        background: rgba(10, 21, 35, 0.75);
+        padding: 9px;
+        display: grid;
+        gap: 7px;
+      }
+
+      .mission-block-label {
+        margin: 0;
+        font-size: 0.65rem;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: rgba(193, 212, 241, 0.76);
+      }
+
+      .mission-focus-main,
+      .mission-focus-sub {
+        margin: 0;
+        font-size: 0.79rem;
+      }
+
+      .mission-focus-sub {
+        color: rgba(204, 221, 247, 0.84);
+      }
+
+      .mission-bonus-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+
+      .mission-bonus-chip {
+        margin: 0;
+        border-radius: 999px;
+        border: 1px solid rgba(141, 179, 245, 0.28);
+        background: rgba(41, 71, 122, 0.34);
+        padding: 3px 8px;
+        font-size: 0.68rem;
+        color: rgba(213, 228, 252, 0.88);
+      }
+
+      .mission-feed-grid {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 8px;
+      }
+
+      .mission-event-feed,
+      .mission-wave-preview-list {
+        display: grid;
+        gap: 6px;
+      }
+
+      .mission-event-row,
+      .mission-preview-row {
+        border-radius: 8px;
+        border: 1px solid rgba(140, 179, 246, 0.2);
+        background: rgba(13, 24, 41, 0.72);
+        padding: 6px 8px;
+        font-size: 0.74rem;
+        line-height: 1.3;
+      }
+
+      .mission-event-warning {
+        border-color: rgba(245, 158, 11, 0.4);
+        background: rgba(66, 44, 13, 0.5);
+      }
+
+      .mission-event-success {
+        border-color: rgba(74, 222, 128, 0.35);
+        background: rgba(17, 50, 34, 0.5);
+      }
+
+      .mission-event-empty,
+      .mission-preview-empty {
+        margin: 0;
+        font-size: 0.72rem;
+        opacity: 0.78;
+      }
+
+      .mission-skill-target-label {
+        margin: 0;
+        font-size: 0.72rem;
+        opacity: 0.86;
+      }
+
+      .mission-skill-list .mission-skill-row {
+        border-radius: 9px;
+        border: 1px solid rgba(139, 178, 243, 0.2);
+        background: rgba(14, 25, 41, 0.72);
+        padding: 7px 8px;
+      }
+
+      .mission-balance-debug {
+        margin: 0;
+        font-size: 0.69rem;
+        color: rgba(191, 210, 240, 0.86);
+      }
+
+      .mission-overlay-panel {
+        width: min(92vw, 640px);
+      }
+
+      .centered-modal {
+        align-items: center;
+        justify-items: center;
+      }
+
+      .mission-pause-shell {
+        width: min(92vw, 560px);
+        display: grid;
+        gap: 10px;
+        background:
+          radial-gradient(360px 200px at 20% -18%, rgba(43, 108, 238, 0.18), transparent),
+          linear-gradient(165deg, rgba(10, 20, 34, 0.95), rgba(8, 15, 27, 0.96));
+      }
+
+      .mission-pause-hero {
+        border-radius: 12px;
+        border: 1px solid rgba(142, 180, 246, 0.24);
+        background: rgba(11, 21, 35, 0.78);
+        padding: 10px;
+        display: grid;
+        grid-template-columns: auto 1fr;
+        gap: 10px;
+        align-items: center;
+      }
+
+      .mission-pause-emblem {
+        width: 40px;
+        height: 40px;
+        border-radius: 12px;
+        display: grid;
+        place-items: center;
+        font-size: 0.92rem;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        color: #f8fbff;
+        background: linear-gradient(150deg, rgba(43, 108, 238, 0.92), rgba(18, 45, 106, 0.95));
+      }
+
+      .mission-pause-title {
+        margin: 0;
+        font-size: 1rem;
+      }
+
+      .mission-pause-subtitle {
+        margin: 3px 0 0;
+        font-size: 0.79rem;
+        color: rgba(206, 221, 247, 0.84);
+      }
+
+      .mission-pause-summary {
+        border-radius: 11px;
+        border: 1px solid rgba(142, 180, 246, 0.22);
+        background: rgba(10, 20, 34, 0.76);
+        padding: 9px;
+        display: grid;
+        gap: 5px;
+      }
+
+      .mission-pause-actions {
+        display: grid;
+        gap: 8px;
+      }
+
+      .mission-pause-action {
+        width: 100%;
+        min-height: 44px;
+        border-radius: 10px;
+        font-size: 0.84rem;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        font-weight: 700;
+      }
+
+      .mission-pause-action.is-primary {
+        box-shadow: 0 12px 24px rgba(19, 64, 168, 0.42);
+      }
+
+      .mission-result-shell {
+        width: min(92vw, 760px);
+        display: grid;
+        gap: 10px;
+        background:
+          radial-gradient(420px 220px at 16% -14%, rgba(43, 108, 238, 0.2), transparent),
+          linear-gradient(160deg, rgba(10, 20, 34, 0.95), rgba(7, 14, 26, 0.96));
+      }
+
+      .mission-result-shell.is-victory {
+        border-color: rgba(74, 222, 128, 0.35);
+      }
+
+      .mission-result-shell.is-defeat {
+        border-color: rgba(248, 113, 113, 0.35);
+      }
+
+      .mission-result-hero {
+        border-radius: 12px;
+        border: 1px solid rgba(143, 181, 248, 0.24);
+        background: rgba(11, 21, 35, 0.78);
+        padding: 10px;
+        display: grid;
+        grid-template-columns: auto 1fr;
+        gap: 10px;
+        align-items: center;
+      }
+
+      .mission-result-emblem {
+        width: 42px;
+        height: 42px;
+        border-radius: 12px;
+        display: grid;
+        place-items: center;
+        font-size: 1rem;
+        font-weight: 800;
+        letter-spacing: 0.04em;
+        color: #f8fbff;
+        background: linear-gradient(150deg, rgba(43, 108, 238, 0.9), rgba(18, 45, 106, 0.95));
+      }
+
+      .mission-result-shell.is-victory .mission-result-emblem {
+        background: linear-gradient(150deg, rgba(34, 197, 94, 0.9), rgba(13, 85, 48, 0.95));
+      }
+
+      .mission-result-shell.is-defeat .mission-result-emblem {
+        background: linear-gradient(150deg, rgba(239, 68, 68, 0.92), rgba(120, 28, 28, 0.95));
+      }
+
+      .mission-result-title {
+        margin: 0;
+        font-size: 1.04rem;
+      }
+
+      .mission-result-subtitle {
+        margin: 3px 0 0;
+        font-size: 0.79rem;
+        color: rgba(209, 224, 248, 0.84);
+      }
+
+      .mission-result-stats {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 8px;
+      }
+
+      .mission-result-stat {
+        border-radius: 10px;
+        border: 1px solid rgba(142, 180, 246, 0.2);
+        background: rgba(11, 21, 35, 0.76);
+        padding: 8px;
+        display: grid;
+        gap: 3px;
+      }
+
+      .mission-result-stat-label {
+        margin: 0;
+        font-size: 0.63rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: rgba(191, 210, 240, 0.75);
+      }
+
+      .mission-result-stat-value {
+        margin: 0;
+        font-size: 0.83rem;
+        color: rgba(235, 244, 255, 0.96);
+      }
+
+      .mission-result-notes {
+        border-radius: 10px;
+        border: 1px solid rgba(142, 180, 246, 0.2);
+        background: rgba(10, 20, 34, 0.78);
+        padding: 9px;
+        display: grid;
+        gap: 5px;
+      }
+
+      .mission-result-note-line {
+        margin: 0;
+        font-size: 0.8rem;
+        line-height: 1.34;
+        color: rgba(211, 226, 251, 0.84);
+      }
+
+      .mission-result-actions {
+        margin-top: 2px;
+      }
+
       .pause-panel {
-        width: min(88vw, 520px);
+        width: min(92vw, 560px);
       }
+
       .top-pause-btn {
-        min-width: 96px;
+        min-width: 108px;
+        border-radius: 999px;
+        border-color: rgba(155, 190, 252, 0.28);
+        background: rgba(20, 34, 56, 0.78);
       }
 
       .world-tooltip-overlay {
@@ -479,8 +1641,9 @@
 
         .mission-hud {
           right: 8px;
-          bottom: 8px;
-          max-width: min(96vw, 420px);
+          top: 8px;
+          width: min(96vw, 460px);
+          max-height: calc(100vh - 16px);
         }
       }
     </style>

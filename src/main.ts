@@ -33,7 +33,7 @@ import {
 } from "./meta/MetaProgression";
 import { calculateMissionGloryReward, calculateRunBonusGlory, type MissionGloryReward } from "./meta/Rewards";
 import { Renderer2D } from "./render/Renderer2D";
-import { loadMissionCatalog, createRunState, type MissionTemplate } from "./run/RunGeneration";
+import { loadMissionCatalog, type MissionTemplate } from "./run/RunGeneration";
 import {
   createDefaultMetaModifiers,
   createDefaultMetaProfile,
@@ -57,7 +57,7 @@ import { World } from "./sim/World";
 import { TowerArchetype, type TowerArchetypeCatalog } from "./sim/DepthTypes";
 import type { BalanceBaselinesConfig, DifficultyTierConfig } from "./waves/Definitions";
 import { loadWaveContent } from "./waves/Definitions";
-import { WaveDirector } from "./waves/WaveDirector";
+import { WaveDirector, type MissionWaveTelemetry } from "./waves/WaveDirector";
 import { SkillManager } from "./game/SkillManager";
 import {
   computeUnlocks,
@@ -77,7 +77,6 @@ import {
   createPanel,
   createScrollArea,
   createTabs,
-  createTooltip,
 } from "./components/ui/primitives";
 import { debugUiStore, type DebugUiState } from "./ui/debugStore";
 import { renderLevelGeneratorScreen } from "./ui/screens/LevelGeneratorScreen";
@@ -89,6 +88,7 @@ import { WorldTooltipOverlay } from "./ui/WorldTooltipOverlay";
 type Screen =
   | "title"
   | "main-menu"
+  | "profile-snapshot"
   | "meta"
   | "run-map"
   | "run-summary"
@@ -113,6 +113,21 @@ interface RunMissionContext {
 }
 
 type MissionContext = CampaignMissionContext | RunMissionContext | null;
+
+interface MissionEventEntry {
+  id: number;
+  tone: "neutral" | "warning" | "success";
+  message: string;
+}
+
+interface MissionHudSignals {
+  waveIndex: number;
+  waveActive: boolean;
+  nextWaveBucket: number | null;
+  objectiveMilestonePct: number;
+  playerTowers: number;
+  enemyTowers: number;
+}
 
 interface AppState {
   screen: Screen;
@@ -139,6 +154,9 @@ interface AppState {
   frameTimeMs: number;
   fps: number;
   missionPaused: boolean;
+  missionEvents: MissionEventEntry[];
+  missionEventSeq: number;
+  missionHudSignals: MissionHudSignals;
 }
 
 const DEBUG_TOOLS_ENABLED = true;
@@ -209,6 +227,9 @@ async function bootstrap(): Promise<void> {
     frameTimeMs: 0,
     fps: 0,
     missionPaused: false,
+    missionEvents: [],
+    missionEventSeq: 0,
+    missionHudSignals: createDefaultMissionHudSignals(),
   };
 
   const initialUnlockEvaluation = evaluateUnlocks(
@@ -258,10 +279,9 @@ async function bootstrap(): Promise<void> {
       upgradeCatalog,
       ascensionCatalog,
       missionTemplates,
-      startNewRun,
-      continueRun,
       openMetaScreen,
       openMainMenu,
+      openProfileSnapshot,
       openRunMap,
       startCurrentMission,
       restartCurrentMission,
@@ -325,6 +345,12 @@ async function bootstrap(): Promise<void> {
   const openMainMenu = (): void => {
     stopMission();
     app.screen = "main-menu";
+    render();
+  };
+
+  const openProfileSnapshot = (): void => {
+    stopMission();
+    app.screen = "profile-snapshot";
     render();
   };
 
@@ -434,44 +460,6 @@ async function bootstrap(): Promise<void> {
     render();
   };
 
-  const continueRun = (): void => {
-    if (!app.runState) {
-      return;
-    }
-    openRunMap();
-  };
-
-  const startNewRun = (): void => {
-    stopMission();
-    const seed = Math.floor(Date.now() % 2147483647);
-    const snapshot = createRunUnlockSnapshot(
-      app.metaProfile,
-      unlockCatalog,
-      ascensionCatalog,
-      Object.values(TowerArchetype),
-      waveContent.enemyCatalog,
-    );
-    const selectedAscensions = app.pendingAscensionIds
-      .filter((id) => snapshot.ascensionIds.includes(id))
-      .sort((a, b) => a.localeCompare(b))
-      .slice(0, ascensionCatalog.maxSelected);
-    const bonuses = computeBaseMetaModifiers(app.metaProfile, upgradeCatalog, ascensionCatalog, selectedAscensions);
-    const runState = createRunState({
-      seed,
-      templates: missionTemplates,
-      bonuses,
-      unlockSnapshot: snapshot,
-      selectedAscensionIds: selectedAscensions,
-    });
-    app.metaProfile.stats.runsPlayed += 1;
-    app.runState = runState;
-    app.runSummary = null;
-    saveMetaProfile(app.metaProfile);
-    saveRunState(runState);
-    app.screen = "run-map";
-    render();
-  };
-
   const startCampaignMissionById = async (missionId: string): Promise<void> => {
     if (!app.selectedStageId || !app.selectedLevelId) {
       showToast(screenRoot, "Select a level first.");
@@ -566,6 +554,8 @@ async function bootstrap(): Promise<void> {
         missionName: mission.name,
         objectiveText: mission.objectiveText,
       };
+      resetMissionHudUiState(app);
+      pushMissionEvent(app, "Mission deployed. Hold the network and watch the command feed.", "neutral");
       renderer.setMapRenderData(baseLevel.mapRenderData ?? null);
       app.screen = "mission";
       render();
@@ -638,6 +628,8 @@ async function bootstrap(): Promise<void> {
     app.missionReward = null;
     app.missionPaused = false;
     app.activeMissionContext = { mode: "run" };
+    resetMissionHudUiState(app);
+    pushMissionEvent(app, "Run mission deployed. First assault expected shortly.", "neutral");
     renderer.setMapRenderData(tunedLevel.mapRenderData ?? null);
     app.screen = "mission";
     saveRunState(app.runState);
@@ -1054,6 +1046,7 @@ async function bootstrap(): Promise<void> {
     app.missionResult = null;
     app.missionReward = null;
     app.missionPaused = false;
+    resetMissionHudUiState(app);
     renderer.setMapRenderData(null);
   };
 
@@ -1137,7 +1130,7 @@ async function bootstrap(): Promise<void> {
       ? 1 / clampedDtSec
       : app.fps * 0.85 + (1 / clampedDtSec) * 0.15;
 
-    if (app.game && !app.missionPaused) {
+    if (app.game && !app.missionPaused && app.missionResult === null) {
       app.game.frame(dtSec);
       handleMissionResult();
     }
@@ -1175,10 +1168,9 @@ function renderCurrentScreen(
   upgradeCatalog: MetaUpgradeCatalog,
   ascensionCatalog: AscensionCatalog,
   missionTemplates: MissionTemplate[],
-  startNewRun: () => void,
-  continueRun: () => void,
   openMetaScreen: () => void,
   openMainMenu: () => void,
+  openProfileSnapshot: () => void,
   openRunMap: () => void,
   startCurrentMission: () => Promise<void>,
   restartCurrentMission: () => void,
@@ -1235,54 +1227,133 @@ function renderCurrentScreen(
   }
 
   if (app.screen === "main-menu") {
-    const panel = createPanel("Main Menu", "Choose where to go next");
-    panel.classList.add("menu-panel");
+    const panel = document.createElement("div");
+    panel.className = "panel ui-panel menu-panel campaign-main-menu";
 
-    const introCard = createCard("What This Is");
-    introCard.appendChild(
-      createParagraph(
-        "Tower Battle is a deterministic lane-control strategy game. Link towers to route troops and outscale enemy waves.",
-      ),
-    );
-    introCard.appendChild(
-      createParagraph(
-        "Play Campaign for stage-based progression, or use Level Generator to create JSON maps.",
-      ),
-    );
-    panel.appendChild(introCard);
+    const topBar = document.createElement("div");
+    topBar.className = "campaign-topbar";
+    const badge = document.createElement("div");
+    badge.className = "campaign-topbar-badge";
+    badge.textContent = "TB";
+    const title = document.createElement("p");
+    title.className = "campaign-topbar-title";
+    title.textContent = "Command Interface";
+    topBar.append(badge, title);
+    panel.appendChild(topBar);
 
-    const profileCard = createCard("Profile Snapshot");
-    profileCard.appendChild(createParagraph(`Current Glory: ${app.metaProfile.glory}`));
-    profileCard.appendChild(createParagraph(`Meta Level: ${computeMetaAccountLevel(app.metaProfile)}`));
-    profileCard.appendChild(createParagraph(`Runs Completed: ${app.metaProfile.metaProgress.runsCompleted}`));
-    profileCard.appendChild(createParagraph(`Campaign Stages: ${app.campaignStages.length}`));
-    profileCard.appendChild(createParagraph(`Mission Templates Loaded (legacy run): ${missionTemplates.length}`));
-    if (app.runState) {
-      profileCard.appendChild(createParagraph(`Run In Progress: ${app.runState.currentMissionIndex + 1}/${app.runState.missions.length}`));
-    }
-    panel.appendChild(profileCard);
+    const hero = document.createElement("div");
+    hero.className = "campaign-main-hero";
+    const overline = document.createElement("p");
+    overline.className = "campaign-overline";
+    overline.textContent = "Main Menu";
+    const heading = document.createElement("h2");
+    heading.className = "campaign-main-heading";
+    heading.innerHTML = `GRID <span>DEFENDER</span>`;
+    const subtitle = document.createElement("p");
+    subtitle.className = "campaign-main-subtitle";
+    subtitle.textContent =
+      "Launch campaign operations, review profile progress, or generate new battlefields.";
+    hero.append(overline, heading, subtitle);
+    panel.appendChild(hero);
 
-    const actionCard = createCard("Actions");
+    const actionCard = document.createElement("div");
+    actionCard.className = "campaign-main-actions";
     const campaignBtn = createButton("Play Campaign", openStageSelect, {
       variant: "primary",
       primaryAction: true,
       hotkey: "Enter",
     });
+    campaignBtn.classList.add("campaign-main-action");
     actionCard.appendChild(campaignBtn);
-    actionCard.appendChild(createButton("Level Generator", openLevelGenerator, { variant: "secondary" }));
-    actionCard.appendChild(createButton("Meta Progression", openMetaScreen, { variant: "secondary" }));
 
-    actionCard.appendChild(createDivider());
-    actionCard.appendChild(createParagraph("Legacy Run Mode"));
-    const startBtn = createButton("Start New Run", startNewRun, {
-      variant: "secondary",
-    });
-    actionCard.appendChild(startBtn);
-    const continueBtn = createButton("Continue Run", continueRun, { variant: "secondary" });
-    continueBtn.disabled = !app.runState;
-    actionCard.appendChild(continueBtn);
+    const profileBtn = createButton("Profile Snapshot", openProfileSnapshot, { variant: "secondary" });
+    profileBtn.classList.add("campaign-main-action");
+    actionCard.appendChild(profileBtn);
+
+    const generatorBtn = createButton("Level Generator", openLevelGenerator, { variant: "secondary" });
+    generatorBtn.classList.add("campaign-main-action");
+    actionCard.appendChild(generatorBtn);
+
+    const metaBtn = createButton("Meta Progression", openMetaScreen, { variant: "secondary" });
+    metaBtn.classList.add("campaign-main-action");
+    actionCard.appendChild(metaBtn);
     panel.appendChild(actionCard);
 
+    const quickStats = document.createElement("div");
+    quickStats.className = "campaign-main-stats";
+    quickStats.append(
+      createInfoPill("Glory", `${app.metaProfile.glory}`),
+      createInfoPill("Meta Lv", `${computeMetaAccountLevel(app.metaProfile)}`),
+      createInfoPill("Stages", `${app.campaignStages.length}`),
+    );
+    panel.appendChild(quickStats);
+
+    screenRoot.appendChild(wrapCentered(panel));
+    return;
+  }
+
+  if (app.screen === "profile-snapshot") {
+    const panel = document.createElement("div");
+    panel.className = "panel ui-panel menu-panel campaign-shell campaign-profile-shell";
+    panel.appendChild(createCampaignScreenHeader("Profile Snapshot", "Commander Record"));
+
+    const unlockedStages = app.campaignStages.filter((stage) => app.campaignUnlocks.stage[stage.stageId]?.unlocked).length;
+    const completedStages = app.campaignStages.filter((stage) => app.campaignUnlocks.stage[stage.stageId]?.completed).length;
+    const totalMissions = app.campaignStages.reduce(
+      (sum, stage) => sum + stage.levels.reduce((levelSum, entry) => levelSum + entry.level.missions.length, 0),
+      0,
+    );
+    const completedMissions = app.campaignProgress.completedMissionKeys.length;
+    const missionPercent = totalMissions > 0 ? Math.round((completedMissions / totalMissions) * 100) : 0;
+    panel.appendChild(
+      createCampaignProgressCard({
+        title: "Campaign Progress",
+        subtitle: "Track your account and mission completion at a glance.",
+        value: `${completedMissions}/${totalMissions}`,
+        label: "Missions Cleared",
+        percent: missionPercent,
+      }),
+    );
+
+    const accountCard = document.createElement("section");
+    accountCard.className = "campaign-profile-card";
+    accountCard.append(
+      createInfoPill("Current Glory", `${app.metaProfile.glory}`),
+      createInfoPill("Meta Level", `${computeMetaAccountLevel(app.metaProfile)}`),
+      createInfoPill("Runs Completed", `${app.metaProfile.metaProgress.runsCompleted}`),
+      createInfoPill("Runs Won", `${app.metaProfile.metaProgress.runsWon}`),
+      createInfoPill("Glory Spent", `${Math.round(app.metaProfile.metaProgress.glorySpentTotal)}`),
+      createInfoPill("Stages Unlocked", `${unlockedStages}/${app.campaignStages.length}`),
+      createInfoPill("Stages Completed", `${completedStages}/${app.campaignStages.length}`),
+      createInfoPill("Templates Loaded", `${missionTemplates.length}`),
+    );
+    panel.appendChild(accountCard);
+
+    const campaignNote = document.createElement("section");
+    campaignNote.className = "campaign-progress-card";
+    const noteTitle = document.createElement("p");
+    noteTitle.className = "campaign-progress-title";
+    noteTitle.textContent = "Current Operation";
+    const noteText = document.createElement("p");
+    noteText.className = "campaign-progress-subtitle";
+    if (app.runState) {
+      noteText.textContent = `Run in progress: Mission ${app.runState.currentMissionIndex + 1}/${app.runState.missions.length}.`;
+    } else {
+      noteText.textContent = "No active run. Start from campaign screens when ready.";
+    }
+    campaignNote.append(noteTitle, noteText);
+    panel.appendChild(campaignNote);
+
+    const footer = document.createElement("div");
+    footer.className = "menu-footer campaign-footer";
+    const backBtn = createButton("Back to Main Menu", openMainMenu, {
+      variant: "ghost",
+      escapeAction: true,
+      hotkey: "Esc",
+    });
+    backBtn.classList.add("campaign-footer-btn");
+    footer.appendChild(backBtn);
+    panel.appendChild(footer);
     screenRoot.appendChild(wrapCentered(panel));
     return;
   }
@@ -1368,97 +1439,178 @@ function renderCurrentScreen(
   }
 
   if (app.screen === "meta") {
-    const panel = createPanel("Meta Progression", "Persistent upgrades and ascensions");
-    panel.classList.add("menu-panel", "menu-panel-wide");
+    const panel = document.createElement("div");
+    panel.className = "panel ui-panel menu-panel menu-panel-wide campaign-shell campaign-meta-shell";
+    panel.appendChild(createCampaignScreenHeader("Meta Progression", "Persistent Upgrades"));
 
-    const body = document.createElement("div");
-    body.className = "menu-body";
-    const scroll = document.createElement("div");
-    scroll.className = "menu-body-scroll";
+    const glorySpent = Math.round(app.metaProfile.metaProgress.glorySpentTotal);
+    const totalTrackedGlory = Math.max(1, glorySpent + app.metaProfile.glory);
+    const investmentPercent = Math.round((glorySpent / totalTrackedGlory) * 100);
+    panel.appendChild(
+      createCampaignProgressCard({
+        title: "Account Overview",
+        subtitle: `Glory available: ${app.metaProfile.glory} • Runs won: ${app.metaProfile.metaProgress.runsWon}`,
+        value: `Lv ${computeMetaAccountLevel(app.metaProfile)}`,
+        label: "Meta Level",
+        percent: investmentPercent,
+      }),
+    );
 
-    const summary = createCard("Section 1: Account Overview");
-    summary.appendChild(
-      createParagraph(
-        "This section shows your persistent profile stats and available Glory to spend on upgrades.",
-      ),
-    );
-    summary.appendChild(createParagraph(`Available Glory: ${app.metaProfile.glory}`));
-    summary.appendChild(
-      createParagraph(
-        `Meta Lv ${computeMetaAccountLevel(app.metaProfile)} • Runs ${app.metaProfile.metaProgress.runsCompleted} • Wins ${app.metaProfile.metaProgress.runsWon}`,
-      ),
-    );
-    summary.appendChild(createParagraph(`Total Glory Spent: ${Math.round(app.metaProfile.metaProgress.glorySpentTotal)}`));
-    summary.appendChild(
-      createParagraph(
-        `Ascension Clears: ${Object.values(app.metaProfile.metaProgress.ascensionsCleared).reduce((sum, value) => sum + value, 0)}`,
-      ),
-    );
-    scroll.appendChild(summary);
+    const trees = document.createElement("div");
+    trees.className = "campaign-meta-tree-row";
+    for (const [treeIndex, tree] of upgradeCatalog.trees.entries()) {
+      const treeCard = document.createElement("article");
+      treeCard.className = "campaign-meta-tree-card";
+      const accent = getMetaTreeAccent(treeIndex);
+      treeCard.style.setProperty("--meta-accent", accent.primary);
+      treeCard.style.setProperty("--meta-accent-soft", accent.soft);
+      treeCard.style.setProperty("--meta-accent-halo", accent.halo);
 
-    const trees = createCard("Section 2: Upgrade Trees");
-    trees.appendChild(
-      createParagraph(
-        "Each tree focuses on one domain. Buy nodes with Glory; prerequisites are shown inline.",
-      ),
-    );
-    for (const tree of upgradeCatalog.trees) {
-      const treeCard = createCard(tree.name);
+      let earnedRanks = 0;
+      let maxRanks = 0;
+      let unlockedNodes = 0;
+      for (const node of tree.nodes) {
+        const rank = getPurchasedRank(app.metaProfile, node.id);
+        earnedRanks += rank;
+        maxRanks += node.maxRank;
+        if (rank > 0) {
+          unlockedNodes += 1;
+        }
+      }
+      const treeProgressPercent = maxRanks > 0 ? Math.round((earnedRanks / maxRanks) * 100) : 0;
+
+      const treeHeader = document.createElement("div");
+      treeHeader.className = "campaign-meta-tree-header";
+
+      const treeHeaderTop = document.createElement("div");
+      treeHeaderTop.className = "campaign-meta-tree-top";
+      const treeEmblem = document.createElement("div");
+      treeEmblem.className = "campaign-meta-tree-emblem";
+      treeEmblem.textContent = tree.name
+        .split(" ")
+        .map((token) => token.charAt(0))
+        .join("")
+        .slice(0, 2)
+        .toUpperCase();
+      const treeHeaderCopy = document.createElement("div");
+      const treeTitle = document.createElement("h3");
+      treeTitle.className = "campaign-meta-tree-title";
+      treeTitle.textContent = tree.name;
+      const treeSubtitle = document.createElement("p");
+      treeSubtitle.className = "campaign-meta-tree-subtitle";
+      treeSubtitle.textContent = `${tree.nodes.length} upgrades • ${unlockedNodes}/${tree.nodes.length} activated`;
+      treeHeaderCopy.append(treeTitle, treeSubtitle);
+      treeHeaderTop.append(treeEmblem, treeHeaderCopy);
+
+      const treeSummary = document.createElement("div");
+      treeSummary.className = "campaign-meta-tree-summary";
+      const treeSummaryCopy = document.createElement("span");
+      treeSummaryCopy.className = "campaign-meta-tree-summary-copy";
+      treeSummaryCopy.textContent = `${earnedRanks}/${maxRanks} ranks`;
+      const treeRank = document.createElement("span");
+      treeRank.className = "campaign-meta-tree-rank";
+      treeRank.textContent = `${treeProgressPercent}%`;
+      treeSummary.append(treeSummaryCopy, treeRank);
+
+      const treeProgressTrack = document.createElement("div");
+      treeProgressTrack.className = "campaign-meta-tree-progress";
+      const treeProgressFill = document.createElement("div");
+      treeProgressFill.className = "campaign-meta-tree-progress-fill";
+      treeProgressFill.style.width = `${treeProgressPercent}%`;
+      treeProgressTrack.appendChild(treeProgressFill);
+
+      treeHeader.append(treeHeaderTop, treeSummary, treeProgressTrack);
+      treeCard.appendChild(treeHeader);
 
       const list = document.createElement("div");
-      list.className = "list";
+      list.className = "campaign-meta-node-list";
       for (const node of tree.nodes) {
         const rank = getPurchasedRank(app.metaProfile, node.id);
         const cost = getNextUpgradeCost(app.metaProfile, node);
         const row = document.createElement("div");
-        row.className = "meta-row";
+        row.className = "campaign-meta-node-row";
+        if (cost === null) {
+          row.classList.add("is-maxed");
+        } else if (app.metaProfile.glory >= cost) {
+          row.classList.add("is-affordable");
+        } else {
+          row.classList.add("is-unaffordable");
+        }
 
         const left = document.createElement("div");
-        left.textContent = `${node.name} Lv ${rank}/${node.maxRank}`;
+        left.className = "campaign-meta-node-copy";
+        const nameRow = document.createElement("div");
+        nameRow.className = "campaign-meta-node-head";
+        const name = document.createElement("p");
+        name.className = "campaign-meta-node-name";
+        name.textContent = node.name;
+        const rankPill = document.createElement("span");
+        rankPill.className = "campaign-meta-rank-pill";
+        rankPill.textContent = `Lv ${rank}/${node.maxRank}`;
+        nameRow.append(name, rankPill);
         const details = document.createElement("div");
-        details.style.fontSize = "12px";
-        details.style.opacity = "0.8";
-        const prereqText = node.prereqs.length > 0
-          ? ` • Req: ${node.prereqs.map((req) => `${req.nodeId}(${req.minRank})`).join(", ")}`
-          : "";
-        details.textContent = `${node.desc}${prereqText}`;
-        left.appendChild(details);
+        details.className = "campaign-meta-node-details";
+        details.textContent = node.desc;
+        left.append(nameRow, details);
+
+        if (node.prereqs.length > 0) {
+          const prereqWrap = document.createElement("div");
+          prereqWrap.className = "campaign-meta-node-prereqs";
+          for (const prereq of node.prereqs) {
+            const pill = document.createElement("span");
+            pill.className = "campaign-meta-prereq-pill";
+            pill.textContent = `${formatMetaNodeLabel(prereq.nodeId)} ${prereq.minRank}+`;
+            prereqWrap.appendChild(pill);
+          }
+          left.appendChild(prereqWrap);
+        }
+
+        const nodeProgressTrack = document.createElement("div");
+        nodeProgressTrack.className = "campaign-meta-node-progress";
+        const nodeProgressFill = document.createElement("div");
+        nodeProgressFill.className = "campaign-meta-node-progress-fill";
+        nodeProgressFill.style.width = `${(rank / Math.max(1, node.maxRank)) * 100}%`;
+        nodeProgressTrack.appendChild(nodeProgressFill);
+        left.appendChild(nodeProgressTrack);
 
         const buyBtn = createButton(
           cost === null ? "Maxed" : `Buy (${cost})`,
           () => purchaseUpgradeById(node.id),
-          { variant: cost === null ? "ghost" : "secondary" },
+          { variant: cost === null ? "ghost" : app.metaProfile.glory >= cost ? "primary" : "secondary" },
         );
+        buyBtn.classList.add("campaign-meta-buy-btn");
         buyBtn.disabled = cost === null || app.metaProfile.glory < cost;
         row.append(left, buyBtn);
         list.appendChild(row);
       }
-      treeCard.appendChild(createScrollArea(list, { maxHeight: "min(32vh, 280px)" }));
+      const treeList = createScrollArea(list, { maxHeight: "min(42vh, 420px)" });
+      treeList.classList.add("campaign-meta-node-scroll");
+      treeCard.appendChild(treeList);
       trees.appendChild(treeCard);
     }
-    scroll.appendChild(trees);
+    panel.appendChild(trees);
 
-    const progressionCard = createCard("Section 3: Progress Notes");
-    progressionCard.appendChild(
-      createParagraph(
-        "Meta upgrades affect future runs only. Current run state remains deterministic and unchanged.",
-      ),
-    );
-    progressionCard.appendChild(createParagraph("Tip: spend Glory before starting a new run for best value."));
-    scroll.appendChild(progressionCard);
+    const progressionCard = document.createElement("section");
+    progressionCard.className = "campaign-progress-card";
+    const noteTitle = document.createElement("p");
+    noteTitle.className = "campaign-progress-title";
+    noteTitle.textContent = "Progress Notes";
+    const noteText = document.createElement("p");
+    noteText.className = "campaign-progress-subtitle";
+    noteText.textContent =
+      "Meta upgrades only affect future runs. Spend Glory before launching new operations for maximum impact.";
+    progressionCard.append(noteTitle, noteText);
+    panel.appendChild(progressionCard);
 
-    body.appendChild(scroll);
-    panel.appendChild(body);
-    panel.appendChild(createDivider());
     const footer = document.createElement("div");
-    footer.className = "menu-footer";
-    footer.appendChild(
-      createButton("Back", app.runState ? openRunMap : openMainMenu, {
-        variant: "ghost",
-        escapeAction: true,
-        hotkey: "Esc",
-      }),
-    );
+    footer.className = "menu-footer campaign-footer";
+    const backBtn = createButton("Back", app.runState ? openRunMap : openMainMenu, {
+      variant: "ghost",
+      escapeAction: true,
+      hotkey: "Esc",
+    });
+    backBtn.classList.add("campaign-footer-btn");
+    footer.appendChild(backBtn);
     panel.appendChild(footer);
     screenRoot.appendChild(wrapCentered(panel));
     return;
@@ -1611,154 +1763,237 @@ function renderCurrentScreen(
 
   if (app.screen === "mission") {
     if (debugState.showMissionHud) {
-      const hud = createPanel("Mission");
-      hud.classList.add("mission-hud");
+      const hud = document.createElement("section");
+      hud.className = "panel ui-panel mission-hud mission-command-shell";
 
-      if (app.runState) {
-        const mission = getCurrentMission(app.runState);
-        if (mission) {
-          hud.appendChild(
-            createParagraph(
-              `${mission.name} (${app.runState.currentMissionIndex + 1}/${app.runState.missions.length}) • Difficulty x${mission.difficulty.toFixed(2)} • ${app.runState.runModifiers.tier}`,
-            ),
-          );
-        }
-      } else if (app.activeMissionContext?.mode === "campaign") {
-        hud.appendChild(createParagraph(`${app.activeMissionContext.missionName} • Campaign`));
-        hud.appendChild(createParagraph(`Objective: ${app.activeMissionContext.objectiveText}`));
-      }
-      hud.appendChild(createParagraph("Drag from player towers to direct links."));
-      hud.appendChild(createParagraph("Wave telemetry updates in real time."));
-      hud.appendChild(createTooltip("Hover towers/enemies for world tooltips", "Tooltips are read-only overlays and never block input.", { compact: true }));
+      const header = document.createElement("header");
+      header.className = "mission-command-header";
+      const overline = document.createElement("p");
+      overline.className = "mission-command-overline";
+      overline.textContent = app.activeMissionContext?.mode === "campaign" ? "Campaign Operation" : "Run Operation";
+      const missionTitle = document.createElement("h3");
+      missionTitle.id = "missionHudTitle";
+      missionTitle.className = "mission-command-title";
+      missionTitle.textContent = app.activeMissionContext?.mode === "campaign"
+        ? app.activeMissionContext.missionName
+        : app.runState
+          ? `${getCurrentMission(app.runState)?.name ?? "Mission"} (${app.runState.currentMissionIndex + 1}/${app.runState.missions.length})`
+          : "Mission";
+      const objective = document.createElement("p");
+      objective.id = "missionObjectiveText";
+      objective.className = "mission-command-objective";
+      objective.textContent = app.activeMissionContext?.mode === "campaign"
+        ? app.activeMissionContext.objectiveText
+        : "Survive all scheduled waves and keep at least one tower.";
+      header.append(overline, missionTitle, objective);
+      hud.appendChild(header);
 
-      const waveStatus = createParagraph("Wave: --");
-      waveStatus.id = "missionWaveStatus";
-      hud.appendChild(waveStatus);
+      const statsGrid = document.createElement("div");
+      statsGrid.className = "mission-stats-grid";
+      statsGrid.append(
+        createMissionHudStat("Wave", "Wave --", "missionWaveStatus"),
+        createMissionHudStat("Next Assault", "Waiting", "missionWaveCountdown"),
+        createMissionHudStat("Mission Gold", "0", "missionWaveGold"),
+        createMissionHudStat("Modifier Stack", "None", "missionWaveModifiers"),
+        createMissionHudStat("Active Buff", "None", "missionWaveBuff"),
+        createMissionHudStat("Goal Progress", "--", "missionGoalProgress"),
+      );
+      hud.appendChild(statsGrid);
 
-      const modifiers = createParagraph("Modifiers: --");
-      modifiers.id = "missionWaveModifiers";
-      hud.appendChild(modifiers);
-
-      const gold = createParagraph("Gold: 0");
-      gold.id = "missionWaveGold";
-      hud.appendChild(gold);
-
-      const buff = createParagraph("Buff: none");
-      buff.id = "missionWaveBuff";
-      hud.appendChild(buff);
-
-      const selectionCard = createCard("Tower Selection");
+      const focusCard = document.createElement("div");
+      focusCard.className = "mission-focus-card";
+      focusCard.appendChild(createMissionHudLabel("Tower Focus"));
       const selectedTower = createParagraph("Selected Tower: --");
       selectedTower.id = "missionSelectedTower";
-      selectionCard.appendChild(selectedTower);
-
+      selectedTower.className = "mission-focus-main";
+      focusCard.appendChild(selectedTower);
       const clusterSize = createParagraph("Cluster Size: --");
       clusterSize.id = "missionClusterSize";
-      selectionCard.appendChild(clusterSize);
+      clusterSize.className = "mission-focus-sub";
+      focusCard.appendChild(clusterSize);
 
-      const bonusesTitle = createParagraph("Active Bonuses:");
-      bonusesTitle.id = "missionClusterBonusesTitle";
-      bonusesTitle.style.marginTop = "4px";
-      selectionCard.appendChild(bonusesTitle);
+      const bonusRow = document.createElement("div");
+      bonusRow.className = "mission-bonus-row";
+      const bonusRegen = createMissionBonusChip("Regen +0%", "missionClusterBonusRegen");
+      const bonusArmor = createMissionBonusChip("Armor +0%", "missionClusterBonusArmor");
+      const bonusVision = createMissionBonusChip("Vision +0%", "missionClusterBonusVision");
+      bonusRow.append(bonusRegen, bonusArmor, bonusVision);
+      focusCard.appendChild(bonusRow);
+      hud.appendChild(focusCard);
 
-      const bonusRegen = createParagraph("- Regen +0%");
-      bonusRegen.id = "missionClusterBonusRegen";
-      bonusRegen.style.margin = "2px 0";
-      selectionCard.appendChild(bonusRegen);
+      const dataGrid = document.createElement("div");
+      dataGrid.className = "mission-feed-grid";
 
-      const bonusArmor = createParagraph("- Armor +0%");
-      bonusArmor.id = "missionClusterBonusArmor";
-      bonusArmor.style.margin = "2px 0";
-      selectionCard.appendChild(bonusArmor);
+      const eventCard = document.createElement("div");
+      eventCard.className = "mission-feed-card";
+      eventCard.appendChild(createMissionHudLabel("Command Feed"));
+      const eventFeed = document.createElement("div");
+      eventFeed.id = "missionEventFeed";
+      eventFeed.className = "mission-event-feed";
+      eventCard.appendChild(eventFeed);
+      dataGrid.appendChild(eventCard);
 
-      const bonusVision = createParagraph("- Vision +0%");
-      bonusVision.id = "missionClusterBonusVision";
-      bonusVision.style.margin = "2px 0 0";
-      selectionCard.appendChild(bonusVision);
-
-      hud.appendChild(selectionCard);
+      if (debugState.showWavePreview) {
+        const previewCard = document.createElement("div");
+        previewCard.className = "mission-feed-card";
+        previewCard.appendChild(createMissionHudLabel("Upcoming Threats"));
+        const preview = document.createElement("div");
+        preview.id = "missionWavePreview";
+        preview.className = "mission-wave-preview-list";
+        previewCard.appendChild(preview);
+        dataGrid.appendChild(previewCard);
+      }
+      hud.appendChild(dataGrid);
 
       if (debugState.showSkillHud) {
-        const skillTargetLabel = createParagraph("Skill Target Tower:");
-        skillTargetLabel.style.marginTop = "8px";
-        hud.appendChild(skillTargetLabel);
+        const skillCard = document.createElement("div");
+        skillCard.className = "mission-skill-card";
+        skillCard.appendChild(createMissionHudLabel("Skill Control"));
+
+        const skillTargetLabel = document.createElement("p");
+        skillTargetLabel.className = "mission-skill-target-label";
+        skillTargetLabel.textContent = "Target Tower";
+        skillCard.appendChild(skillTargetLabel);
 
         const skillTarget = document.createElement("select");
         skillTarget.id = "missionSkillTarget";
-        hud.appendChild(skillTarget);
-
-        const skillBarLabel = createParagraph("Skills:");
-        skillBarLabel.style.marginTop = "8px";
-        hud.appendChild(skillBarLabel);
+        skillCard.appendChild(skillTarget);
 
         const skillBar = document.createElement("div");
         skillBar.id = "missionSkillBar";
-        skillBar.className = "list";
-        skillBar.style.gap = "6px";
-        hud.appendChild(createScrollArea(skillBar, { maxHeight: "min(16vh, 160px)" }));
+        skillBar.className = "list mission-skill-list";
+        skillCard.appendChild(createScrollArea(skillBar, { maxHeight: "min(16vh, 170px)" }));
+        hud.appendChild(skillCard);
       }
 
       if (DEBUG_TOOLS_ENABLED) {
         const balanceDebug = createParagraph("Balance: diagnostics off");
         balanceDebug.id = "missionBalanceDebug";
-        balanceDebug.style.fontSize = "12px";
-        balanceDebug.style.opacity = "0.9";
+        balanceDebug.className = "mission-balance-debug";
         hud.appendChild(balanceDebug);
-      }
-
-      if (debugState.showWavePreview) {
-        const previewLabel = createParagraph("Upcoming:");
-        previewLabel.style.marginBottom = "4px";
-        hud.appendChild(previewLabel);
-        const preview = document.createElement("div");
-        preview.id = "missionWavePreview";
-        preview.className = "list";
-        preview.style.gap = "4px";
-        hud.appendChild(createScrollArea(preview, { maxHeight: "min(18vh, 170px)" }));
       }
 
       screenRoot.appendChild(hud);
     }
 
     if (app.missionPaused && app.missionResult === null) {
-      const pausePanel = createPanel("Mission Paused", "Simulation is halted. Continue when ready.");
-      pausePanel.classList.add("menu-panel", "pause-panel");
+      const pausePanel = document.createElement("div");
+      pausePanel.className = "panel ui-panel menu-panel pause-panel campaign-shell mission-overlay-panel mission-pause-shell";
+      pausePanel.appendChild(createCampaignScreenHeader("Mission Paused", "Tactical Freeze"));
 
-      const summary = createCard("Pause Menu");
-      summary.appendChild(createParagraph("Continue: resume simulation and input controls."));
-      summary.appendChild(createParagraph("Restart Mission: reset current mission state."));
-      summary.appendChild(createParagraph("Main Menu: exit mission view and return to menu."));
+      const hero = document.createElement("section");
+      hero.className = "mission-pause-hero";
+      const emblem = document.createElement("div");
+      emblem.className = "mission-pause-emblem";
+      emblem.textContent = "II";
+      const heroCopy = document.createElement("div");
+      const heroTitle = document.createElement("h3");
+      heroTitle.className = "mission-pause-title";
+      heroTitle.textContent = "Command Standby";
+      const heroSubtitle = document.createElement("p");
+      heroSubtitle.className = "mission-pause-subtitle";
+      heroSubtitle.textContent = "Simulation halted. Review your options before redeploying.";
+      heroCopy.append(heroTitle, heroSubtitle);
+      hero.append(emblem, heroCopy);
+      pausePanel.appendChild(hero);
+
+      const summary = document.createElement("section");
+      summary.className = "mission-pause-summary";
+      summary.appendChild(createMissionHudLabel("Control Summary"));
+      summary.appendChild(createParagraph("Continue: resume simulation and restore controls."));
+      summary.appendChild(createParagraph("Restart Mission: reset this mission from the start."));
+      summary.appendChild(createParagraph("Main Menu: leave mission and return to command menu."));
       pausePanel.appendChild(summary);
 
       const actions = document.createElement("div");
-      actions.className = "menu-footer";
-      actions.appendChild(
-        createButton("Continue", () => {
-          setMissionPaused(false);
-        }, { variant: "primary", primaryAction: true, hotkey: "Enter" }),
-      );
-      actions.appendChild(
-        createButton("Restart Mission", () => {
-          setMissionPaused(false);
-          restartCurrentMission();
-        }, { variant: "secondary" }),
-      );
-      actions.appendChild(
-        createButton("Main Menu", () => {
-          setMissionPaused(false);
-          openMainMenu();
-        }, { variant: "ghost", escapeAction: true, hotkey: "Esc" }),
-      );
+      actions.className = "mission-pause-actions";
+      const continueBtn = createButton("Continue", () => {
+        setMissionPaused(false);
+      }, { variant: "primary", primaryAction: true, hotkey: "Enter" });
+      continueBtn.classList.add("mission-pause-action", "is-primary");
+      actions.appendChild(continueBtn);
+
+      const restartBtn = createButton("Restart Mission", () => {
+        setMissionPaused(false);
+        restartCurrentMission();
+      }, { variant: "secondary" });
+      restartBtn.classList.add("mission-pause-action");
+      actions.appendChild(restartBtn);
+
+      const menuBtn = createButton("Main Menu", () => {
+        setMissionPaused(false);
+        openMainMenu();
+      }, { variant: "ghost", escapeAction: true, hotkey: "Esc" });
+      menuBtn.classList.add("mission-pause-action");
+      actions.appendChild(menuBtn);
       pausePanel.appendChild(actions);
-      screenRoot.appendChild(wrapCentered(pausePanel));
+      screenRoot.appendChild(wrapCenteredModal(pausePanel));
     }
 
     if (app.missionResult) {
-      const resultPanel = createPanel(app.missionResult === "win" ? "Mission Victory" : "Mission Defeat");
-      resultPanel.classList.add("menu-panel");
+      const isVictory = app.missionResult === "win";
       const rewardValue = app.missionReward ? app.missionReward.total : 0;
+      const telemetry = app.game?.getWaveTelemetry() ?? null;
+      const completedWaves = telemetry
+        ? Math.max(0, telemetry.currentWaveIndex - (telemetry.activeWaveInProgress ? 1 : 0))
+        : 0;
+      const totalWaves = telemetry?.totalWaveCount ?? 0;
+
+      const resultPanel = document.createElement("div");
+      resultPanel.className = `panel ui-panel menu-panel mission-overlay-panel campaign-shell mission-result-shell ${isVictory ? "is-victory" : "is-defeat"}`;
+      resultPanel.appendChild(
+        createCampaignScreenHeader(
+          isVictory ? "Mission Victory" : "Mission Defeat",
+          isVictory ? "Operation Success" : "Operation Failed",
+        ),
+      );
+
+      const hero = document.createElement("section");
+      hero.className = "mission-result-hero";
+      const emblem = document.createElement("div");
+      emblem.className = "mission-result-emblem";
+      emblem.textContent = isVictory ? "V" : "X";
+      const heroCopy = document.createElement("div");
+      const heroTitle = document.createElement("h3");
+      heroTitle.className = "mission-result-title";
+      heroTitle.textContent = isVictory ? "Control Secured" : "Control Breached";
+      const heroSubtitle = document.createElement("p");
+      heroSubtitle.className = "mission-result-subtitle";
+      heroSubtitle.textContent = app.activeMissionContext?.mode === "campaign"
+        ? "Campaign mission report complete."
+        : "Run mission report complete.";
+      heroCopy.append(heroTitle, heroSubtitle);
+      hero.append(emblem, heroCopy);
+      resultPanel.appendChild(hero);
+
+      const stats = document.createElement("div");
+      stats.className = "mission-result-stats";
+      stats.append(
+        createMissionResultStat("Mode", app.activeMissionContext?.mode === "campaign" ? "Campaign" : "Run"),
+        createMissionResultStat("Outcome", isVictory ? "Victory" : "Defeat"),
+        createMissionResultStat("Wave Progress", totalWaves > 0 ? `${completedWaves}/${totalWaves}` : "--"),
+        createMissionResultStat(
+          "Glory Reward",
+          app.activeMissionContext?.mode === "campaign" ? "Progress Unlocks" : `${rewardValue}`,
+        ),
+      );
+      resultPanel.appendChild(stats);
+
+      const notes = document.createElement("section");
+      notes.className = "mission-result-notes";
+      notes.appendChild(createMissionHudLabel("Mission Notes"));
+      const noteLine = document.createElement("p");
+      noteLine.className = "mission-result-note-line";
+      noteLine.textContent = isVictory
+        ? "Commander update: objective complete. Reposition for the next operation."
+        : "Commander update: regroup, tune links, and redeploy.";
+      notes.appendChild(noteLine);
+      resultPanel.appendChild(notes);
+
+      const actionRow = document.createElement("div");
+      actionRow.className = "menu-footer campaign-footer mission-result-actions";
+
       if (app.activeMissionContext?.mode === "campaign") {
-        resultPanel.appendChild(createParagraph("Campaign progression updated."));
         const backToMissions = createButton("Back To Missions", () => {
           if (app.activeMissionContext?.mode !== "campaign") {
             openStageSelect();
@@ -1767,31 +2002,47 @@ function renderCurrentScreen(
           app.selectedStageId = app.activeMissionContext.stageId;
           openMissionSelect(app.activeMissionContext.levelId);
         }, { variant: "primary", primaryAction: true, hotkey: "Enter" });
-        resultPanel.appendChild(backToMissions);
-        resultPanel.appendChild(createButton("Retry Mission", restartCurrentMission, { variant: "secondary" }));
-        resultPanel.appendChild(createButton("Stage Select", openStageSelect, { variant: "ghost" }));
-      } else {
-        resultPanel.appendChild(createParagraph(`Glory earned this mission: ${rewardValue}`));
+        backToMissions.classList.add("campaign-footer-btn");
+        actionRow.appendChild(backToMissions);
 
-        if (app.missionResult === "win" && app.runState && app.runState.currentMissionIndex < app.runState.missions.length) {
-          resultPanel.appendChild(createButton("Continue To Run Map", openRunMap, { variant: "primary", primaryAction: true, hotkey: "Enter" }));
+        const retryBtn = createButton("Retry Mission", restartCurrentMission, { variant: "secondary" });
+        retryBtn.classList.add("campaign-footer-btn");
+        actionRow.appendChild(retryBtn);
+
+        const stageBtn = createButton("Stage Select", openStageSelect, { variant: "ghost", escapeAction: true, hotkey: "Esc" });
+        stageBtn.classList.add("campaign-footer-btn");
+        actionRow.appendChild(stageBtn);
+      } else {
+        if (isVictory && app.runState && app.runState.currentMissionIndex < app.runState.missions.length) {
+          const continueBtn = createButton("Continue To Run Map", openRunMap, {
+            variant: "primary",
+            primaryAction: true,
+            hotkey: "Enter",
+          });
+          continueBtn.classList.add("campaign-footer-btn");
+          actionRow.appendChild(continueBtn);
         } else {
-          resultPanel.appendChild(
-            createButton("Open Run Summary", () => {
-              if (app.missionResult === "win") {
-                finalizeRun(true);
-              } else {
-                finalizeRun(false);
-              }
-            }, { variant: "primary", primaryAction: true, hotkey: "Enter" }),
-          );
+          const summaryBtn = createButton("Open Run Summary", () => {
+            if (isVictory) {
+              finalizeRun(true);
+            } else {
+              finalizeRun(false);
+            }
+          }, { variant: "primary", primaryAction: true, hotkey: "Enter" });
+          summaryBtn.classList.add("campaign-footer-btn");
+          actionRow.appendChild(summaryBtn);
         }
-        const canRestartMission =
-          !(app.missionResult === "win" && app.runState && app.runState.currentMissionIndex < app.runState.missions.length);
+        const canRestartMission = !(isVictory && app.runState && app.runState.currentMissionIndex < app.runState.missions.length);
         if (canRestartMission) {
-          resultPanel.appendChild(createButton("Restart Mission", restartCurrentMission, { variant: "secondary" }));
+          const restartBtn = createButton("Restart Mission", restartCurrentMission, { variant: "secondary" });
+          restartBtn.classList.add("campaign-footer-btn");
+          actionRow.appendChild(restartBtn);
         }
+        const mainMenuBtn = createButton("Main Menu", openMainMenu, { variant: "ghost", escapeAction: true, hotkey: "Esc" });
+        mainMenuBtn.classList.add("campaign-footer-btn");
+        actionRow.appendChild(mainMenuBtn);
       }
+      resultPanel.appendChild(actionRow);
       screenRoot.appendChild(wrapCentered(resultPanel));
     }
     return;
@@ -1859,32 +2110,42 @@ function syncMissionHud(app: AppState, debugState: DebugUiState): void {
 
   const telemetry = app.game.getWaveTelemetry();
   const world = app.game.getWorld();
+  updateMissionEventFeed(app, telemetry, world);
 
-  const waveStatus = document.getElementById("missionWaveStatus");
-  if (waveStatus instanceof HTMLParagraphElement) {
-    waveStatus.textContent = telemetry
-      ? `Wave: ${telemetry.currentWaveIndex}/${telemetry.totalWaveCount}`
-      : "Wave: --";
-  }
+  const waveText = telemetry
+    ? `Wave ${Math.max(1, telemetry.currentWaveIndex)}/${telemetry.totalWaveCount}${telemetry.activeWaveInProgress ? " • Active" : ""}`
+    : "Wave --";
+  setMissionHudText("missionWaveStatus", waveText);
 
-  const modifiers = document.getElementById("missionWaveModifiers");
-  if (modifiers instanceof HTMLParagraphElement) {
-    modifiers.textContent = telemetry && telemetry.activeModifierNames.length > 0
-      ? `Modifiers: ${telemetry.activeModifierNames.join(", ")}`
-      : "Modifiers: none";
-  }
+  const nextWaveText = telemetry
+    ? telemetry.nextWaveStartsInSec !== null
+      ? `Incoming in ${Math.ceil(telemetry.nextWaveStartsInSec)}s`
+      : telemetry.activeWaveInProgress
+        ? "Assault active"
+        : "Final assault complete"
+    : "Waiting";
+  setMissionHudText("missionWaveCountdown", nextWaveText);
 
-  const gold = document.getElementById("missionWaveGold");
-  if (gold instanceof HTMLParagraphElement) {
-    gold.textContent = telemetry ? `Gold: ${telemetry.missionGold}` : "Gold: 0";
-  }
-
-  const buff = document.getElementById("missionWaveBuff");
-  if (buff instanceof HTMLParagraphElement) {
-    buff.textContent = telemetry && telemetry.activeBuffId
-      ? `Buff: ${telemetry.activeBuffId} (${telemetry.activeBuffRemainingSec.toFixed(1)}s)`
-      : "Buff: none";
-  }
+  const completedWaves = telemetry
+    ? telemetry.currentWaveIndex - (telemetry.activeWaveInProgress ? 1 : 0)
+    : 0;
+  const goalPct = telemetry ? Math.round((Math.max(0, completedWaves) / Math.max(1, telemetry.totalWaveCount)) * 100) : 0;
+  setMissionHudText(
+    "missionGoalProgress",
+    telemetry
+      ? `${Math.max(0, completedWaves)}/${telemetry.totalWaveCount} waves secured (${goalPct}%)`
+      : "--",
+  );
+  setMissionHudText("missionWaveModifiers", telemetry && telemetry.activeModifierNames.length > 0
+    ? telemetry.activeModifierNames.join(", ")
+    : "None");
+  setMissionHudText("missionWaveGold", telemetry ? `${telemetry.missionGold}` : "0");
+  setMissionHudText(
+    "missionWaveBuff",
+    telemetry && telemetry.activeBuffId
+      ? `${telemetry.activeBuffId} (${telemetry.activeBuffRemainingSec.toFixed(1)}s)`
+      : "None",
+  );
 
   const selectedTowerLabel = document.getElementById("missionSelectedTower");
   const clusterSizeLabel = document.getElementById("missionClusterSize");
@@ -1917,13 +2178,13 @@ function syncMissionHud(app: AppState, debugState: DebugUiState): void {
     clusterSizeLabel.textContent = `Cluster Size: ${clusterSize}`;
   }
   if (bonusRegen instanceof HTMLParagraphElement) {
-    bonusRegen.textContent = `- Regen +${Math.round(regenBonusPct * 100)}%`;
+    bonusRegen.textContent = `Regen +${Math.round(regenBonusPct * 100)}%`;
   }
   if (bonusArmor instanceof HTMLParagraphElement) {
-    bonusArmor.textContent = `- Armor +${Math.round(armorBonusPct * 100)}%`;
+    bonusArmor.textContent = `Armor +${Math.round(armorBonusPct * 100)}%`;
   }
   if (bonusVision instanceof HTMLParagraphElement) {
-    bonusVision.textContent = `- Vision +${Math.round(visionBonusPct * 100)}%`;
+    bonusVision.textContent = `Vision +${Math.round(visionBonusPct * 100)}%`;
   }
 
   const towerTargetSelect = document.getElementById("missionSkillTarget");
@@ -1958,7 +2219,7 @@ function syncMissionHud(app: AppState, debugState: DebugUiState): void {
 
       for (const skill of skills) {
         const row = document.createElement("div");
-        row.className = "meta-row";
+        row.className = "meta-row mission-skill-row";
 
         const label = document.createElement("div");
         label.textContent = `${skill.name} (${skill.targeting})`;
@@ -1986,7 +2247,7 @@ function syncMissionHud(app: AppState, debugState: DebugUiState): void {
   }
 
   const balanceDebug = document.getElementById("missionBalanceDebug");
-  if (balanceDebug instanceof HTMLParagraphElement) {
+  if (balanceDebug instanceof HTMLElement) {
     if (!app.balanceDiagnosticsEnabled) {
       balanceDebug.textContent = "Balance: diagnostics off";
     } else if (!telemetry) {
@@ -2013,16 +2274,39 @@ function syncMissionHud(app: AppState, debugState: DebugUiState): void {
       preview.replaceChildren();
 
       if (!telemetry || telemetry.nextWavePreview.length === 0) {
-        const empty = createParagraph("No upcoming spawns.");
-        empty.style.opacity = "0.8";
+        const empty = document.createElement("p");
+        empty.className = "mission-preview-empty";
+        empty.textContent = telemetry?.activeWaveInProgress ? "Current assault in progress." : "No upcoming spawns.";
         preview.appendChild(empty);
-        return;
+      } else {
+        for (const item of telemetry.nextWavePreview) {
+          const row = document.createElement("div");
+          row.className = "mission-preview-row";
+          row.textContent = `${item.icon} ${item.enemyId} x${item.count}`;
+          preview.appendChild(row);
+        }
       }
+    }
+  }
 
-      for (const item of telemetry.nextWavePreview) {
-        const row = createParagraph(`${item.icon} ${item.enemyId} x${item.count}`);
-        row.style.margin = "2px 0";
-        preview.appendChild(row);
+  const eventFeed = document.getElementById("missionEventFeed");
+  if (eventFeed instanceof HTMLDivElement) {
+    const signature = app.missionEvents.map((entry) => `${entry.id}:${entry.tone}:${entry.message}`).join("|");
+    if (eventFeed.dataset.signature !== signature) {
+      eventFeed.dataset.signature = signature;
+      eventFeed.replaceChildren();
+      if (app.missionEvents.length === 0) {
+        const empty = document.createElement("p");
+        empty.className = "mission-event-empty";
+        empty.textContent = "No command events yet.";
+        eventFeed.appendChild(empty);
+      } else {
+        for (const entry of app.missionEvents) {
+          const row = document.createElement("div");
+          row.className = `mission-event-row mission-event-${entry.tone}`;
+          row.textContent = entry.message;
+          eventFeed.appendChild(row);
+        }
       }
     }
   }
@@ -2647,6 +2931,270 @@ function createParagraph(text: string): HTMLParagraphElement {
   return paragraph;
 }
 
+function createInfoPill(label: string, value: string): HTMLDivElement {
+  const pill = document.createElement("div");
+  pill.className = "campaign-info-pill";
+
+  const heading = document.createElement("span");
+  heading.className = "campaign-info-pill-label";
+  heading.textContent = label;
+
+  const amount = document.createElement("strong");
+  amount.className = "campaign-info-pill-value";
+  amount.textContent = value;
+
+  pill.append(heading, amount);
+  return pill;
+}
+
+function createCampaignScreenHeader(title: string, subtitle: string): HTMLElement {
+  const header = document.createElement("header");
+  header.className = "campaign-screen-header";
+
+  const overline = document.createElement("p");
+  overline.className = "campaign-overline";
+  overline.textContent = subtitle;
+
+  const heading = document.createElement("h2");
+  heading.className = "campaign-screen-title";
+  heading.textContent = title;
+
+  header.append(overline, heading);
+  return header;
+}
+
+function createCampaignProgressCard(input: {
+  title: string;
+  subtitle: string;
+  value: string;
+  label: string;
+  percent: number;
+}): HTMLElement {
+  const card = document.createElement("section");
+  card.className = "campaign-progress-card";
+
+  const top = document.createElement("div");
+  top.className = "campaign-progress-top";
+
+  const text = document.createElement("div");
+  const title = document.createElement("p");
+  title.className = "campaign-progress-title";
+  title.textContent = input.title;
+  const subtitle = document.createElement("p");
+  subtitle.className = "campaign-progress-subtitle";
+  subtitle.textContent = input.subtitle;
+  text.append(title, subtitle);
+
+  const valueWrap = document.createElement("div");
+  valueWrap.className = "campaign-progress-value";
+  valueWrap.textContent = input.value;
+  const label = document.createElement("span");
+  label.className = "campaign-progress-value-label";
+  label.textContent = input.label;
+  valueWrap.appendChild(label);
+
+  top.append(text, valueWrap);
+  card.appendChild(top);
+
+  const track = document.createElement("div");
+  track.className = "campaign-progress-track";
+  const fill = document.createElement("div");
+  fill.className = "campaign-progress-fill";
+  fill.style.width = `${Math.max(0, Math.min(100, input.percent))}%`;
+  track.appendChild(fill);
+  card.appendChild(track);
+  return card;
+}
+
+function getMetaTreeAccent(index: number): { primary: string; soft: string; halo: string } {
+  const palette = [
+    { primary: "#6ea8ff", soft: "rgba(110, 168, 255, 0.24)", halo: "rgba(110, 168, 255, 0.35)" },
+    { primary: "#34d399", soft: "rgba(52, 211, 153, 0.24)", halo: "rgba(52, 211, 153, 0.35)" },
+    { primary: "#f59e0b", soft: "rgba(245, 158, 11, 0.24)", halo: "rgba(245, 158, 11, 0.35)" },
+    { primary: "#c084fc", soft: "rgba(192, 132, 252, 0.24)", halo: "rgba(192, 132, 252, 0.35)" },
+  ] as const;
+  return palette[index % palette.length];
+}
+
+function formatMetaNodeLabel(nodeId: string): string {
+  return nodeId
+    .split("-")
+    .map((token) => token.charAt(0).toUpperCase() + token.slice(1))
+    .join(" ");
+}
+
+function createDefaultMissionHudSignals(): MissionHudSignals {
+  return {
+    waveIndex: 0,
+    waveActive: false,
+    nextWaveBucket: null,
+    objectiveMilestonePct: 0,
+    playerTowers: -1,
+    enemyTowers: -1,
+  };
+}
+
+function resetMissionHudUiState(app: AppState): void {
+  app.missionEvents = [];
+  app.missionEventSeq = 0;
+  app.missionHudSignals = createDefaultMissionHudSignals();
+}
+
+function pushMissionEvent(
+  app: AppState,
+  message: string,
+  tone: MissionEventEntry["tone"],
+): void {
+  app.missionEventSeq += 1;
+  app.missionEvents = [
+    {
+      id: app.missionEventSeq,
+      tone,
+      message,
+    },
+    ...app.missionEvents,
+  ].slice(0, 10);
+}
+
+function setMissionHudText(id: string, text: string): void {
+  const element = document.getElementById(id);
+  if (element instanceof HTMLElement) {
+    element.textContent = text;
+  }
+}
+
+function createMissionHudLabel(text: string): HTMLParagraphElement {
+  const label = document.createElement("p");
+  label.className = "mission-block-label";
+  label.textContent = text;
+  return label;
+}
+
+function createMissionHudStat(label: string, value: string, id: string): HTMLDivElement {
+  const tile = document.createElement("div");
+  tile.className = "mission-stat-tile";
+
+  const title = document.createElement("p");
+  title.className = "mission-stat-label";
+  title.textContent = label;
+
+  const body = document.createElement("p");
+  body.className = "mission-stat-value";
+  body.id = id;
+  body.textContent = value;
+
+  tile.append(title, body);
+  return tile;
+}
+
+function createMissionBonusChip(text: string, id: string): HTMLParagraphElement {
+  const chip = document.createElement("p");
+  chip.className = "mission-bonus-chip";
+  chip.id = id;
+  chip.textContent = text;
+  return chip;
+}
+
+function createMissionResultStat(label: string, value: string): HTMLDivElement {
+  const card = document.createElement("div");
+  card.className = "mission-result-stat";
+
+  const title = document.createElement("p");
+  title.className = "mission-result-stat-label";
+  title.textContent = label;
+
+  const body = document.createElement("p");
+  body.className = "mission-result-stat-value";
+  body.textContent = value;
+
+  card.append(title, body);
+  return card;
+}
+
+function updateMissionEventFeed(app: AppState, telemetry: MissionWaveTelemetry | null, world: World): void {
+  if (!telemetry) {
+    return;
+  }
+
+  const signals = app.missionHudSignals;
+  const currentWave = telemetry.currentWaveIndex;
+  const waveActive = telemetry.activeWaveInProgress;
+
+  if (signals.waveIndex === 0 && currentWave > 0) {
+    pushMissionEvent(app, `Wave ${currentWave} assault detected.`, "warning");
+  } else if (currentWave > signals.waveIndex) {
+    pushMissionEvent(app, `Wave ${currentWave} assault started.`, "warning");
+  } else if (signals.waveActive && !waveActive && currentWave > 0) {
+    pushMissionEvent(app, `Wave ${currentWave} cleared.`, "success");
+  }
+
+  const nextWaveBucket = getWaveCountdownBucket(telemetry.nextWaveStartsInSec);
+  if (nextWaveBucket !== null && nextWaveBucket !== signals.nextWaveBucket) {
+    const incomingWave = Math.min(telemetry.totalWaveCount, telemetry.currentWaveIndex + 1);
+    pushMissionEvent(app, `Incoming wave ${incomingWave} in ${Math.ceil(telemetry.nextWaveStartsInSec ?? 0)}s.`, "warning");
+  }
+
+  const completedWaves = telemetry.currentWaveIndex - (telemetry.activeWaveInProgress ? 1 : 0);
+  const progressPct = Math.max(0, Math.round((completedWaves / Math.max(1, telemetry.totalWaveCount)) * 100));
+  const milestone = progressPct >= 100 ? 100 : progressPct >= 75 ? 75 : progressPct >= 50 ? 50 : progressPct >= 25 ? 25 : 0;
+  if (milestone > signals.objectiveMilestonePct) {
+    pushMissionEvent(
+      app,
+      milestone >= 100
+        ? "Mission objective complete. All wave goals secured."
+        : `Objective progress: ${milestone}% complete.`,
+      "success",
+    );
+  }
+
+  let playerTowers = 0;
+  let enemyTowers = 0;
+  for (const tower of world.towers) {
+    if (tower.owner === "player") {
+      playerTowers += 1;
+    } else if (tower.owner === "enemy") {
+      enemyTowers += 1;
+    }
+  }
+  if (signals.playerTowers >= 0 && playerTowers !== signals.playerTowers) {
+    const delta = playerTowers - signals.playerTowers;
+    pushMissionEvent(
+      app,
+      delta > 0 ? `Territory gained: +${delta} tower${delta > 1 ? "s" : ""}.` : `Territory lost: ${Math.abs(delta)} tower.`,
+      delta > 0 ? "success" : "warning",
+    );
+  }
+  if (signals.enemyTowers > 0 && enemyTowers === 0) {
+    pushMissionEvent(app, "Enemy tower network collapsed.", "success");
+  }
+
+  signals.waveIndex = currentWave;
+  signals.waveActive = waveActive;
+  signals.nextWaveBucket = nextWaveBucket;
+  signals.objectiveMilestonePct = Math.max(signals.objectiveMilestonePct, milestone);
+  signals.playerTowers = playerTowers;
+  signals.enemyTowers = enemyTowers;
+}
+
+function getWaveCountdownBucket(nextWaveStartsInSec: number | null): number | null {
+  if (nextWaveStartsInSec === null) {
+    return null;
+  }
+  if (nextWaveStartsInSec <= 1.5) {
+    return 1;
+  }
+  if (nextWaveStartsInSec <= 3.5) {
+    return 3;
+  }
+  if (nextWaveStartsInSec <= 5.5) {
+    return 5;
+  }
+  if (nextWaveStartsInSec <= 10.5) {
+    return 10;
+  }
+  return null;
+}
+
 function showToast(screenRoot: HTMLDivElement, message: string): void {
   const toast = document.createElement("div");
   toast.textContent = message;
@@ -2671,6 +3219,13 @@ function showToast(screenRoot: HTMLDivElement, message: string): void {
 function wrapCentered(node: HTMLElement): HTMLDivElement {
   const wrapper = document.createElement("div");
   wrapper.className = "centered";
+  wrapper.appendChild(node);
+  return wrapper;
+}
+
+function wrapCenteredModal(node: HTMLElement): HTMLDivElement {
+  const wrapper = document.createElement("div");
+  wrapper.className = "centered centered-modal";
   wrapper.appendChild(node);
   return wrapper;
 }
