@@ -1167,14 +1167,197 @@
       .mission-hud {
         position: absolute;
         right: 12px;
-        bottom: 12px;
-        max-width: min(420px, calc(100vw - 20px));
+        top: 12px;
+        width: min(470px, calc(100vw - 24px));
+        max-height: calc(100vh - 24px);
+        overflow-y: auto;
       }
+
+      .mission-command-shell {
+        display: grid;
+        gap: 10px;
+        padding: 12px;
+        background:
+          radial-gradient(340px 180px at 18% -16%, rgba(43, 108, 238, 0.24), transparent),
+          linear-gradient(165deg, rgba(10, 18, 30, 0.94), rgba(7, 13, 24, 0.95));
+        border-color: rgba(133, 176, 255, 0.28);
+        box-shadow: 0 20px 38px rgba(0, 0, 0, 0.48);
+      }
+
+      .mission-command-header {
+        display: grid;
+        gap: 4px;
+        border: 1px solid rgba(140, 182, 255, 0.2);
+        border-radius: 12px;
+        padding: 10px;
+        background: rgba(11, 21, 36, 0.76);
+      }
+
+      .mission-command-overline {
+        margin: 0;
+        font-size: 0.66rem;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: rgba(196, 213, 241, 0.8);
+      }
+
+      .mission-command-title {
+        margin: 0;
+        font-size: 1rem;
+      }
+
+      .mission-command-objective {
+        margin: 0;
+        font-size: 0.78rem;
+        line-height: 1.32;
+        color: rgba(206, 221, 247, 0.84);
+      }
+
+      .mission-stats-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+      }
+
+      .mission-stat-tile {
+        border-radius: 10px;
+        border: 1px solid rgba(142, 180, 246, 0.2);
+        background: rgba(11, 21, 35, 0.72);
+        padding: 8px 9px;
+        display: grid;
+        gap: 3px;
+      }
+
+      .mission-stat-label {
+        margin: 0;
+        font-size: 0.63rem;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: rgba(198, 216, 244, 0.75);
+      }
+
+      .mission-stat-value {
+        margin: 0;
+        font-size: 0.79rem;
+        color: rgba(237, 244, 255, 0.95);
+      }
+
+      .mission-focus-card,
+      .mission-feed-card,
+      .mission-skill-card {
+        border-radius: 11px;
+        border: 1px solid rgba(142, 180, 246, 0.2);
+        background: rgba(10, 21, 35, 0.75);
+        padding: 9px;
+        display: grid;
+        gap: 7px;
+      }
+
+      .mission-block-label {
+        margin: 0;
+        font-size: 0.65rem;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: rgba(193, 212, 241, 0.76);
+      }
+
+      .mission-focus-main,
+      .mission-focus-sub {
+        margin: 0;
+        font-size: 0.79rem;
+      }
+
+      .mission-focus-sub {
+        color: rgba(204, 221, 247, 0.84);
+      }
+
+      .mission-bonus-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+
+      .mission-bonus-chip {
+        margin: 0;
+        border-radius: 999px;
+        border: 1px solid rgba(141, 179, 245, 0.28);
+        background: rgba(41, 71, 122, 0.34);
+        padding: 3px 8px;
+        font-size: 0.68rem;
+        color: rgba(213, 228, 252, 0.88);
+      }
+
+      .mission-feed-grid {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 8px;
+      }
+
+      .mission-event-feed,
+      .mission-wave-preview-list {
+        display: grid;
+        gap: 6px;
+      }
+
+      .mission-event-row,
+      .mission-preview-row {
+        border-radius: 8px;
+        border: 1px solid rgba(140, 179, 246, 0.2);
+        background: rgba(13, 24, 41, 0.72);
+        padding: 6px 8px;
+        font-size: 0.74rem;
+        line-height: 1.3;
+      }
+
+      .mission-event-warning {
+        border-color: rgba(245, 158, 11, 0.4);
+        background: rgba(66, 44, 13, 0.5);
+      }
+
+      .mission-event-success {
+        border-color: rgba(74, 222, 128, 0.35);
+        background: rgba(17, 50, 34, 0.5);
+      }
+
+      .mission-event-empty,
+      .mission-preview-empty {
+        margin: 0;
+        font-size: 0.72rem;
+        opacity: 0.78;
+      }
+
+      .mission-skill-target-label {
+        margin: 0;
+        font-size: 0.72rem;
+        opacity: 0.86;
+      }
+
+      .mission-skill-list .mission-skill-row {
+        border-radius: 9px;
+        border: 1px solid rgba(139, 178, 243, 0.2);
+        background: rgba(14, 25, 41, 0.72);
+        padding: 7px 8px;
+      }
+
+      .mission-balance-debug {
+        margin: 0;
+        font-size: 0.69rem;
+        color: rgba(191, 210, 240, 0.86);
+      }
+
+      .mission-overlay-panel {
+        width: min(92vw, 640px);
+      }
+
       .pause-panel {
-        width: min(88vw, 520px);
+        width: min(90vw, 620px);
       }
+
       .top-pause-btn {
-        min-width: 96px;
+        min-width: 108px;
+        border-radius: 999px;
+        border-color: rgba(155, 190, 252, 0.28);
+        background: rgba(20, 34, 56, 0.78);
       }
 
       .world-tooltip-overlay {
@@ -1268,8 +1451,9 @@
 
         .mission-hud {
           right: 8px;
-          bottom: 8px;
-          max-width: min(96vw, 420px);
+          top: 8px;
+          width: min(96vw, 460px);
+          max-height: calc(100vh - 16px);
         }
       }
     </style>

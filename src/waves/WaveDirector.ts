@@ -59,6 +59,8 @@ export interface MissionWaveTelemetry {
   difficultyTier: DifficultyTierId;
   currentWaveIndex: number;
   totalWaveCount: number;
+  activeWaveInProgress: boolean;
+  nextWaveStartsInSec: number | null;
   activeModifierNames: string[];
   nextWavePreview: WavePreviewItem[];
   missionGold: number;
@@ -268,11 +270,20 @@ export class WaveDirector {
     const bossHp01 = activeBoss ? clamp(activeBoss.count / Math.max(1, activeBoss.baseCount), 0, 1) : 0;
     const playerMetrics = this.getPlayerMetrics();
     const timeToZeroTowersEstimateSec = this.estimateTimeToZeroTowersSec();
+    const activeWaveInProgress = this.runtimeWave !== null;
+    const nextWaveStartsInSec =
+      this.currentWaveIndex >= this.totalWaveCount
+        ? null
+        : activeWaveInProgress
+          ? null
+          : Math.max(0, this.cooldownUntilNextWaveSec);
 
     return {
       difficultyTier: this.options.difficultyTier,
       currentWaveIndex: this.currentWaveIndex,
       totalWaveCount: this.totalWaveCount,
+      activeWaveInProgress,
+      nextWaveStartsInSec,
       activeModifierNames,
       nextWavePreview,
       missionGold: Math.max(0, Math.round(this.missionGold)),
