@@ -20,6 +20,9 @@ export interface TopBarVM {
   totalRegenPerSec: number;
   paused: boolean;
   speedMul: 1 | 2;
+  overlayRegenEnabled: boolean;
+  overlayCaptureEnabled: boolean;
+  overlayClusterEnabled: boolean;
 }
 
 export interface WaveIntelVM {

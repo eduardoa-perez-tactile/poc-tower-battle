@@ -2204,35 +2204,39 @@
         top: 10px;
         left: 10px;
         right: 10px;
-        min-height: 54px;
-        padding: 8px 10px;
-        display: grid;
-        grid-template-columns: minmax(220px, 1fr) minmax(240px, auto) auto;
-        gap: 12px;
+        min-height: 0;
+        display: flex;
+        gap: 8px;
         align-items: center;
-        pointer-events: auto;
-        background: rgba(10, 18, 32, 0.9);
-        border: 1px solid rgba(148, 188, 250, 0.14);
-        border-radius: 12px;
+        justify-content: space-between;
+        pointer-events: none;
       }
 
       .hud-top-cluster {
         display: flex;
         align-items: center;
-        gap: 10px;
+        gap: 8px;
         min-width: 0;
+        pointer-events: auto;
+        background: rgba(10, 18, 32, 0.88);
+        border: 1px solid rgba(148, 188, 250, 0.16);
+        border-radius: 10px;
+        padding: 7px 9px;
       }
 
       .hud-top-left {
         justify-content: flex-start;
+        flex: 0 1 48%;
       }
 
       .hud-top-center {
         justify-content: center;
+        flex: 0 0 auto;
       }
 
       .hud-top-right {
         justify-content: flex-end;
+        flex: 0 0 auto;
       }
 
       .hud-top-mission-title {
@@ -2296,7 +2300,7 @@
         display: grid;
         gap: 2px;
         text-align: center;
-        min-width: 64px;
+        min-width: 58px;
       }
 
       .hud-top-metric-label {
@@ -2330,6 +2334,29 @@
       }
 
       .hud-speed-btn.active {
+        border-color: rgba(45, 212, 191, 0.48);
+        background: rgba(18, 82, 74, 0.82);
+      }
+
+      .hud-overlay-mini-group {
+        display: inline-flex;
+        gap: 4px;
+      }
+
+      .hud-overlay-mini-btn {
+        border: 1px solid rgba(143, 184, 247, 0.24);
+        border-radius: 8px;
+        background: rgba(17, 30, 49, 0.82);
+        color: var(--text);
+        font-size: 0.62rem;
+        font-weight: 700;
+        width: 26px;
+        height: 24px;
+        padding: 0;
+        cursor: pointer;
+      }
+
+      .hud-overlay-mini-btn.active {
         border-color: rgba(45, 212, 191, 0.48);
         background: rgba(18, 82, 74, 0.82);
       }
@@ -2845,14 +2872,13 @@
         }
 
         .hud-top-bar {
-          grid-template-columns: minmax(0, 1fr) auto auto;
+          justify-content: space-between;
           align-items: center;
           gap: 8px;
           top: 8px;
           left: 8px;
           right: 8px;
-          min-height: 44px;
-          padding: 8px;
+          min-height: 0;
         }
 
         .hud-top-left {
@@ -2860,16 +2886,21 @@
           gap: 6px;
           min-width: 0;
           overflow: hidden;
+          flex: 1 1 auto;
         }
 
         .hud-top-center {
           justify-content: center;
           gap: 6px;
+          flex: 0 0 auto;
         }
 
         .hud-top-right {
           justify-content: flex-end;
           gap: 6px;
+          flex: 0 0 auto;
+          max-width: 50%;
+          overflow: hidden;
         }
 
         .hud-top-mission-title {
@@ -2897,9 +2928,17 @@
         }
 
         .hud-action-btn,
+        .hud-overlay-mini-btn,
         .hud-speed-btn {
           padding: 4px 7px;
           font-size: 0.64rem;
+        }
+
+        .hud-overlay-mini-btn {
+          width: 24px;
+          height: 22px;
+          padding: 0;
+          font-size: 0.58rem;
         }
 
         .hud-wave-intel {

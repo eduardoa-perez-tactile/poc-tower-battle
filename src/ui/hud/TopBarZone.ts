@@ -9,6 +9,9 @@ export interface TopBarZoneController {
 export interface TopBarZoneOptions {
   onTogglePause: () => void;
   onSetSpeed: (speed: 1 | 2) => void;
+  onToggleOverlayRegen: () => void;
+  onToggleOverlayCapture: () => void;
+  onToggleOverlayCluster: () => void;
 }
 
 export function createTopBarZone(options: TopBarZoneOptions): TopBarZoneController {
@@ -56,7 +59,14 @@ export function createTopBarZone(options: TopBarZoneOptions): TopBarZoneControll
   const speed2x = createSpeedButton("2x", 2, options.onSetSpeed);
   speedGroup.append(speed1x, speed2x);
 
-  right.append(pause, speedGroup);
+  const overlayGroup = document.createElement("div");
+  overlayGroup.className = "hud-overlay-mini-group";
+  const regenToggle = createOverlayToggle("R", "Toggle regen labels", options.onToggleOverlayRegen);
+  const captureToggle = createOverlayToggle("C", "Toggle capture rings", options.onToggleOverlayCapture);
+  const clusterToggle = createOverlayToggle("L", "Toggle cluster glow", options.onToggleOverlayCluster);
+  overlayGroup.append(regenToggle, captureToggle, clusterToggle);
+
+  right.append(overlayGroup, pause, speedGroup);
 
   root.append(left, center, right);
 
@@ -86,6 +96,9 @@ export function createTopBarZone(options: TopBarZoneOptions): TopBarZoneControll
 
       speed1x.classList.toggle("active", vm.speedMul === 1);
       speed2x.classList.toggle("active", vm.speedMul === 2);
+      regenToggle.classList.toggle("active", vm.overlayRegenEnabled);
+      captureToggle.classList.toggle("active", vm.overlayCaptureEnabled);
+      clusterToggle.classList.toggle("active", vm.overlayClusterEnabled);
     },
     reset(): void {
       missionTitle.textContent = "Mission";
@@ -99,6 +112,9 @@ export function createTopBarZone(options: TopBarZoneOptions): TopBarZoneControll
       pause.textContent = "Pause";
       speed1x.classList.add("active");
       speed2x.classList.remove("active");
+      regenToggle.classList.remove("active");
+      captureToggle.classList.remove("active");
+      clusterToggle.classList.remove("active");
     },
   };
 }
@@ -133,6 +149,22 @@ function createSpeedButton(
   button.textContent = label;
   button.onclick = () => {
     onSetSpeed(speed);
+  };
+  return button;
+}
+
+function createOverlayToggle(
+  label: string,
+  title: string,
+  onClick: () => void,
+): HTMLButtonElement {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "hud-overlay-mini-btn";
+  button.textContent = label;
+  button.title = title;
+  button.onclick = () => {
+    onClick();
   };
   return button;
 }

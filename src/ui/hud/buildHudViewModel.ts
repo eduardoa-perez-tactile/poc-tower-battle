@@ -10,6 +10,9 @@ export interface BuildHudViewModelInput {
   selectedTowerId: string | null;
   missionPaused: boolean;
   missionSpeedMul: 1 | 2;
+  overlayRegenEnabled: boolean;
+  overlayCaptureEnabled: boolean;
+  overlayClusterEnabled: boolean;
 }
 
 interface TowerPacketTraffic {
@@ -102,6 +105,9 @@ export function buildHudViewModel(input: BuildHudViewModelInput): HudVM {
       totalRegenPerSec,
       paused: input.missionPaused,
       speedMul: input.missionSpeedMul,
+      overlayRegenEnabled: input.overlayRegenEnabled,
+      overlayCaptureEnabled: input.overlayCaptureEnabled,
+      overlayClusterEnabled: input.overlayClusterEnabled,
     },
     waveIntel: {
       collapsedLabel: `Wave ${waveLabel} | ${stateLabel}`,

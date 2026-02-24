@@ -11,6 +11,9 @@ export interface GameplayHUDOptions {
   canvas: HTMLCanvasElement;
   onTogglePause: () => void;
   onSetSpeed: (speed: 1 | 2) => void;
+  onToggleOverlayRegen: () => void;
+  onToggleOverlayCapture: () => void;
+  onToggleOverlayCluster: () => void;
 }
 
 export class GameplayHUD {
@@ -33,6 +36,9 @@ export class GameplayHUD {
     this.topBar = createTopBarZone({
       onTogglePause: options.onTogglePause,
       onSetSpeed: options.onSetSpeed,
+      onToggleOverlayRegen: options.onToggleOverlayRegen,
+      onToggleOverlayCapture: options.onToggleOverlayCapture,
+      onToggleOverlayCluster: options.onToggleOverlayCluster,
     });
     this.waveIntel = createWaveIntelPanel();
     this.objectiveCard = createObjectiveCard();

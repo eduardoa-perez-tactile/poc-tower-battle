@@ -262,6 +262,15 @@ async function bootstrap(): Promise<void> {
       app.missionSpeedMul = speed;
       render();
     },
+    onToggleOverlayRegen: () => {
+      debugUiStore.toggle("showOverlayRegenNumbers");
+    },
+    onToggleOverlayCapture: () => {
+      debugUiStore.toggle("showOverlayCaptureRings");
+    },
+    onToggleOverlayCluster: () => {
+      debugUiStore.toggle("showOverlayClusterHighlight");
+    },
   });
 
   const enemyArchetypesById = new Map(
@@ -2189,6 +2198,9 @@ function syncMissionHud(app: AppState, debugState: DebugUiState, gameplayHud: Ga
     selectedTowerId: app.inputController?.getSelectedTowerId() ?? null,
     missionPaused: app.missionPaused,
     missionSpeedMul: app.missionSpeedMul,
+    overlayRegenEnabled: debugState.showOverlayRegenNumbers,
+    overlayCaptureEnabled: debugState.showOverlayCaptureRings,
+    overlayClusterEnabled: debugState.showOverlayClusterHighlight,
   });
   gameplayHud.update(vm);
 }
