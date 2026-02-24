@@ -6,7 +6,7 @@
 - Fixed-step simulation runs in `requestAnimationFrame` loop.
 
 ## Primary modules
-- `src/main.ts`: app bootstrap, menu/meta/run screens, mission orchestration, docs-aligned data loading, HUD sync (including selected tower cluster bonus panel).
+- `src/main.ts`: app bootstrap, menu/meta/run screens, mission orchestration, docs-aligned data loading, mission HUD sync, and splash/title rendering.
 - `src/game/Game.ts`: fixed-step loop, AI decisions, skill dispatch, win/lose evaluation, renderer handoff.
 - `src/game/SkillManager.ts`: fixed-tick skill cooldowns, activation, temporary modifier state.
 - `src/game/LevelLoader.ts`: level JSON parsing and validation.
@@ -15,6 +15,7 @@
 - `src/sim/TerritoryControl.ts`: connected-cluster graph computation and territory bonus application/reset.
 - `src/input/InputController.ts`: player drag-to-link interactions plus tower selection tracking.
 - `src/render/Renderer2D.ts`: links/towers/packets rendering plus telegraphs, boss bar, and territory cluster visual cues.
+- `src/ui/hud/*`: modular HUD zones (`TopBarZone`, `WaveIntelPanel`, `ObjectiveCard`, `TowerInspectorPanel`) and view-model assembly (`buildHudViewModel.ts`).
 
 ## Meta progression modules (M8)
 - `src/meta/MetaProgression.ts`:

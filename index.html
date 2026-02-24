@@ -38,15 +38,6 @@
           radial-gradient(900px 560px at 100% 0%, rgba(56, 189, 248, 0.15), transparent),
           linear-gradient(145deg, var(--bg-0), var(--bg-1) 40%, var(--bg-2) 100%);
       }
-      #ui {
-        position: fixed;
-        top: 14px;
-        left: 14px;
-        z-index: 20;
-      }
-      #pauseBtn {
-        display: none;
-      }
       #screenRoot {
         position: fixed;
         inset: 0;
@@ -85,7 +76,7 @@
         height: 100%;
         min-height: 100vh;
         display: grid;
-        grid-template-rows: auto 1fr auto;
+        grid-template-rows: 1fr auto;
         align-items: center;
         justify-items: center;
         padding: clamp(16px, 2.2vh, 24px) clamp(16px, 2.8vw, 32px) clamp(20px, 3.2vh, 34px);
@@ -121,107 +112,6 @@
         background: radial-gradient(closest-side, rgba(43, 108, 238, 0.18), transparent);
         filter: blur(34px);
         z-index: 0;
-      }
-
-      .splash-status {
-        width: min(980px, 100%);
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        z-index: 1;
-      }
-
-      .splash-status-time {
-        font-size: 0.75rem;
-        font-weight: 700;
-        letter-spacing: 0.04em;
-        color: rgba(234, 243, 255, 0.86);
-      }
-
-      .splash-status-icons {
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
-        color: rgba(208, 226, 254, 0.74);
-      }
-
-      .splash-status-icon {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-      }
-
-      .splash-status-bars {
-        gap: 2px;
-      }
-
-      .splash-status-bars i {
-        display: block;
-        width: 2px;
-        border-radius: 999px;
-        background: currentColor;
-      }
-
-      .splash-status-bars i:nth-child(1) {
-        height: 5px;
-        opacity: 0.6;
-      }
-
-      .splash-status-bars i:nth-child(2) {
-        height: 7px;
-        opacity: 0.78;
-      }
-
-      .splash-status-bars i:nth-child(3) {
-        height: 9px;
-      }
-
-      .splash-status-dot {
-        width: 9px;
-        height: 9px;
-        border-radius: 999px;
-        border: 1px solid currentColor;
-        position: relative;
-      }
-
-      .splash-status-dot::after {
-        content: "";
-        position: absolute;
-        left: 50%;
-        top: 50%;
-        transform: translate(-50%, -50%);
-        display: block;
-        width: 4px;
-        height: 4px;
-        border-radius: 999px;
-        background: currentColor;
-      }
-
-      .splash-status-battery {
-        width: 14px;
-        height: 8px;
-        border: 1px solid currentColor;
-        border-radius: 2px;
-        position: relative;
-      }
-
-      .splash-status-battery::before {
-        content: "";
-        position: absolute;
-        inset: 1px 3px 1px 1px;
-        border-radius: 1px;
-        background: currentColor;
-      }
-
-      .splash-status-battery::after {
-        content: "";
-        position: absolute;
-        right: -3px;
-        top: 2px;
-        width: 2px;
-        height: 4px;
-        border-radius: 0 1px 1px 0;
-        background: currentColor;
       }
 
       .splash-hero {
@@ -349,63 +239,26 @@
         z-index: 1;
       }
 
-      .splash-loading {
-        width: 100%;
-        display: grid;
-        gap: 8px;
-        padding: 10px 12px;
-        border-radius: 11px;
-        border: 1px solid rgba(147, 182, 246, 0.2);
-        background: rgba(11, 22, 40, 0.66);
-      }
-
-      .splash-loading-top {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        font-size: 0.72rem;
-        letter-spacing: 0.12em;
-        text-transform: uppercase;
-        color: rgba(171, 196, 238, 0.82);
-      }
-
-      .splash-loading-top span:last-child {
-        color: rgba(230, 241, 255, 0.74);
-        letter-spacing: 0.08em;
-      }
-
-      .splash-loading-track {
-        width: 100%;
-        height: 6px;
-        border-radius: 999px;
-        background: rgba(12, 25, 43, 0.95);
-        border: 1px solid rgba(148, 186, 255, 0.24);
-        overflow: hidden;
-      }
-
-      .splash-loading-fill {
-        height: 100%;
-        border-radius: inherit;
-        background: linear-gradient(90deg, #2b6cee, #52a0ff);
-        box-shadow: 0 0 10px rgba(43, 108, 238, 0.52);
-      }
-
       .splash-cta {
         display: grid;
-        gap: 4px;
+        gap: 8px;
         justify-items: center;
       }
 
       .splash-cta-text {
         margin: 0;
-        font-size: 0.8rem;
-        color: rgba(191, 211, 244, 0.78);
+        font-size: clamp(1.2rem, 2.8vw, 1.85rem);
+        font-weight: 700;
+        letter-spacing: 0.03em;
+        text-transform: uppercase;
+        color: rgba(219, 233, 255, 0.92);
+        text-shadow: 0 0 22px rgba(82, 160, 255, 0.36);
         animation: splashPulse 1.6s ease-in-out infinite;
       }
 
       .splash-cta-dot {
-        width: 5px;
-        height: 5px;
+        width: 8px;
+        height: 8px;
         border-radius: 999px;
         background: var(--campaign-accent);
       }
@@ -1466,6 +1319,7 @@
       }
 
       #debugIndicator {
+        display: none;
         position: fixed;
         top: 14px;
         right: 14px;
@@ -1510,7 +1364,7 @@
 
       .debug-shell {
         height: calc(100% - 24px);
-        overflow: hidden;
+        overflow-y: auto;
       }
 
       .debug-toggle-row {
@@ -1719,19 +1573,6 @@
         margin: 0;
         font-size: 0.69rem;
         color: rgba(191, 210, 240, 0.86);
-      }
-
-      .gameplay-hud {
-        display: grid;
-        gap: 10px;
-        width: min(440px, calc(100vw - 24px));
-        max-height: calc(100vh - 24px);
-        overflow: hidden;
-        padding: 12px;
-        background:
-          radial-gradient(360px 180px at 14% -14%, rgba(41, 121, 255, 0.26), transparent),
-          linear-gradient(168deg, rgba(8, 16, 28, 0.93), rgba(6, 12, 22, 0.96));
-        border-color: rgba(137, 184, 255, 0.34);
       }
 
       .hud-mission-header {
@@ -2194,6 +2035,382 @@
         color: rgba(208, 225, 251, 0.84);
       }
 
+      .gameplay-hud {
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+      }
+
+      .hud-glass-card {
+        background: rgba(10, 18, 32, 0.88);
+        border: 1px solid rgba(148, 188, 250, 0.16);
+        border-radius: 12px;
+        box-shadow: 0 10px 22px rgba(0, 0, 0, 0.34);
+      }
+
+      .hud-top-bar {
+        position: fixed;
+        top: 10px;
+        left: 10px;
+        right: 10px;
+        min-height: 0;
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        justify-content: space-between;
+        pointer-events: none;
+      }
+
+      .hud-top-cluster {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        min-width: 0;
+        pointer-events: auto;
+        background: rgba(10, 18, 32, 0.88);
+        border: 1px solid rgba(148, 188, 250, 0.16);
+        border-radius: 10px;
+        padding: 7px 9px;
+      }
+
+      .hud-top-left {
+        justify-content: flex-start;
+        flex: 0 0 auto;
+        max-width: min(56vw, 640px);
+      }
+
+      .hud-top-center {
+        justify-content: center;
+        flex: 0 0 auto;
+      }
+
+      .hud-top-right {
+        justify-content: flex-end;
+        flex: 0 0 auto;
+      }
+
+      .hud-top-mission-title {
+        margin: 0;
+        font-size: 0.7rem;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: rgba(206, 222, 247, 0.82);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 24ch;
+      }
+
+      .hud-top-wave {
+        margin: 0;
+        font-size: 0.78rem;
+        font-weight: 600;
+      }
+
+      .hud-state-badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 999px;
+        border: 1px solid rgba(143, 184, 247, 0.28);
+        padding: 2px 8px;
+        font-size: 0.64rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: rgba(207, 226, 251, 0.9);
+        background: rgba(23, 37, 60, 0.86);
+      }
+
+      .hud-state-badge.live {
+        border-color: rgba(248, 113, 113, 0.42);
+        background: rgba(83, 31, 42, 0.8);
+      }
+
+      .hud-state-badge.prep {
+        border-color: rgba(56, 189, 248, 0.44);
+        background: rgba(20, 51, 82, 0.8);
+      }
+
+      .hud-state-badge.complete {
+        border-color: rgba(74, 222, 128, 0.42);
+        background: rgba(20, 64, 47, 0.8);
+      }
+
+      .hud-top-countdown {
+        margin: 0;
+        font-size: 0.76rem;
+        color: rgba(189, 247, 236, 0.94);
+      }
+
+      .hidden {
+        display: none !important;
+      }
+
+      .hud-top-metric {
+        display: grid;
+        gap: 2px;
+        text-align: center;
+        min-width: 58px;
+      }
+
+      .hud-top-metric-label {
+        margin: 0;
+        font-size: 0.6rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: rgba(196, 214, 240, 0.78);
+      }
+
+      .hud-top-metric-value {
+        margin: 0;
+        font-size: 0.78rem;
+        font-weight: 600;
+      }
+
+      .hud-action-btn,
+      .hud-speed-btn {
+        border: 1px solid rgba(143, 184, 247, 0.24);
+        border-radius: 8px;
+        background: rgba(17, 30, 49, 0.82);
+        color: var(--text);
+        font-size: 0.69rem;
+        padding: 5px 9px;
+        cursor: pointer;
+      }
+
+      .hud-speed-group {
+        display: inline-flex;
+        gap: 6px;
+      }
+
+      .hud-speed-btn.active {
+        border-color: rgba(45, 212, 191, 0.48);
+        background: rgba(18, 82, 74, 0.82);
+      }
+
+      .hud-overlay-mini-group {
+        display: inline-flex;
+        gap: 4px;
+      }
+
+      .hud-overlay-mini-btn {
+        border: 1px solid rgba(143, 184, 247, 0.24);
+        border-radius: 8px;
+        background: rgba(17, 30, 49, 0.82);
+        color: var(--text);
+        font-size: 0.62rem;
+        font-weight: 700;
+        width: 26px;
+        height: 24px;
+        padding: 0;
+        cursor: pointer;
+      }
+
+      .hud-overlay-mini-btn.active {
+        border-color: rgba(45, 212, 191, 0.48);
+        background: rgba(18, 82, 74, 0.82);
+      }
+
+      .hud-wave-intel {
+        position: fixed;
+        top: 76px;
+        right: 10px;
+        display: flex;
+        align-items: stretch;
+        pointer-events: auto;
+      }
+
+      .hud-wave-tab {
+        writing-mode: vertical-rl;
+        text-orientation: mixed;
+        border-radius: 10px 0 0 10px;
+        border: 1px solid rgba(143, 184, 247, 0.2);
+        border-right: none;
+        background: rgba(10, 18, 32, 0.9);
+        color: var(--text);
+        font-size: 0.64rem;
+        letter-spacing: 0.05em;
+        padding: 8px 6px;
+        min-height: 130px;
+        cursor: pointer;
+      }
+
+      .hud-wave-panel {
+        width: min(290px, 58vw);
+        padding: 10px;
+        display: grid;
+        gap: 12px;
+        background: rgba(10, 18, 32, 0.88);
+        border: 1px solid rgba(148, 188, 250, 0.16);
+        border-radius: 0 12px 12px 12px;
+      }
+
+      .hud-wave-intel.is-collapsed .hud-wave-panel {
+        display: none;
+      }
+
+      .hud-wave-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+      }
+
+      .hud-wave-title {
+        margin: 0;
+        font-size: 0.8rem;
+        font-weight: 600;
+      }
+
+      .hud-wave-section {
+        display: grid;
+        gap: 7px;
+      }
+
+      .hud-wave-section-title {
+        margin: 0;
+        font-size: 0.64rem;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: rgba(196, 214, 240, 0.78);
+      }
+
+      .hud-enemy-composition {
+        display: grid;
+        grid-template-columns: repeat(5, minmax(0, 1fr));
+        gap: 6px;
+      }
+
+      .hud-enemy-item {
+        border-radius: 9px;
+        border: 1px solid rgba(143, 184, 247, 0.18);
+        background: rgba(17, 30, 49, 0.78);
+        padding: 6px 5px;
+        display: grid;
+        place-items: center;
+        gap: 2px;
+      }
+
+      .hud-enemy-icon {
+        font-size: 0.86rem;
+        line-height: 1;
+      }
+
+      .hud-enemy-count {
+        font-size: 0.67rem;
+        color: rgba(208, 225, 251, 0.88);
+      }
+
+      .hud-modifier-list {
+        display: grid;
+        gap: 5px;
+      }
+
+      .hud-modifier-item {
+        margin: 0;
+        font-size: 0.72rem;
+        line-height: 1.32;
+      }
+
+      .hud-boss-preview {
+        margin: 0;
+        font-size: 0.73rem;
+        color: rgba(205, 223, 252, 0.9);
+      }
+
+      .hud-objective-card {
+        position: fixed;
+        left: 10px;
+        bottom: 10px;
+        width: min(310px, calc(100vw - 20px));
+        padding: 11px;
+        display: grid;
+        gap: 10px;
+        pointer-events: auto;
+        background: rgba(10, 18, 32, 0.88);
+        border: 1px solid rgba(148, 188, 250, 0.16);
+        border-radius: 12px;
+      }
+
+      .hud-card-title {
+        margin: 0;
+        font-size: 0.77rem;
+        font-weight: 600;
+        line-height: 1.32;
+      }
+
+      .hud-progress-track {
+        height: 8px;
+        border-radius: 999px;
+        border: 1px solid rgba(140, 179, 245, 0.24);
+        background: rgba(8, 17, 30, 0.9);
+        overflow: hidden;
+      }
+
+      .hud-progress-fill {
+        height: 100%;
+        width: 0%;
+        border-radius: 999px;
+        background: linear-gradient(90deg, rgba(14, 165, 233, 0.95), rgba(45, 212, 191, 0.95));
+      }
+
+      .hud-objective-meta {
+        margin: 0;
+        font-size: 0.72rem;
+        color: rgba(200, 217, 243, 0.86);
+      }
+
+      .hud-objective-meta.active {
+        color: rgba(167, 243, 208, 0.94);
+      }
+
+      .hud-objective-meta.inactive {
+        color: rgba(224, 210, 204, 0.84);
+      }
+
+      .hud-tower-inspector {
+        position: fixed;
+        right: 10px;
+        bottom: 10px;
+        width: min(320px, calc(100vw - 20px));
+        padding: 11px;
+        display: grid;
+        gap: 10px;
+        pointer-events: auto;
+        background: rgba(10, 18, 32, 0.88);
+        border: 1px solid rgba(148, 188, 250, 0.16);
+        border-radius: 12px;
+      }
+
+      .hud-inspector-rows {
+        display: grid;
+        gap: 7px;
+      }
+
+      .hud-inspector-row {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 10px;
+        align-items: center;
+      }
+
+      .hud-inspector-label {
+        font-size: 0.68rem;
+        color: rgba(196, 214, 240, 0.82);
+      }
+
+      .hud-inspector-value {
+        font-size: 0.72rem;
+        color: rgba(231, 240, 253, 0.95);
+        text-align: right;
+      }
+
+      .hud-row-empty {
+        margin: 0;
+        font-size: 0.7rem;
+        color: rgba(197, 214, 242, 0.75);
+      }
+
       .mission-overlay-panel {
         width: min(92vw, 640px);
       }
@@ -2484,16 +2701,9 @@
           padding-top: 12px;
         }
 
-        .mission-hud {
-          right: 8px;
-          top: 8px;
-          width: min(96vw, 460px);
-          max-height: calc(100vh - 16px);
-        }
-
         .splash-shell {
           padding: 14px 16px 20px;
-          grid-template-rows: auto 1fr auto;
+          grid-template-rows: 1fr auto;
         }
 
         .splash-hero {
@@ -2511,18 +2721,118 @@
           font-size: 0.82rem;
         }
 
-        .gameplay-hud {
-          width: min(96vw, 460px);
-          max-height: calc(100vh - 16px);
+        .hud-top-bar {
+          justify-content: space-between;
+          align-items: center;
           gap: 8px;
+          top: 8px;
+          left: 8px;
+          right: 8px;
+          min-height: 0;
         }
 
-        .hud-overlay-strip {
-          grid-template-columns: repeat(2, minmax(0, 1fr));
+        .hud-top-left {
+          justify-content: flex-start;
+          gap: 6px;
+          min-width: 0;
+          overflow: hidden;
+          flex: 1 1 auto;
         }
 
-        .hud-context-zone {
-          min-height: 130px;
+        .hud-top-center {
+          justify-content: center;
+          gap: 6px;
+          flex: 0 0 auto;
+        }
+
+        .hud-top-right {
+          justify-content: flex-end;
+          gap: 6px;
+          flex: 0 0 auto;
+          max-width: 50%;
+          overflow: hidden;
+        }
+
+        .hud-top-mission-title {
+          max-width: 16ch;
+          font-size: 0.64rem;
+        }
+
+        .hud-top-countdown {
+          display: none;
+        }
+
+        .hud-top-metric {
+          display: flex;
+          align-items: baseline;
+          gap: 3px;
+          min-width: auto;
+        }
+
+        .hud-top-metric-label {
+          display: none;
+        }
+
+        .hud-top-metric-value {
+          font-size: 0.72rem;
+        }
+
+        .hud-action-btn,
+        .hud-overlay-mini-btn,
+        .hud-speed-btn {
+          padding: 4px 7px;
+          font-size: 0.64rem;
+        }
+
+        .hud-overlay-mini-btn {
+          width: 24px;
+          height: 22px;
+          padding: 0;
+          font-size: 0.58rem;
+        }
+
+        .hud-wave-intel {
+          top: 62px;
+          right: 8px;
+        }
+
+        .hud-wave-panel {
+          width: min(250px, 70vw);
+        }
+
+        .hud-objective-card {
+          left: 8px;
+          bottom: 8px;
+          width: min(280px, calc(100vw - 16px));
+        }
+
+        .hud-tower-inspector {
+          right: 8px;
+          bottom: 8px;
+          width: min(280px, calc(100vw - 16px));
+        }
+      }
+
+      @media (max-width: 860px) {
+        .hud-objective-card,
+        .hud-tower-inspector {
+          width: min(240px, calc(50vw - 12px));
+        }
+      }
+
+      @media (max-width: 640px) {
+        .hud-objective-card {
+          left: 8px;
+          right: 8px;
+          bottom: 8px;
+          width: auto;
+        }
+
+        .hud-tower-inspector {
+          left: 8px;
+          right: 8px;
+          bottom: 126px;
+          width: auto;
         }
       }
 
@@ -2538,9 +2848,6 @@
     </style>
   </head>
   <body>
-    <div id="ui">
-      <button id="pauseBtn">Pause</button>
-    </div>
     <div id="debugIndicator">DEBUG</div>
     <div id="debugPanel"></div>
     <div id="screenRoot"></div>
