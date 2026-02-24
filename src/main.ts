@@ -6,6 +6,10 @@ import {
 } from "./config/Difficulty";
 import { loadLevel, type LoadedLevel } from "./game/LevelLoader";
 import { InputController } from "./input/InputController";
+import { buildRuntimeLevelFromLevel } from "./levels/adapter";
+import { createRandomSeed, generateLevel, saveGeneratedLevel } from "./levels/generator";
+import { findLevelById, findStageById, loadLevelRegistry } from "./levels/registry";
+import type { LevelSizePreset, LevelSourceEntry, StageRegistryEntry } from "./levels/types";
 import { BALANCE_CONFIG } from "./meta/BalanceConfig";
 import {
   computeBaseMetaModifiers,
@@ -56,6 +60,15 @@ import { loadWaveContent } from "./waves/Definitions";
 import { WaveDirector } from "./waves/WaveDirector";
 import { SkillManager } from "./game/SkillManager";
 import {
+  computeUnlocks,
+  loadCampaignProgress,
+  markMissionComplete,
+  resetCampaignProgress,
+  toMissionKey,
+  type CampaignProgress,
+  type CampaignUnlocks,
+} from "./progression/progression";
+import {
   createBadge,
   createButton,
   createCard,
@@ -67,16 +80,54 @@ import {
   createTooltip,
 } from "./components/ui/primitives";
 import { debugUiStore, type DebugUiState } from "./ui/debugStore";
+import { renderLevelGeneratorScreen } from "./ui/screens/LevelGeneratorScreen";
+import { renderLevelSelectScreen } from "./ui/screens/LevelSelectScreen";
+import { renderMissionSelectScreen } from "./ui/screens/MissionSelectScreen";
+import { renderStageSelectScreen } from "./ui/screens/StageSelectScreen";
 import { WorldTooltipOverlay } from "./ui/WorldTooltipOverlay";
 
-type Screen = "title" | "main-menu" | "meta" | "run-map" | "mission" | "run-summary";
+type Screen =
+  | "title"
+  | "main-menu"
+  | "meta"
+  | "run-map"
+  | "run-summary"
+  | "stage-select"
+  | "level-select"
+  | "mission-select"
+  | "level-generator"
+  | "mission";
 type DebugTab = "run" | "sim" | "ui" | "dev";
+
+interface CampaignMissionContext {
+  mode: "campaign";
+  stageId: string;
+  levelId: string;
+  missionId: string;
+  missionName: string;
+  objectiveText: string;
+}
+
+interface RunMissionContext {
+  mode: "run";
+}
+
+type MissionContext = CampaignMissionContext | RunMissionContext | null;
 
 interface AppState {
   screen: Screen;
   metaProfile: MetaProfile;
   runState: RunState | null;
   runSummary: RunSummary | null;
+  campaignStages: StageRegistryEntry[];
+  campaignProgress: CampaignProgress;
+  campaignUnlocks: CampaignUnlocks;
+  selectedStageId: string | null;
+  selectedLevelId: string | null;
+  levelGeneratorSizePreset: LevelSizePreset;
+  levelGeneratorSeed: number;
+  levelGeneratorDraft: LevelSourceEntry["level"] | null;
+  activeMissionContext: MissionContext;
   game: Game | null;
   inputController: InputController | null;
   missionResult: MatchResult;
@@ -112,7 +163,7 @@ async function bootstrap(): Promise<void> {
   window.addEventListener("resize", resize);
   resize();
 
-  const [missionTemplates, upgradeCatalog, skillCatalog, ascensionCatalog, unlockCatalog, waveContent, depthContent] = await Promise.all([
+  const [missionTemplates, upgradeCatalog, skillCatalog, ascensionCatalog, unlockCatalog, waveContent, depthContent, levelRegistry] = await Promise.all([
     loadMissionCatalog(),
     loadMetaUpgradeCatalog(),
     loadSkillCatalog(),
@@ -120,6 +171,7 @@ async function bootstrap(): Promise<void> {
     loadUnlockCatalog(),
     loadWaveContent(),
     loadDepthContent(),
+    loadLevelRegistry(),
   ]);
 
   const knownNodeIds = new Set(getUpgradeNodes(upgradeCatalog).map((node) => node.id));
@@ -130,11 +182,22 @@ async function bootstrap(): Promise<void> {
     knownNodeIds,
   });
 
+  const campaignProgress = loadCampaignProgress();
+
   const app: AppState = {
     screen: "title",
     metaProfile: loadMetaProfile(),
     runState: loadRunState(),
     runSummary: null,
+    campaignStages: levelRegistry.stages,
+    campaignProgress,
+    campaignUnlocks: computeUnlocks(levelRegistry.stages, campaignProgress),
+    selectedStageId: null,
+    selectedLevelId: null,
+    levelGeneratorSizePreset: "medium",
+    levelGeneratorSeed: createRandomSeed(),
+    levelGeneratorDraft: null,
+    activeMissionContext: null,
     game: null,
     inputController: null,
     missionResult: null,
@@ -188,6 +251,7 @@ async function bootstrap(): Promise<void> {
 
   const render = (): void => {
     const debugState = debugUiStore.getState();
+    renderer.setShowGridLines(debugState.showGridLines);
     renderCurrentScreen(
       app,
       screenRoot,
@@ -206,6 +270,13 @@ async function bootstrap(): Promise<void> {
       toggleRunAscension,
       finalizeRun,
       closeSummaryToMenu,
+      openStageSelect,
+      openLevelSelect,
+      openMissionSelect,
+      openLevelGenerator,
+      generateDraftLevel,
+      saveDraftLevel,
+      startCampaignMissionById,
       debugState,
       setMissionPaused,
     );
@@ -214,6 +285,7 @@ async function bootstrap(): Promise<void> {
       app,
       addDebugGlory,
       resetMeta,
+      resetCampaign,
       forceMissionWin,
       forceMissionLose,
       debugSpawnEnemy,
@@ -239,9 +311,107 @@ async function bootstrap(): Promise<void> {
     render();
   };
 
+  const refreshCampaignRegistry = async (): Promise<void> => {
+    try {
+      const registry = await loadLevelRegistry();
+      app.campaignStages = registry.stages;
+      app.campaignUnlocks = computeUnlocks(app.campaignStages, app.campaignProgress);
+    } catch (error) {
+      console.error("Failed to refresh level registry", error);
+      showToast(screenRoot, "Failed to load levels. Check JSON format.");
+    }
+  };
+
   const openMainMenu = (): void => {
     stopMission();
     app.screen = "main-menu";
+    render();
+  };
+
+  const openStageSelect = (): void => {
+    stopMission();
+    app.selectedStageId = null;
+    app.selectedLevelId = null;
+    app.screen = "stage-select";
+    render();
+  };
+
+  const openLevelSelect = (stageId: string): void => {
+    stopMission();
+    const stage = findStageById(app.campaignStages, stageId);
+    if (!stage) {
+      showToast(screenRoot, "Stage not found.");
+      return;
+    }
+    const stageState = app.campaignUnlocks.stage[stageId];
+    if (!stageState?.unlocked) {
+      showToast(screenRoot, "Stage is locked.");
+      return;
+    }
+
+    app.selectedStageId = stageId;
+    app.selectedLevelId = null;
+    app.screen = "level-select";
+    render();
+  };
+
+  const openMissionSelect = (levelId: string): void => {
+    stopMission();
+    if (!app.selectedStageId) {
+      showToast(screenRoot, "Select a stage first.");
+      return;
+    }
+    const levelEntry = findLevelById(app.campaignStages, app.selectedStageId, levelId);
+    if (!levelEntry) {
+      showToast(screenRoot, "Level not found.");
+      return;
+    }
+    const levelState = app.campaignUnlocks.level[`${app.selectedStageId}:${levelId}`];
+    if (!levelState?.unlocked) {
+      showToast(screenRoot, "Level is locked.");
+      return;
+    }
+
+    app.selectedLevelId = levelId;
+    app.screen = "mission-select";
+    render();
+  };
+
+  const openLevelGenerator = (): void => {
+    stopMission();
+    if (!app.levelGeneratorDraft) {
+      app.levelGeneratorSeed = createRandomSeed();
+      app.levelGeneratorDraft = generateLevel({
+        sizePreset: app.levelGeneratorSizePreset,
+        seed: app.levelGeneratorSeed,
+      });
+    }
+    app.screen = "level-generator";
+    render();
+  };
+
+  const generateDraftLevel = (): void => {
+    app.levelGeneratorSeed = createRandomSeed();
+    app.levelGeneratorDraft = generateLevel({
+      sizePreset: app.levelGeneratorSizePreset,
+      seed: app.levelGeneratorSeed,
+    });
+    render();
+  };
+
+  const saveDraftLevel = async (): Promise<void> => {
+    if (!app.levelGeneratorDraft) {
+      return;
+    }
+    try {
+      saveGeneratedLevel(app.levelGeneratorDraft);
+      await refreshCampaignRegistry();
+      showToast(screenRoot, "Level saved to localStorage and downloaded.");
+      app.selectedStageId = "user";
+    } catch (error) {
+      console.error("Failed to save generated level", error);
+      showToast(screenRoot, "Failed to save generated level.");
+    }
     render();
   };
 
@@ -300,6 +470,109 @@ async function bootstrap(): Promise<void> {
     saveRunState(runState);
     app.screen = "run-map";
     render();
+  };
+
+  const startCampaignMissionById = async (missionId: string): Promise<void> => {
+    if (!app.selectedStageId || !app.selectedLevelId) {
+      showToast(screenRoot, "Select a level first.");
+      return;
+    }
+
+    const levelEntry = findLevelById(app.campaignStages, app.selectedStageId, app.selectedLevelId);
+    if (!levelEntry) {
+      showToast(screenRoot, "Level not found.");
+      return;
+    }
+
+    const mission = levelEntry.level.missions.find((entry) => entry.missionId === missionId);
+    if (!mission) {
+      showToast(screenRoot, "Mission not found.");
+      return;
+    }
+
+    const missionKey = toMissionKey(app.selectedStageId, app.selectedLevelId, missionId);
+    const missionState = app.campaignUnlocks.mission[missionKey];
+    if (!missionState?.unlocked) {
+      showToast(screenRoot, "Mission is locked.");
+      return;
+    }
+
+    try {
+      stopMission();
+      const difficultyTierConfig = waveContent.difficultyTiers.difficultyTiers[DEFAULT_DIFFICULTY_TIER];
+      const baseBonuses = computeBaseMetaModifiers(app.metaProfile, upgradeCatalog, ascensionCatalog, []);
+      const missionModifiers = applyDifficultyToBaseModifiers(
+        baseBonuses,
+        difficultyTierConfig,
+        DEFAULT_DIFFICULTY_TIER,
+        waveContent.balanceBaselines,
+      );
+      const baseLevel = buildRuntimeLevelFromLevel(levelEntry.level, {
+        viewport: {
+          width: canvas.clientWidth || window.innerWidth,
+          height: canvas.clientHeight || window.innerHeight,
+        },
+      });
+      const runMission: RunMissionNode = {
+        id: mission.missionId,
+        templateId: mission.waveSetId,
+        name: mission.name,
+        levelPath: levelEntry.path,
+        difficulty: mission.difficulty ?? 1,
+      };
+      const tunedLevel = createMissionLevel(
+        baseLevel,
+        runMission,
+        missionModifiers,
+        depthContent.towerArchetypes,
+        waveContent.balanceBaselines,
+        difficultyTierConfig,
+        Object.values(TowerArchetype),
+      );
+      const missionDifficultyScalar = mission.difficulty ?? 1;
+      const world = new World(
+        tunedLevel.towers,
+        tunedLevel.rules.maxOutgoingLinksPerTower,
+        depthContent.linkLevels,
+        tunedLevel.initialLinks,
+        missionModifiers.linkIntegrityMul,
+      );
+      const waveDirector = new WaveDirector(world, waveContent, {
+        runSeed: mission.seed,
+        missionDifficultyScalar,
+        difficultyTier: DEFAULT_DIFFICULTY_TIER,
+        balanceDiagnosticsEnabled: app.balanceDiagnosticsEnabled,
+        rewardGoldMultiplier: missionModifiers.rewardGoldMul,
+        bossHpMultiplier: missionModifiers.bossHpMul,
+        bossExtraPhases: missionModifiers.bossExtraPhases,
+      });
+
+      const inputController = new InputController(canvas, world);
+      const skillManager = new SkillManager(
+        skillCatalog,
+        deriveUnlockedSkillIds(app.metaProfile, upgradeCatalog),
+        missionModifiers,
+      );
+      app.inputController = inputController;
+      app.game = new Game(world, renderer, inputController, tunedLevel.rules, tunedLevel.ai, waveDirector, skillManager);
+      app.missionResult = null;
+      app.missionReward = null;
+      app.missionPaused = false;
+      app.activeMissionContext = {
+        mode: "campaign",
+        stageId: app.selectedStageId,
+        levelId: app.selectedLevelId,
+        missionId: mission.missionId,
+        missionName: mission.name,
+        objectiveText: mission.objectiveText,
+      };
+      renderer.setMapRenderData(baseLevel.mapRenderData ?? null);
+      app.screen = "mission";
+      render();
+    } catch (error) {
+      console.error("Failed to start campaign mission", error);
+      showToast(screenRoot, "Failed to start mission. Check console for details.");
+    }
   };
 
   const startCurrentMission = async (): Promise<void> => {
@@ -364,18 +637,41 @@ async function bootstrap(): Promise<void> {
     app.missionResult = null;
     app.missionReward = null;
     app.missionPaused = false;
+    app.activeMissionContext = { mode: "run" };
+    renderer.setMapRenderData(tunedLevel.mapRenderData ?? null);
     app.screen = "mission";
     saveRunState(app.runState);
     render();
   };
 
   const handleMissionResult = (): void => {
-    if (!app.game || !app.runState || app.missionResult) {
+    if (!app.game || app.missionResult) {
       return;
     }
 
     const result = app.game.getMatchResult();
     if (!result) {
+      return;
+    }
+
+    if (app.activeMissionContext?.mode === "campaign") {
+      app.missionResult = result;
+      app.missionReward = null;
+      app.missionPaused = false;
+      if (result === "win") {
+        app.campaignProgress = markMissionComplete(
+          app.activeMissionContext.stageId,
+          app.activeMissionContext.levelId,
+          app.activeMissionContext.missionId,
+          app.campaignProgress,
+        );
+        app.campaignUnlocks = computeUnlocks(app.campaignStages, app.campaignProgress);
+      }
+      render();
+      return;
+    }
+
+    if (!app.runState) {
       return;
     }
 
@@ -498,11 +794,19 @@ async function bootstrap(): Promise<void> {
   };
 
   const restartCurrentMission = (): void => {
-    if (app.screen !== "mission" || !app.runState) {
+    if (app.screen !== "mission") {
       return;
     }
     app.missionPaused = false;
-    void startCurrentMission();
+    if (app.activeMissionContext?.mode === "campaign") {
+      app.selectedStageId = app.activeMissionContext.stageId;
+      app.selectedLevelId = app.activeMissionContext.levelId;
+      void startCampaignMissionById(app.activeMissionContext.missionId);
+      return;
+    }
+    if (app.runState) {
+      void startCurrentMission();
+    }
   };
 
   const purchaseUpgradeById = (upgradeId: string): void => {
@@ -577,6 +881,12 @@ async function bootstrap(): Promise<void> {
   const resetMeta = (): void => {
     app.metaProfile = resetMetaProfile();
     app.runSummary = null;
+    render();
+  };
+
+  const resetCampaign = (): void => {
+    app.campaignProgress = resetCampaignProgress();
+    app.campaignUnlocks = computeUnlocks(app.campaignStages, app.campaignProgress);
     render();
   };
 
@@ -740,9 +1050,11 @@ async function bootstrap(): Promise<void> {
     app.inputController?.dispose();
     app.inputController = null;
     app.game = null;
+    app.activeMissionContext = null;
     app.missionResult = null;
     app.missionReward = null;
     app.missionPaused = false;
+    renderer.setMapRenderData(null);
   };
 
   window.addEventListener("keydown", (event) => {
@@ -840,6 +1152,7 @@ async function bootstrap(): Promise<void> {
           app,
           addDebugGlory,
           resetMeta,
+          resetCampaign,
           forceMissionWin,
           forceMissionLose,
           debugSpawnEnemy,
@@ -874,6 +1187,13 @@ function renderCurrentScreen(
   toggleRunAscension: (ascensionId: string, enabled: boolean) => void,
   finalizeRun: (won: boolean) => void,
   closeSummaryToMenu: () => void,
+  openStageSelect: () => void,
+  openLevelSelect: (stageId: string) => void,
+  openMissionSelect: (levelId: string) => void,
+  openLevelGenerator: () => void,
+  generateDraftLevel: () => void,
+  saveDraftLevel: () => Promise<void>,
+  startCampaignMissionById: (missionId: string) => Promise<void>,
   debugState: DebugUiState,
   setMissionPaused: (paused: boolean) => void,
 ): void {
@@ -926,7 +1246,7 @@ function renderCurrentScreen(
     );
     introCard.appendChild(
       createParagraph(
-        "Start a run to enter mission flow, or open Meta Progression to invest permanent Glory upgrades.",
+        "Play Campaign for stage-based progression, or use Level Generator to create JSON maps.",
       ),
     );
     panel.appendChild(introCard);
@@ -935,25 +1255,114 @@ function renderCurrentScreen(
     profileCard.appendChild(createParagraph(`Current Glory: ${app.metaProfile.glory}`));
     profileCard.appendChild(createParagraph(`Meta Level: ${computeMetaAccountLevel(app.metaProfile)}`));
     profileCard.appendChild(createParagraph(`Runs Completed: ${app.metaProfile.metaProgress.runsCompleted}`));
-    profileCard.appendChild(createParagraph(`Mission Templates Loaded: ${missionTemplates.length}`));
+    profileCard.appendChild(createParagraph(`Campaign Stages: ${app.campaignStages.length}`));
+    profileCard.appendChild(createParagraph(`Mission Templates Loaded (legacy run): ${missionTemplates.length}`));
     if (app.runState) {
       profileCard.appendChild(createParagraph(`Run In Progress: ${app.runState.currentMissionIndex + 1}/${app.runState.missions.length}`));
     }
     panel.appendChild(profileCard);
 
     const actionCard = createCard("Actions");
-    const startBtn = createButton("Start New Run", startNewRun, {
+    const campaignBtn = createButton("Play Campaign", openStageSelect, {
       variant: "primary",
       primaryAction: true,
       hotkey: "Enter",
+    });
+    actionCard.appendChild(campaignBtn);
+    actionCard.appendChild(createButton("Level Generator", openLevelGenerator, { variant: "secondary" }));
+    actionCard.appendChild(createButton("Meta Progression", openMetaScreen, { variant: "secondary" }));
+
+    actionCard.appendChild(createDivider());
+    actionCard.appendChild(createParagraph("Legacy Run Mode"));
+    const startBtn = createButton("Start New Run", startNewRun, {
+      variant: "secondary",
     });
     actionCard.appendChild(startBtn);
     const continueBtn = createButton("Continue Run", continueRun, { variant: "secondary" });
     continueBtn.disabled = !app.runState;
     actionCard.appendChild(continueBtn);
-    actionCard.appendChild(createButton("Meta Progression", openMetaScreen, { variant: "secondary" }));
     panel.appendChild(actionCard);
 
+    screenRoot.appendChild(wrapCentered(panel));
+    return;
+  }
+
+  if (app.screen === "stage-select") {
+    const panel = renderStageSelectScreen({
+      stages: app.campaignStages,
+      unlocks: app.campaignUnlocks,
+      onSelectStage: openLevelSelect,
+      onBack: openMainMenu,
+      onOpenGenerator: openLevelGenerator,
+    });
+    screenRoot.appendChild(wrapCentered(panel));
+    return;
+  }
+
+  if (app.screen === "level-select") {
+    if (!app.selectedStageId) {
+      openStageSelect();
+      return;
+    }
+    const stage = findStageById(app.campaignStages, app.selectedStageId);
+    if (!stage) {
+      openStageSelect();
+      return;
+    }
+    const panel = renderLevelSelectScreen({
+      stage,
+      unlocks: app.campaignUnlocks,
+      onSelectLevel: openMissionSelect,
+      onBack: openStageSelect,
+    });
+    screenRoot.appendChild(wrapCentered(panel));
+    return;
+  }
+
+  if (app.screen === "mission-select") {
+    if (!app.selectedStageId || !app.selectedLevelId) {
+      openStageSelect();
+      return;
+    }
+    const levelEntry = findLevelById(app.campaignStages, app.selectedStageId, app.selectedLevelId);
+    if (!levelEntry) {
+      openLevelSelect(app.selectedStageId);
+      return;
+    }
+    const panel = renderMissionSelectScreen({
+      stageId: app.selectedStageId,
+      levelEntry,
+      unlocks: app.campaignUnlocks,
+      onStartMission: (missionId) => {
+        void startCampaignMissionById(missionId);
+      },
+      onBack: () => openLevelSelect(app.selectedStageId!),
+    });
+    screenRoot.appendChild(wrapCentered(panel));
+    return;
+  }
+
+  if (app.screen === "level-generator") {
+    if (!app.levelGeneratorDraft) {
+      app.levelGeneratorDraft = generateLevel({
+        sizePreset: app.levelGeneratorSizePreset,
+        seed: app.levelGeneratorSeed,
+      });
+    }
+    const panel = renderLevelGeneratorScreen({
+      level: app.levelGeneratorDraft,
+      seed: app.levelGeneratorSeed,
+      sizePreset: app.levelGeneratorSizePreset,
+      onSizePresetChange: (size) => {
+        app.levelGeneratorSizePreset = size;
+        generateDraftLevel();
+      },
+      onGenerate: generateDraftLevel,
+      onSave: () => {
+        void saveDraftLevel();
+      },
+      onBack: openMainMenu,
+    });
     screenRoot.appendChild(wrapCentered(panel));
     return;
   }
@@ -1214,6 +1623,9 @@ function renderCurrentScreen(
             ),
           );
         }
+      } else if (app.activeMissionContext?.mode === "campaign") {
+        hud.appendChild(createParagraph(`${app.activeMissionContext.missionName} • Campaign`));
+        hud.appendChild(createParagraph(`Objective: ${app.activeMissionContext.objectiveText}`));
       }
       hud.appendChild(createParagraph("Drag from player towers to direct links."));
       hud.appendChild(createParagraph("Wave telemetry updates in real time."));
@@ -1314,25 +1726,40 @@ function renderCurrentScreen(
       const resultPanel = createPanel(app.missionResult === "win" ? "Mission Victory" : "Mission Defeat");
       resultPanel.classList.add("menu-panel");
       const rewardValue = app.missionReward ? app.missionReward.total : 0;
-      resultPanel.appendChild(createParagraph(`Glory earned this mission: ${rewardValue}`));
-
-      if (app.missionResult === "win" && app.runState && app.runState.currentMissionIndex < app.runState.missions.length) {
-        resultPanel.appendChild(createButton("Continue To Run Map", openRunMap, { variant: "primary", primaryAction: true, hotkey: "Enter" }));
+      if (app.activeMissionContext?.mode === "campaign") {
+        resultPanel.appendChild(createParagraph("Campaign progression updated."));
+        const backToMissions = createButton("Back To Missions", () => {
+          if (app.activeMissionContext?.mode !== "campaign") {
+            openStageSelect();
+            return;
+          }
+          app.selectedStageId = app.activeMissionContext.stageId;
+          openMissionSelect(app.activeMissionContext.levelId);
+        }, { variant: "primary", primaryAction: true, hotkey: "Enter" });
+        resultPanel.appendChild(backToMissions);
+        resultPanel.appendChild(createButton("Retry Mission", restartCurrentMission, { variant: "secondary" }));
+        resultPanel.appendChild(createButton("Stage Select", openStageSelect, { variant: "ghost" }));
       } else {
-        resultPanel.appendChild(
-          createButton("Open Run Summary", () => {
-            if (app.missionResult === "win") {
-              finalizeRun(true);
-            } else {
-              finalizeRun(false);
-            }
-          }, { variant: "primary", primaryAction: true, hotkey: "Enter" }),
-        );
-      }
-      const canRestartMission =
-        !(app.missionResult === "win" && app.runState && app.runState.currentMissionIndex < app.runState.missions.length);
-      if (canRestartMission) {
-        resultPanel.appendChild(createButton("Restart Mission", restartCurrentMission, { variant: "secondary" }));
+        resultPanel.appendChild(createParagraph(`Glory earned this mission: ${rewardValue}`));
+
+        if (app.missionResult === "win" && app.runState && app.runState.currentMissionIndex < app.runState.missions.length) {
+          resultPanel.appendChild(createButton("Continue To Run Map", openRunMap, { variant: "primary", primaryAction: true, hotkey: "Enter" }));
+        } else {
+          resultPanel.appendChild(
+            createButton("Open Run Summary", () => {
+              if (app.missionResult === "win") {
+                finalizeRun(true);
+              } else {
+                finalizeRun(false);
+              }
+            }, { variant: "primary", primaryAction: true, hotkey: "Enter" }),
+          );
+        }
+        const canRestartMission =
+          !(app.missionResult === "win" && app.runState && app.runState.currentMissionIndex < app.runState.missions.length);
+        if (canRestartMission) {
+          resultPanel.appendChild(createButton("Restart Mission", restartCurrentMission, { variant: "secondary" }));
+        }
       }
       screenRoot.appendChild(wrapCentered(resultPanel));
     }
@@ -1534,6 +1961,7 @@ function renderDebugPanel(
   app: AppState,
   addDebugGlory: () => void,
   resetMeta: () => void,
+  resetCampaign: () => void,
   forceMissionWin: () => void,
   forceMissionLose: () => void,
   debugSpawnEnemy: (enemyId: string, elite: boolean) => void,
@@ -1646,6 +2074,9 @@ function renderDebugPanel(
           panel.appendChild(createDebugToggle("Show Hitboxes", debugState.showHitboxes, () => {
             debugUiStore.toggle("showHitboxes");
           }, "Reserved hook; no runtime hitbox renderer is currently active."));
+          panel.appendChild(createDebugToggle("Show Grid Lines", debugState.showGridLines, () => {
+            debugUiStore.toggle("showGridLines");
+          }));
           return panel;
         },
       },
@@ -1671,6 +2102,7 @@ function renderDebugPanel(
           dangerContent.className = "list";
           dangerContent.appendChild(createButton("Debug: +250 Glory", addDebugGlory, { variant: "secondary" }));
           dangerContent.appendChild(createButton("Debug: Reset Meta", resetMeta, { variant: "danger" }));
+          dangerContent.appendChild(createButton("Debug: Reset Campaign Progress", resetCampaign, { variant: "danger" }));
 
           const canForceEnd = app.screen === "mission" && app.game !== null && app.missionResult === null;
           const forceWinBtn = createButton("Debug: Mission Win", forceMissionWin, { variant: "secondary" });
@@ -1797,7 +2229,7 @@ function syncPauseButton(
   app: AppState,
   setMissionPaused: (paused: boolean) => void,
 ): void {
-  const missionActive = app.screen === "mission" && app.runState !== null && app.missionResult === null;
+  const missionActive = app.screen === "mission" && app.game !== null && app.missionResult === null;
   pauseBtn.style.display = missionActive ? "inline-flex" : "none";
   pauseBtn.className = "ui-button ui-button-secondary top-pause-btn";
   pauseBtn.textContent = app.missionPaused ? "Resume" : "Pause";
@@ -1833,6 +2265,14 @@ function cloneLoadedLevel(level: LoadedLevel): LoadedLevel {
       fightModel: { ...level.rules.fightModel },
     },
     ai: { ...level.ai },
+    mapRenderData: level.mapRenderData
+      ? {
+          ...level.mapRenderData,
+          bounds: { ...level.mapRenderData.bounds },
+          nodes: level.mapRenderData.nodes.map((node) => ({ ...node })),
+          edges: level.mapRenderData.edges.map((edge) => ({ ...edge })),
+        }
+      : undefined,
   };
 }
 
@@ -2119,6 +2559,27 @@ function createParagraph(text: string): HTMLParagraphElement {
   paragraph.textContent = text;
   paragraph.style.margin = "6px 0";
   return paragraph;
+}
+
+function showToast(screenRoot: HTMLDivElement, message: string): void {
+  const toast = document.createElement("div");
+  toast.textContent = message;
+  toast.style.position = "fixed";
+  toast.style.left = "50%";
+  toast.style.bottom = "24px";
+  toast.style.transform = "translateX(-50%)";
+  toast.style.padding = "10px 14px";
+  toast.style.borderRadius = "10px";
+  toast.style.background = "rgba(11, 18, 29, 0.92)";
+  toast.style.border = "1px solid rgba(171, 196, 238, 0.35)";
+  toast.style.color = "#f8fbff";
+  toast.style.fontSize = "13px";
+  toast.style.zIndex = "60";
+  toast.style.pointerEvents = "none";
+  screenRoot.appendChild(toast);
+  window.setTimeout(() => {
+    toast.remove();
+  }, 1800);
 }
 
 function wrapCentered(node: HTMLElement): HTMLDivElement {

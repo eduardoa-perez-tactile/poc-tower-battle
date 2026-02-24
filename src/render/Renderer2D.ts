@@ -1,4 +1,5 @@
 import type { DragPreview } from "../input/InputController";
+import type { GridRenderData } from "../levels/runtime";
 import {
   TOWER_RADIUS_PX,
   type Link,
@@ -30,10 +31,22 @@ const PACKET_COLORS: Record<Owner, string> = {
 export class Renderer2D {
   private readonly canvas: HTMLCanvasElement;
   private readonly ctx: CanvasRenderingContext2D;
+  private mapRenderData: GridRenderData | null;
+  private showGridLines: boolean;
 
   constructor(canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D) {
     this.canvas = canvas;
     this.ctx = ctx;
+    this.mapRenderData = null;
+    this.showGridLines = true;
+  }
+
+  setMapRenderData(mapRenderData: GridRenderData | null): void {
+    this.mapRenderData = mapRenderData;
+  }
+
+  setShowGridLines(enabled: boolean): void {
+    this.showGridLines = enabled;
   }
 
   render(
@@ -46,6 +59,9 @@ export class Renderer2D {
   ): void {
     const viewport = this.getViewportSize();
     this.ctx.clearRect(0, 0, viewport.width, viewport.height);
+
+    this.drawGroundAndGrid();
+    this.drawStaticGraphEdges();
 
     for (const link of world.links) {
       this.drawLink(link);
@@ -88,6 +104,71 @@ export class Renderer2D {
     if (bossBar) {
       this.drawBossBar(bossBar.name, bossBar.hp01);
     }
+  }
+
+  private drawGroundAndGrid(): void {
+    if (!this.mapRenderData) {
+      return;
+    }
+
+    const bounds = this.mapRenderData.bounds;
+    this.ctx.save();
+    this.ctx.fillStyle = "rgba(44, 102, 74, 0.35)";
+    this.ctx.fillRect(bounds.minX, bounds.minY, bounds.width, bounds.height);
+
+    this.ctx.strokeStyle = "rgba(182, 210, 255, 0.28)";
+    this.ctx.lineWidth = 1.5;
+    this.ctx.strokeRect(bounds.minX, bounds.minY, bounds.width, bounds.height);
+
+    if (this.showGridLines) {
+      this.ctx.strokeStyle = "rgba(182, 210, 255, 0.12)";
+      this.ctx.lineWidth = 1;
+
+      for (let x = 0; x <= this.mapRenderData.gridWidth; x += 1) {
+        const wx = bounds.minX + x * this.mapRenderData.cellSize;
+        this.ctx.beginPath();
+        this.ctx.moveTo(wx, bounds.minY);
+        this.ctx.lineTo(wx, bounds.maxY);
+        this.ctx.stroke();
+      }
+
+      for (let y = 0; y <= this.mapRenderData.gridHeight; y += 1) {
+        const wy = bounds.minY + y * this.mapRenderData.cellSize;
+        this.ctx.beginPath();
+        this.ctx.moveTo(bounds.minX, wy);
+        this.ctx.lineTo(bounds.maxX, wy);
+        this.ctx.stroke();
+      }
+    }
+
+    this.ctx.restore();
+  }
+
+  private drawStaticGraphEdges(): void {
+    if (!this.mapRenderData) {
+      return;
+    }
+
+    this.ctx.save();
+    this.ctx.strokeStyle = "rgba(203, 220, 255, 0.35)";
+    this.ctx.lineWidth = 2;
+    this.ctx.lineCap = "round";
+
+    for (const edge of this.mapRenderData.edges) {
+      this.ctx.beginPath();
+      this.ctx.moveTo(edge.fromX, edge.fromY);
+      this.ctx.lineTo(edge.toX, edge.toY);
+      this.ctx.stroke();
+    }
+
+    this.ctx.fillStyle = "rgba(215, 231, 255, 0.22)";
+    for (const node of this.mapRenderData.nodes) {
+      this.ctx.beginPath();
+      this.ctx.arc(node.x, node.y, TOWER_RADIUS_PX * 0.4, 0, Math.PI * 2);
+      this.ctx.fill();
+    }
+
+    this.ctx.restore();
   }
 
   private drawTower(

@@ -1,0 +1,90 @@
+{
+  "version": 1,
+  "stageId": "stage02",
+  "levelId": "level01",
+  "name": "Ashen Corridor",
+  "size": "big",
+  "grid": {
+    "width": 30,
+    "height": 18,
+    "minCellSize": 38,
+    "layers": {
+      "ground": {
+        "default": "dirt",
+        "overrides": [
+          { "x": 14, "y": 8, "tile": "water" },
+          { "x": 15, "y": 8, "tile": "water" },
+          { "x": 16, "y": 8, "tile": "water" },
+          { "x": 14, "y": 9, "tile": "water" },
+          { "x": 15, "y": 9, "tile": "water" },
+          { "x": 16, "y": 9, "tile": "water" }
+        ]
+      },
+      "decor": {
+        "overrides": []
+      },
+      "blocked": [
+        { "x": 14, "y": 8 },
+        { "x": 15, "y": 8 },
+        { "x": 16, "y": 8 },
+        { "x": 14, "y": 9 },
+        { "x": 15, "y": 9 },
+        { "x": 16, "y": 9 },
+        { "x": 20, "y": 5 },
+        { "x": 20, "y": 6 },
+        { "x": 20, "y": 11 },
+        { "x": 20, "y": 12 }
+      ]
+    }
+  },
+  "nodes": [
+    { "id": "HQ", "x": 3, "y": 9, "type": "stronghold", "owner": "player", "regen": 3.2, "cap": 125, "archetype": "STRONGHOLD" },
+    { "id": "A", "x": 7, "y": 6, "type": "tower", "owner": "player", "regen": 2, "cap": 95, "archetype": "BARRACKS" },
+    { "id": "B", "x": 7, "y": 12, "type": "tower", "owner": "neutral", "regen": 1.2, "cap": 75, "archetype": "RELAY" },
+    { "id": "C", "x": 11, "y": 5, "type": "tower", "owner": "neutral", "regen": 1.3, "cap": 78, "archetype": "OBELISK" },
+    { "id": "D", "x": 11, "y": 13, "type": "tower", "owner": "neutral", "regen": 1.3, "cap": 78, "archetype": "BARRACKS" },
+    { "id": "E", "x": 18, "y": 4, "type": "tower", "owner": "enemy", "regen": 2.2, "cap": 98, "archetype": "FORTRESS" },
+    { "id": "F", "x": 18, "y": 14, "type": "tower", "owner": "enemy", "regen": 2.2, "cap": 98, "archetype": "FORTRESS" },
+    { "id": "G", "x": 24, "y": 8, "type": "tower", "owner": "enemy", "regen": 2.4, "cap": 102, "archetype": "BANK" },
+    { "id": "H", "x": 24, "y": 10, "type": "stronghold", "owner": "enemy", "regen": 3.4, "cap": 130, "archetype": "STRONGHOLD" }
+  ],
+  "edges": [
+    { "from": "HQ", "to": "A" },
+    { "from": "HQ", "to": "B" },
+    { "from": "A", "to": "C" },
+    { "from": "B", "to": "D" },
+    { "from": "C", "to": "E" },
+    { "from": "D", "to": "F" },
+    { "from": "E", "to": "G" },
+    { "from": "F", "to": "H" },
+    { "from": "G", "to": "H" },
+    { "from": "C", "to": "D" }
+  ],
+  "missions": [
+    {
+      "missionId": "m01",
+      "name": "Scorched Entry",
+      "seed": 55791,
+      "waveSetId": "waves_elite_01",
+      "objectiveText": "Stage 02 opens with heavier elite pressure.",
+      "difficulty": 1.25
+    }
+  ],
+  "runtime": {
+    "rules": {
+      "maxOutgoingLinksPerTower": 1,
+      "sendRatePerSec": 6,
+      "collisionDistancePx": 14,
+      "captureSeedTroops": 10,
+      "defaultUnit": {
+        "speedPxPerSec": 120,
+        "dpsPerUnit": 1,
+        "hpPerUnit": 1
+      }
+    },
+    "ai": {
+      "aiThinkIntervalSec": 2.2,
+      "aiMinTroopsToAttack": 24
+    }
+  }
+}
