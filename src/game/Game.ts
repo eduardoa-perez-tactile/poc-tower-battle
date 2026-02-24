@@ -162,7 +162,6 @@ export class Game {
   }
 
   private render(): void {
-    const overlayText = this.matchResult === "win" ? "YOU WIN" : this.matchResult === "lose" ? "YOU LOSE" : null;
     const waveTelemetry = this.waveDirector?.getTelemetry() ?? null;
     const bossBar =
       waveTelemetry && waveTelemetry.bossName
@@ -174,7 +173,7 @@ export class Game {
     this.renderer.render(
       this.world,
       this.inputController.getPreviewLine(),
-      overlayText,
+      null,
       this.waveDirector?.getRenderState() ?? null,
       bossBar,
       this.linkBreakBursts,

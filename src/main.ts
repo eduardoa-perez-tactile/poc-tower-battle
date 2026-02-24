@@ -1130,7 +1130,7 @@ async function bootstrap(): Promise<void> {
       ? 1 / clampedDtSec
       : app.fps * 0.85 + (1 / clampedDtSec) * 0.15;
 
-    if (app.game && !app.missionPaused) {
+    if (app.game && !app.missionPaused && app.missionResult === null) {
       app.game.frame(dtSec);
       handleMissionResult();
     }
@@ -1915,28 +1915,67 @@ function renderCurrentScreen(
     }
 
     if (app.missionResult) {
+      const isVictory = app.missionResult === "win";
+      const rewardValue = app.missionReward ? app.missionReward.total : 0;
+      const telemetry = app.game?.getWaveTelemetry() ?? null;
+      const completedWaves = telemetry
+        ? Math.max(0, telemetry.currentWaveIndex - (telemetry.activeWaveInProgress ? 1 : 0))
+        : 0;
+      const totalWaves = telemetry?.totalWaveCount ?? 0;
+
       const resultPanel = document.createElement("div");
-      resultPanel.className = "panel ui-panel menu-panel mission-overlay-panel campaign-shell";
+      resultPanel.className = `panel ui-panel menu-panel mission-overlay-panel campaign-shell mission-result-shell ${isVictory ? "is-victory" : "is-defeat"}`;
       resultPanel.appendChild(
         createCampaignScreenHeader(
-          app.missionResult === "win" ? "Mission Victory" : "Mission Defeat",
-          app.missionResult === "win" ? "Operation Success" : "Operation Failed",
+          isVictory ? "Mission Victory" : "Mission Defeat",
+          isVictory ? "Operation Success" : "Operation Failed",
         ),
       );
-      const rewardValue = app.missionReward ? app.missionReward.total : 0;
 
-      const reportCard = document.createElement("section");
-      reportCard.className = "campaign-progress-card";
-      reportCard.appendChild(createMissionHudLabel("Mission Report"));
-      if (app.activeMissionContext?.mode === "campaign") {
-        reportCard.appendChild(createParagraph("Campaign progression updated."));
-      } else {
-        reportCard.appendChild(createParagraph(`Glory earned this mission: ${rewardValue}`));
-      }
-      resultPanel.appendChild(reportCard);
+      const hero = document.createElement("section");
+      hero.className = "mission-result-hero";
+      const emblem = document.createElement("div");
+      emblem.className = "mission-result-emblem";
+      emblem.textContent = isVictory ? "V" : "X";
+      const heroCopy = document.createElement("div");
+      const heroTitle = document.createElement("h3");
+      heroTitle.className = "mission-result-title";
+      heroTitle.textContent = isVictory ? "Control Secured" : "Control Breached";
+      const heroSubtitle = document.createElement("p");
+      heroSubtitle.className = "mission-result-subtitle";
+      heroSubtitle.textContent = app.activeMissionContext?.mode === "campaign"
+        ? "Campaign mission report complete."
+        : "Run mission report complete.";
+      heroCopy.append(heroTitle, heroSubtitle);
+      hero.append(emblem, heroCopy);
+      resultPanel.appendChild(hero);
+
+      const stats = document.createElement("div");
+      stats.className = "mission-result-stats";
+      stats.append(
+        createMissionResultStat("Mode", app.activeMissionContext?.mode === "campaign" ? "Campaign" : "Run"),
+        createMissionResultStat("Outcome", isVictory ? "Victory" : "Defeat"),
+        createMissionResultStat("Wave Progress", totalWaves > 0 ? `${completedWaves}/${totalWaves}` : "--"),
+        createMissionResultStat(
+          "Glory Reward",
+          app.activeMissionContext?.mode === "campaign" ? "Progress Unlocks" : `${rewardValue}`,
+        ),
+      );
+      resultPanel.appendChild(stats);
+
+      const notes = document.createElement("section");
+      notes.className = "mission-result-notes";
+      notes.appendChild(createMissionHudLabel("Mission Notes"));
+      const noteLine = document.createElement("p");
+      noteLine.className = "mission-result-note-line";
+      noteLine.textContent = isVictory
+        ? "Commander update: objective complete. Reposition for the next operation."
+        : "Commander update: regroup, tune links, and redeploy.";
+      notes.appendChild(noteLine);
+      resultPanel.appendChild(notes);
 
       const actionRow = document.createElement("div");
-      actionRow.className = "menu-footer campaign-footer";
+      actionRow.className = "menu-footer campaign-footer mission-result-actions";
 
       if (app.activeMissionContext?.mode === "campaign") {
         const backToMissions = createButton("Back To Missions", () => {
@@ -1954,11 +1993,11 @@ function renderCurrentScreen(
         retryBtn.classList.add("campaign-footer-btn");
         actionRow.appendChild(retryBtn);
 
-        const stageBtn = createButton("Stage Select", openStageSelect, { variant: "ghost" });
+        const stageBtn = createButton("Stage Select", openStageSelect, { variant: "ghost", escapeAction: true, hotkey: "Esc" });
         stageBtn.classList.add("campaign-footer-btn");
         actionRow.appendChild(stageBtn);
       } else {
-        if (app.missionResult === "win" && app.runState && app.runState.currentMissionIndex < app.runState.missions.length) {
+        if (isVictory && app.runState && app.runState.currentMissionIndex < app.runState.missions.length) {
           const continueBtn = createButton("Continue To Run Map", openRunMap, {
             variant: "primary",
             primaryAction: true,
@@ -1968,7 +2007,7 @@ function renderCurrentScreen(
           actionRow.appendChild(continueBtn);
         } else {
           const summaryBtn = createButton("Open Run Summary", () => {
-            if (app.missionResult === "win") {
+            if (isVictory) {
               finalizeRun(true);
             } else {
               finalizeRun(false);
@@ -1977,13 +2016,15 @@ function renderCurrentScreen(
           summaryBtn.classList.add("campaign-footer-btn");
           actionRow.appendChild(summaryBtn);
         }
-        const canRestartMission =
-          !(app.missionResult === "win" && app.runState && app.runState.currentMissionIndex < app.runState.missions.length);
+        const canRestartMission = !(isVictory && app.runState && app.runState.currentMissionIndex < app.runState.missions.length);
         if (canRestartMission) {
           const restartBtn = createButton("Restart Mission", restartCurrentMission, { variant: "secondary" });
           restartBtn.classList.add("campaign-footer-btn");
           actionRow.appendChild(restartBtn);
         }
+        const mainMenuBtn = createButton("Main Menu", openMainMenu, { variant: "ghost", escapeAction: true, hotkey: "Esc" });
+        mainMenuBtn.classList.add("campaign-footer-btn");
+        actionRow.appendChild(mainMenuBtn);
       }
       resultPanel.appendChild(actionRow);
       screenRoot.appendChild(wrapCentered(resultPanel));
@@ -3036,6 +3077,22 @@ function createMissionBonusChip(text: string, id: string): HTMLParagraphElement 
   chip.id = id;
   chip.textContent = text;
   return chip;
+}
+
+function createMissionResultStat(label: string, value: string): HTMLDivElement {
+  const card = document.createElement("div");
+  card.className = "mission-result-stat";
+
+  const title = document.createElement("p");
+  title.className = "mission-result-stat-label";
+  title.textContent = label;
+
+  const body = document.createElement("p");
+  body.className = "mission-result-stat-value";
+  body.textContent = value;
+
+  card.append(title, body);
+  return card;
 }
 
 function updateMissionEventFeed(app: AppState, telemetry: MissionWaveTelemetry | null, world: World): void {
