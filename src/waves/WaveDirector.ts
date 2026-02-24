@@ -4,6 +4,7 @@
  * - Added WPI-based dynamic pacing and bounded cooldown compression.
  * - Added stage-scaled territory + enemy regen context integration for deterministic sim tuning.
  * - Added boss power/phase hooks and wave-boundary difficulty telemetry.
+ * - Added mission-level wave-count and boss toggle overrides for campaign preset control.
  */
 
 import type { Tower, UnitPacket, Vec2, World } from "../sim/World";
@@ -111,6 +112,8 @@ export interface WaveDirectorOptions {
   ascensionLevel?: number;
   balanceDiagnosticsEnabled?: boolean;
   allowedEnemyIds?: string[];
+  waveCountOverride?: number;
+  bossEnabledOverride?: boolean;
   rewardGoldMultiplier?: number;
   bossHpMultiplier?: number;
   bossExtraPhases?: number;
@@ -172,6 +175,7 @@ export class WaveDirector {
   private readonly waveGenerator: WaveGenerator;
   private readonly enemyFactory: EnemyFactory;
   private readonly options: WaveDirectorOptions;
+  private readonly allowedEnemyIds: Set<string> | null;
   private readonly lanes: WaveLane[];
   private readonly modifierById: Map<string, WaveModifierDefinition>;
   private readonly packetSnapshots: Map<string, PacketSnapshot>;
@@ -213,6 +217,7 @@ export class WaveDirector {
     this.world = world;
     this.options = options;
     const allowedEnemyIds = options.allowedEnemyIds ? new Set(options.allowedEnemyIds) : null;
+    this.allowedEnemyIds = allowedEnemyIds;
     this.waveGenerator = new WaveGenerator(content, allowedEnemyIds);
     this.enemyFactory = new EnemyFactory(content, {
       allowedEnemyIds: allowedEnemyIds ?? undefined,
@@ -287,7 +292,12 @@ export class WaveDirector {
     }
 
     this.currentWaveIndex = 0;
-    this.totalWaveCount = this.waveGenerator.getTotalWaveCount();
+    const baseWaveCount = this.waveGenerator.getTotalWaveCount();
+    this.totalWaveCount = clamp(
+      options.waveCountOverride ?? baseWaveCount,
+      1,
+      baseWaveCount,
+    );
     this.cooldownUntilNextWaveSec = this.difficultyBudget.enabled
       ? Math.max(0.75, this.difficultyBudget.cooldownBaseSec * 0.35)
       : 1;
@@ -1067,15 +1077,23 @@ export class WaveDirector {
   private generateWavePlan(waveIndex: number): WavePlan {
     const basePlan = this.waveGenerator.generate(this.getWaveGeneratorInputs(waveIndex));
     if (!this.difficultyBudget.enabled || !this.difficultyBudget.stageProfile) {
+      const normalizedBasePlan =
+        this.options.bossEnabledOverride === false
+          ? {
+              ...basePlan,
+              spawnEntries: basePlan.spawnEntries.filter((entry) => entry.enemyId !== this.content.balance.boss.id),
+              isBossWave: false,
+            }
+          : basePlan;
       this.waveBudgetByIndex.set(waveIndex, {
         difficultyBudget: this.options.missionDifficultyScalar,
         cooldownSec: 3,
-        eliteChance: averageEliteChance(basePlan.spawnEntries),
+        eliteChance: averageEliteChance(normalizedBasePlan.spawnEntries),
         bossModifiers: null,
-        archetypeMix: countArchetypes(basePlan.spawnEntries),
-        totalUnits: basePlan.spawnEntries.reduce((sum, entry) => sum + entry.count, 0),
+        archetypeMix: countArchetypes(normalizedBasePlan.spawnEntries),
+        totalUnits: normalizedBasePlan.spawnEntries.reduce((sum, entry) => sum + entry.count, 0),
       });
-      return basePlan;
+      return normalizedBasePlan;
     }
 
     const stageProfile = this.difficultyBudget.stageProfile;
@@ -1150,7 +1168,10 @@ export class WaveDirector {
       0,
       0.8,
     );
-    const supportsExtraMiniboss = waveIndex >= 3 && !isBossWaveIndex(this.content, waveIndex, this.totalWaveCount);
+    const supportsExtraMiniboss =
+      waveIndex >= 3 &&
+      !isBossWaveIndex(this.content, waveIndex, this.totalWaveCount) &&
+      this.isEnemyAllowed(this.content.balance.boss.minibossArchetypeId);
     if (supportsExtraMiniboss && rng() < minibossChance) {
       spawnEntries.push({
         timeOffsetSec: round2(entryCount * defaultSpacing + 0.45),
@@ -1161,9 +1182,9 @@ export class WaveDirector {
       });
     }
 
-    const bossWave = isBossWaveIndex(this.content, waveIndex, this.totalWaveCount);
+    const bossWave = this.isBossEnabledForMission() && isBossWaveIndex(this.content, waveIndex, this.totalWaveCount);
     let bossModifiers: BossDifficultyModifiers | null = null;
-    if (bossWave && stageProfile.bossModel.enabled) {
+    if (bossWave && stageProfile.bossModel.enabled && this.isEnemyAllowed(this.content.balance.boss.id)) {
       bossModifiers = computeBossDifficultyModifiers(
         stageProfile,
         waveDifficultyBudget,
@@ -1239,6 +1260,20 @@ export class WaveDirector {
       }
     }
     return selected.length > 0 ? selected : spawnable;
+  }
+
+  private isEnemyAllowed(enemyId: string): boolean {
+    if (!this.allowedEnemyIds || this.allowedEnemyIds.size === 0) {
+      return true;
+    }
+    return this.allowedEnemyIds.has(enemyId);
+  }
+
+  private isBossEnabledForMission(): boolean {
+    if (this.options.bossEnabledOverride !== undefined) {
+      return this.options.bossEnabledOverride;
+    }
+    return true;
   }
 
   private allocateArchetypeCounts(

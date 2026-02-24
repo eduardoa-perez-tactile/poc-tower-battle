@@ -1,6 +1,11 @@
 import type { StageRegistryEntry } from "../levels/types";
 
-export const CAMPAIGN_PROGRESS_STORAGE_KEY = "tower-battle.campaign-progress.v1";
+/*
+ * Patch Notes (2026-02-24):
+ * - Moved campaign progression storage namespace to v2 for the new tutorial-first campaign.
+ */
+
+export const CAMPAIGN_PROGRESS_STORAGE_KEY = "campaignProgress_v2";
 
 const CAMPAIGN_PROGRESS_VERSION = 1;
 

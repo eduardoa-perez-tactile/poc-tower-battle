@@ -1,0 +1,331 @@
+{
+  "version": 2,
+  "stages": [
+    {
+      "id": "training",
+      "displayName": "Training Grounds",
+      "levels": [
+        {
+          "id": "t01_core_loop",
+          "displayName": "T01 - Capture & Send",
+          "mapId": "map_t01",
+          "difficulty": { "stageId": "stage1", "missionIndex": 0 },
+          "dynamic": "none",
+          "teaches": ["capture", "send_packets", "defend"],
+          "reinforces": [],
+          "objectivesText": "Capture the nearest neutral tower and hold through the opening assault.",
+          "hints": [
+            { "trigger": "onStart", "text": "Drag from your tower to create a link. Capturing towers increases your economy." },
+            { "trigger": "onFirstCapture", "text": "Good. Chain your next capture before the enemy stabilizes." }
+          ],
+          "archetypeAllowlist": ["swarm"],
+          "wavePlan": { "preset": "teach_easy", "waves": 2, "bossEnabled": false }
+        },
+        {
+          "id": "t02_travel_time",
+          "displayName": "T02 - Travel Time Matters",
+          "mapId": "map_t02",
+          "difficulty": { "stageId": "stage1", "missionIndex": 1 },
+          "dynamic": "travel_time",
+          "teaches": ["forward_staging"],
+          "reinforces": ["capture", "send_packets"],
+          "objectivesText": "Use forward towers to reduce travel time and keep pressure steady.",
+          "hints": [
+            { "trigger": "onStart", "text": "Long links delay reinforcements. Capture midpoint towers first." },
+            { "trigger": "onWaveStart", "wave": 2, "text": "Reinforce from closer towers to react faster." }
+          ],
+          "archetypeAllowlist": ["swarm", "ranged"],
+          "wavePlan": { "preset": "teach_easy", "waves": 2, "bossEnabled": false }
+        },
+        {
+          "id": "t03_multi_front",
+          "displayName": "T03 - Multi-Front Defense",
+          "mapId": "map_t03",
+          "difficulty": { "stageId": "stage1", "missionIndex": 2 },
+          "dynamic": "multi_front",
+          "teaches": ["split_attention", "reserve_management"],
+          "reinforces": ["forward_staging"],
+          "objectivesText": "Hold two lanes at once. Keep a reserve for emergencies.",
+          "hints": [
+            { "trigger": "onStart", "text": "You cannot overcommit one lane. Keep troops in reserve for the opposite flank." },
+            { "trigger": "onFirstLoss", "text": "Recover by retaking a safe neutral tower before pushing again." }
+          ],
+          "archetypeAllowlist": ["swarm", "ranged"],
+          "wavePlan": { "preset": "test_normal", "waves": 3, "bossEnabled": false }
+        },
+        {
+          "id": "t04_swarm",
+          "displayName": "T04 - Swarm Pressure",
+          "mapId": "map_t04",
+          "difficulty": { "stageId": "stage1", "missionIndex": 3 },
+          "dynamic": "swarm",
+          "teaches": ["early_intercept"],
+          "reinforces": ["split_attention"],
+          "objectivesText": "Intercept swarm waves before they stack into one lane.",
+          "hints": [
+            { "trigger": "onStart", "text": "Swarm units are weak but snowball in numbers. Thin them early." },
+            { "trigger": "onWaveStart", "wave": 2, "text": "Use short links for fast response against swarm spikes." }
+          ],
+          "archetypeAllowlist": ["swarm", "ranged"],
+          "wavePlan": { "preset": "teach_new_archetype", "waves": 3, "firstAppearanceWave": 1, "bossEnabled": false }
+        },
+        {
+          "id": "t05_tank",
+          "displayName": "T05 - Tank Frontline",
+          "mapId": "map_t05",
+          "difficulty": { "stageId": "stage1", "missionIndex": 4 },
+          "dynamic": "tank",
+          "teaches": ["focus_fire", "stall_and_cycle"],
+          "reinforces": ["early_intercept"],
+          "objectivesText": "Focus heavy targets and avoid overextending into tank pushes.",
+          "hints": [
+            { "trigger": "onStart", "text": "Tank units are slow and durable. Collapse multiple links on one target." },
+            { "trigger": "onFirstCapture", "text": "Use your new tower as a rally point before pushing deeper." }
+          ],
+          "archetypeAllowlist": ["swarm", "tank"],
+          "wavePlan": { "preset": "teach_new_archetype", "waves": 3, "firstAppearanceWave": 2, "bossEnabled": false }
+        },
+        {
+          "id": "t06_shield",
+          "displayName": "T06 - Shield Windows",
+          "mapId": "map_t06",
+          "difficulty": { "stageId": "stage1", "missionIndex": 5 },
+          "dynamic": "shield",
+          "teaches": ["timing_windows"],
+          "reinforces": ["focus_fire"],
+          "objectivesText": "Break shield formations by timing pushes between barrier cycles.",
+          "hints": [
+            { "trigger": "onStart", "text": "Shield enemies have defensive windows. Commit attacks in bursts." },
+            { "trigger": "onWaveStart", "wave": 3, "text": "Wait for shield downtime, then flood with fast packets." }
+          ],
+          "archetypeAllowlist": ["swarm", "shield", "tank"],
+          "wavePlan": { "preset": "teach_new_archetype", "waves": 3, "firstAppearanceWave": 2, "bossEnabled": false }
+        },
+        {
+          "id": "t07_support",
+          "displayName": "T07 - Support Auras",
+          "mapId": "map_t07",
+          "difficulty": { "stageId": "stage2", "missionIndex": 0 },
+          "dynamic": "support",
+          "teaches": ["priority_targeting"],
+          "reinforces": ["timing_windows"],
+          "objectivesText": "Eliminate support units first to collapse enemy aura formations.",
+          "hints": [
+            { "trigger": "onStart", "text": "Support units amplify nearby enemies. Pick them off early." },
+            { "trigger": "onWaveStart", "wave": 2, "text": "A split push can isolate support from tank escorts." }
+          ],
+          "archetypeAllowlist": ["swarm", "shield", "support"],
+          "wavePlan": { "preset": "teach_new_archetype", "waves": 4, "firstAppearanceWave": 2, "bossEnabled": false }
+        },
+        {
+          "id": "t08_territory_clusters",
+          "displayName": "T08 - Territory Clusters",
+          "mapId": "map_t08",
+          "difficulty": { "stageId": "stage2", "missionIndex": 1 },
+          "dynamic": "territory_clusters",
+          "teaches": ["cluster_building", "route_security"],
+          "reinforces": ["priority_targeting"],
+          "objectivesText": "Build and hold a connected cluster before contesting the isolated tower.",
+          "hints": [
+            { "trigger": "onStart", "text": "Connected towers grant bonus regen and armor. Build your cluster first." },
+            { "trigger": "onFirstCapture", "text": "Do not chase isolated nodes until your cluster is stable." }
+          ],
+          "archetypeAllowlist": ["swarm", "tank", "support"],
+          "wavePlan": { "preset": "test_normal", "waves": 4, "bossEnabled": false }
+        },
+        {
+          "id": "t09_tempo_compression",
+          "displayName": "T09 - Tempo Compression",
+          "mapId": "map_t09",
+          "difficulty": { "stageId": "stage2", "missionIndex": 2 },
+          "dynamic": "tempo_compression",
+          "teaches": ["fast_stabilization"],
+          "reinforces": ["cluster_building"],
+          "objectivesText": "Stabilize quickly as wave windows shorten.",
+          "hints": [
+            { "trigger": "onStart", "text": "Wave cooldowns are shorter here. Capture quickly, then fortify." },
+            { "trigger": "onWaveStart", "wave": 3, "text": "Spend reserves now; waiting invites overwhelm." }
+          ],
+          "archetypeAllowlist": ["swarm", "shield", "support", "ranged"],
+          "wavePlan": { "preset": "remix", "waves": 4, "bossEnabled": false }
+        },
+        {
+          "id": "t10_disruptor",
+          "displayName": "T10 - Disruptor Routing",
+          "mapId": "map_t10",
+          "difficulty": { "stageId": "stage2", "missionIndex": 3 },
+          "dynamic": "disruptor",
+          "teaches": ["route_redundancy"],
+          "reinforces": ["fast_stabilization"],
+          "objectivesText": "Maintain redundant routes so disruptors cannot collapse your network.",
+          "hints": [
+            { "trigger": "onStart", "text": "Disruptors cut fragile routes. Keep at least two paths to key towers." },
+            { "trigger": "onFirstDisruptorSeen", "text": "A disruptor is active. Re-link around damaged lanes immediately." }
+          ],
+          "archetypeAllowlist": ["swarm", "link_cutter", "support", "shield"],
+          "wavePlan": { "preset": "test_normal", "waves": 4, "firstAppearanceWave": 2, "bossEnabled": false }
+        },
+        {
+          "id": "t11_splitter",
+          "displayName": "T11 - Splitter Control",
+          "mapId": "map_t11",
+          "difficulty": { "stageId": "stage2", "missionIndex": 4 },
+          "dynamic": "splitter",
+          "teaches": ["mid_lane_intercept"],
+          "reinforces": ["route_redundancy"],
+          "objectivesText": "Intercept splitters before they reach tower range and multiply pressure.",
+          "hints": [
+            { "trigger": "onStart", "text": "Splitters spawn child units when destroyed in transit. Pick interception points carefully." },
+            { "trigger": "onWaveStart", "wave": 3, "text": "Hold center control so split children cannot branch into both lanes." }
+          ],
+          "archetypeAllowlist": ["swarm", "splitter", "shield", "support"],
+          "wavePlan": { "preset": "test_normal", "waves": 4, "firstAppearanceWave": 2, "bossEnabled": false }
+        },
+        {
+          "id": "t12_boss_intro",
+          "displayName": "T12 - Boss Introduction",
+          "mapId": "map_t12",
+          "difficulty": { "stageId": "stage2", "missionIndex": 5 },
+          "dynamic": "boss_intro",
+          "teaches": ["phase_tracking", "telegraph_response"],
+          "reinforces": ["mid_lane_intercept"],
+          "objectivesText": "Survive the boss phases and clear reinforcement surges.",
+          "hints": [
+            { "trigger": "onStart", "text": "Boss abilities are telegraphed. Move force where impact is coming." },
+            { "trigger": "onWaveStart", "wave": 4, "text": "Boss phase shift incoming. Keep reserve for reinforcement adds." }
+          ],
+          "archetypeAllowlist": ["swarm", "support", "miniboss_brute", "overseer_boss"],
+          "wavePlan": { "preset": "boss_intro", "waves": 5, "bossEnabled": true }
+        }
+      ]
+    },
+    {
+      "id": "core",
+      "displayName": "Core Front",
+      "levels": [
+        {
+          "id": "c01_swarm_multi_front",
+          "displayName": "C01 - Swarm + Multi-Front",
+          "mapId": "map_t13",
+          "difficulty": { "stageId": "stage3", "missionIndex": 0 },
+          "dynamic": "swarm_multi_front",
+          "teaches": ["remix_execution"],
+          "reinforces": ["swarm", "multi_front"],
+          "objectivesText": "Hold dual lanes against constant swarm cycling.",
+          "hints": [
+            { "trigger": "onStart", "text": "Alternate lane pressure. A static defense will collapse." }
+          ],
+          "archetypeAllowlist": ["swarm", "ranged", "support"],
+          "wavePlan": { "preset": "remix", "waves": 5, "bossEnabled": false }
+        },
+        {
+          "id": "c02_tank_chokepoint",
+          "displayName": "C02 - Tank + Chokepoint",
+          "mapId": "map_t14",
+          "difficulty": { "stageId": "stage3", "missionIndex": 1 },
+          "dynamic": "tank_chokepoint",
+          "teaches": ["chokepoint_rotation"],
+          "reinforces": ["tank", "focus_fire"],
+          "objectivesText": "Manage tank pushes through narrow lanes without losing map control.",
+          "hints": [
+            { "trigger": "onStart", "text": "Chokepoints buy time. Rotate reinforcements before tanks stack." }
+          ],
+          "archetypeAllowlist": ["swarm", "tank", "shield"],
+          "wavePlan": { "preset": "remix", "waves": 5, "bossEnabled": false }
+        },
+        {
+          "id": "c03_shield_support",
+          "displayName": "C03 - Shield + Support",
+          "mapId": "map_t15",
+          "difficulty": { "stageId": "stage3", "missionIndex": 2 },
+          "dynamic": "shield_support",
+          "teaches": ["target_order_under_pressure"],
+          "reinforces": ["shield", "support"],
+          "objectivesText": "Break coordinated shield-support groups before they reach your core.",
+          "hints": [
+            { "trigger": "onStart", "text": "Support first, then shield carriers. Wrong order wastes your window." }
+          ],
+          "archetypeAllowlist": ["swarm", "shield", "support", "tank"],
+          "wavePlan": { "preset": "remix", "waves": 5, "bossEnabled": false }
+        },
+        {
+          "id": "c04_territory_tempo",
+          "displayName": "C04 - Territory + Tempo",
+          "mapId": "map_t16",
+          "difficulty": { "stageId": "stage4", "missionIndex": 0 },
+          "dynamic": "territory_tempo",
+          "teaches": ["tempo_cluster_tradeoffs"],
+          "reinforces": ["territory_clusters", "tempo_compression"],
+          "objectivesText": "Maintain a bonus cluster while surviving accelerated wave cadence.",
+          "hints": [
+            { "trigger": "onStart", "text": "Secure your cluster quickly, then stabilize tempo spikes." }
+          ],
+          "archetypeAllowlist": ["swarm", "support", "shield", "link_cutter"],
+          "wavePlan": { "preset": "remix", "waves": 5, "bossEnabled": false }
+        },
+        {
+          "id": "c05_disruptor_multi_front",
+          "displayName": "C05 - Disruptor + Multi-Front",
+          "mapId": "map_t17",
+          "difficulty": { "stageId": "stage4", "missionIndex": 1 },
+          "dynamic": "disruptor_multi_front",
+          "teaches": ["network_recovery"],
+          "reinforces": ["disruptor", "multi_front"],
+          "objectivesText": "Recover route breaks while defending both fronts.",
+          "hints": [
+            { "trigger": "onStart", "text": "Expect route cuts on one flank while the other is pressured." },
+            { "trigger": "onFirstDisruptorSeen", "text": "Re-route immediately. Delays compound across both fronts." }
+          ],
+          "archetypeAllowlist": ["swarm", "link_cutter", "tank", "support"],
+          "wavePlan": { "preset": "remix", "waves": 5, "bossEnabled": false }
+        },
+        {
+          "id": "c06_splitter_tempo",
+          "displayName": "C06 - Splitter + Tempo",
+          "mapId": "map_t18",
+          "difficulty": { "stageId": "stage4", "missionIndex": 2 },
+          "dynamic": "splitter_tempo",
+          "teaches": ["threat_triage"],
+          "reinforces": ["splitter", "tempo_compression"],
+          "objectivesText": "Control splitter waves while rapid wave timing compresses recovery.",
+          "hints": [
+            { "trigger": "onStart", "text": "Do not chase every flank. Prioritize splitter lanes first." }
+          ],
+          "archetypeAllowlist": ["swarm", "splitter", "shield", "support"],
+          "wavePlan": { "preset": "remix", "waves": 5, "bossEnabled": false }
+        },
+        {
+          "id": "c07_miniboss_escort",
+          "displayName": "C07 - Mini-Boss Escorts",
+          "mapId": "map_t19",
+          "difficulty": { "stageId": "stage5", "missionIndex": 0 },
+          "dynamic": "miniboss_escort",
+          "teaches": ["boss_escort_break"],
+          "reinforces": ["tank", "support", "tempo_compression"],
+          "objectivesText": "Break escort formations and isolate mini-boss pushes.",
+          "hints": [
+            { "trigger": "onStart", "text": "Escort waves rely on support overlap. Split and collapse their formation." }
+          ],
+          "archetypeAllowlist": ["swarm", "tank", "support", "miniboss_brute"],
+          "wavePlan": { "preset": "boss_intro", "waves": 5, "minibossWave": 4, "bossEnabled": false }
+        },
+        {
+          "id": "c08_final_boss",
+          "displayName": "C08 - Final Boss: Dominion Core",
+          "mapId": "map_t20",
+          "difficulty": { "stageId": "stage5", "missionIndex": 1 },
+          "dynamic": "final_boss",
+          "teaches": ["full_system_mastery"],
+          "reinforces": ["territory_clusters", "tempo_compression", "disruptor", "boss_intro"],
+          "objectivesText": "Defeat the final boss while managing territory pressure across all flanks.",
+          "hints": [
+            { "trigger": "onStart", "text": "Build territory bonuses early. Final phases punish weak networks." },
+            { "trigger": "onWaveStart", "wave": 5, "text": "Final phase soon. Hold center and keep flank routes alive." }
+          ],
+          "archetypeAllowlist": ["swarm", "tank", "shield", "support", "link_cutter", "splitter", "miniboss_brute", "overseer_boss"],
+          "wavePlan": { "preset": "boss_intro", "waves": 6, "bossEnabled": true }
+        }
+      ]
+    }
+  ]
+}

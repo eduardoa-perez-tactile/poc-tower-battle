@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "build:campaign": "node --experimental-strip-types scripts/build_campaign_v2.ts"
   },
   "devDependencies": {
     "typescript": "~5.9.3",
