@@ -25,6 +25,8 @@ export function createThreatZone(): ThreatZoneController {
   wave.className = "hud-wave-label";
   const countdown = document.createElement("p");
   countdown.className = "hud-countdown";
+  const countdownHint = document.createElement("p");
+  countdownHint.className = "hud-countdown-hint";
   meter.append(wave, countdown);
 
   const threats = document.createElement("div");
@@ -33,7 +35,7 @@ export function createThreatZone(): ThreatZoneController {
   const modifiers = document.createElement("div");
   modifiers.className = "hud-modifier-row";
 
-  root.append(head, meter, threats, modifiers);
+  root.append(head, meter, countdownHint, threats, modifiers);
 
   let lastSignature = "";
   return {
@@ -49,6 +51,8 @@ export function createThreatZone(): ThreatZoneController {
       wave.textContent = vm.waveLabel;
       countdown.textContent = vm.countdownLabel;
       countdown.classList.toggle("urgent", vm.countdownSec !== null && vm.countdownSec <= 5);
+      countdown.classList.toggle("live", vm.countdownSec === null && /assault/i.test(vm.phaseLabel));
+      countdownHint.textContent = getCountdownHint(vm);
 
       threats.replaceChildren();
       if (vm.threats.length === 0) {
@@ -60,6 +64,7 @@ export function createThreatZone(): ThreatZoneController {
         for (const threat of vm.threats) {
           const chip = document.createElement("div");
           chip.className = "hud-threat-chip";
+          chip.classList.add(`tone-${classifyThreatTone(threat)}`);
 
           const icon = document.createElement("span");
           icon.className = "hud-chip-icon";
@@ -72,6 +77,7 @@ export function createThreatZone(): ThreatZoneController {
           const eta = document.createElement("span");
           eta.className = "hud-chip-eta";
           eta.textContent = threat.etaSec === null ? "Now" : `${Math.ceil(threat.etaSec)}s`;
+          eta.classList.toggle("urgent", threat.etaSec !== null && threat.etaSec <= 5);
 
           chip.append(icon, text, eta);
           threats.appendChild(chip);
@@ -106,6 +112,32 @@ export function createThreatZone(): ThreatZoneController {
       wave.textContent = "Wave --/--";
       phase.textContent = "Awaiting telemetry";
       countdown.textContent = "Waiting";
+      countdownHint.textContent = "";
     },
   };
+}
+
+function getCountdownHint(vm: ThreatVM): string {
+  if (vm.countdownSec === null) {
+    if (/final/i.test(vm.phaseLabel)) {
+      return "No further assaults scheduled";
+    }
+    if (/assault/i.test(vm.phaseLabel)) {
+      return "Timer resumes after this assault is cleared";
+    }
+    return "Awaiting next phase timing";
+  }
+  return "Next assault in";
+}
+
+function classifyThreatTone(threat: ThreatVM["threats"][number]): "danger" | "warning" | "info" {
+  const normalized = threat.label.toLowerCase();
+  const heavyUnit = normalized.includes("tank") || normalized.includes("shield") || normalized.includes("boss");
+  if (threat.count >= 6 || (heavyUnit && threat.count >= 4)) {
+    return "danger";
+  }
+  if (threat.count >= 3 || heavyUnit) {
+    return "warning";
+  }
+  return "info";
 }

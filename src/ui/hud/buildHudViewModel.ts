@@ -323,7 +323,7 @@ function getThreatPhaseLabel(telemetry: MissionWaveTelemetry | null): string {
     return "Awaiting telemetry";
   }
   if (telemetry.activeWaveInProgress) {
-    return "Assault Active";
+    return "Live Assault";
   }
   if (telemetry.currentWaveIndex >= telemetry.totalWaveCount) {
     return "Final Assault Cleared";
@@ -336,7 +336,7 @@ function getCountdownLabel(telemetry: MissionWaveTelemetry | null): string {
     return "Waiting";
   }
   if (telemetry.nextWaveStartsInSec === null) {
-    return telemetry.activeWaveInProgress ? "Assault active" : "Final assault complete";
+    return telemetry.activeWaveInProgress ? "LIVE" : "COMPLETE";
   }
   return `${Math.ceil(telemetry.nextWaveStartsInSec)}s`;
 }

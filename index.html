@@ -1101,21 +1101,23 @@
         right: 14px;
         z-index: 30;
         border-radius: 999px;
-        padding: 5px 10px;
-        background: rgba(255, 77, 109, 0.22);
-        border: 1px solid rgba(255, 125, 149, 0.55);
-        color: #ffd8df;
-        font-size: 0.75rem;
+        padding: 4px 9px;
+        background: rgba(255, 77, 109, 0.14);
+        border: 1px solid rgba(255, 125, 149, 0.34);
+        color: rgba(255, 216, 223, 0.8);
+        font-size: 0.68rem;
         font-weight: 700;
-        letter-spacing: 0.08em;
+        letter-spacing: 0.1em;
         cursor: pointer;
         user-select: none;
+        opacity: 0.72;
       }
 
       #debugIndicator.open {
-        background: rgba(45, 212, 191, 0.2);
-        border-color: rgba(45, 212, 191, 0.6);
-        color: #ccfbf1;
+        background: rgba(45, 212, 191, 0.18);
+        border-color: rgba(45, 212, 191, 0.52);
+        color: rgba(204, 251, 241, 0.92);
+        opacity: 0.92;
       }
 
       #debugPanel {
@@ -1387,34 +1389,56 @@
       }
 
       .hud-overlay-strip {
-        display: flex;
-        flex-wrap: wrap;
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
         gap: 6px;
       }
 
       .hud-overlay-toggle {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 8px;
         border: 1px solid rgba(148, 187, 255, 0.34);
         background: rgba(16, 28, 48, 0.74);
         color: var(--text);
-        border-radius: 999px;
-        padding: 4px 10px;
+        border-radius: 10px;
+        padding: 5px 8px;
         font-size: 0.68rem;
         letter-spacing: 0.08em;
         text-transform: uppercase;
       }
 
       .hud-overlay-toggle.active {
-        border-color: rgba(45, 212, 191, 0.68);
-        background: rgba(22, 76, 71, 0.68);
+        border-color: rgba(45, 212, 191, 0.72);
+        background: rgba(18, 88, 80, 0.7);
+      }
+
+      .hud-overlay-toggle-label {
+        font-size: 0.66rem;
+      }
+
+      .hud-overlay-toggle-state {
+        border-radius: 999px;
+        border: 1px solid rgba(152, 191, 255, 0.32);
+        background: rgba(17, 30, 49, 0.78);
+        padding: 1px 6px;
+        font-size: 0.62rem;
+        color: rgba(199, 217, 244, 0.78);
+      }
+
+      .hud-overlay-toggle-state.on {
+        border-color: rgba(45, 212, 191, 0.7);
+        color: rgba(202, 251, 241, 0.95);
       }
 
       .hud-zone {
         border-radius: 12px;
         border: 1px solid rgba(138, 183, 250, 0.22);
         background: rgba(10, 19, 33, 0.74);
-        padding: 9px;
+        padding: 10px;
         display: grid;
-        gap: 8px;
+        gap: 9px;
       }
 
       .hud-zone-head {
@@ -1435,7 +1459,7 @@
       .hud-threat-phase,
       .hud-context-mode {
         margin: 0;
-        font-size: 0.7rem;
+        font-size: 0.74rem;
         color: rgba(206, 222, 247, 0.86);
       }
 
@@ -1448,13 +1472,13 @@
 
       .hud-wave-label {
         margin: 0;
-        font-size: 0.94rem;
+        font-size: 1rem;
         font-weight: 700;
       }
 
       .hud-countdown {
         margin: 0;
-        font-size: 1.38rem;
+        font-size: 1.46rem;
         line-height: 1;
         letter-spacing: 0.03em;
         color: #d8e8ff;
@@ -1462,6 +1486,16 @@
 
       .hud-countdown.urgent {
         color: #fca5a5;
+      }
+
+      .hud-countdown.live {
+        color: #67e8f9;
+      }
+
+      .hud-countdown-hint {
+        margin: -4px 0 0;
+        font-size: 0.7rem;
+        color: rgba(190, 211, 242, 0.74);
       }
 
       .hud-threat-row,
@@ -1483,7 +1517,22 @@
         border: 1px solid rgba(150, 189, 255, 0.24);
         background: rgba(16, 30, 50, 0.78);
         padding: 4px 10px;
-        font-size: 0.71rem;
+        font-size: 0.74rem;
+      }
+
+      .hud-threat-chip.tone-info {
+        border-color: rgba(96, 165, 250, 0.38);
+        background: rgba(21, 45, 77, 0.7);
+      }
+
+      .hud-threat-chip.tone-warning {
+        border-color: rgba(251, 191, 36, 0.44);
+        background: rgba(80, 54, 16, 0.62);
+      }
+
+      .hud-threat-chip.tone-danger {
+        border-color: rgba(248, 113, 113, 0.58);
+        background: rgba(94, 33, 42, 0.66);
       }
 
       .hud-chip-icon {
@@ -1499,6 +1548,10 @@
 
       .hud-chip-eta {
         color: rgba(210, 227, 252, 0.75);
+      }
+
+      .hud-chip-eta.urgent {
+        color: rgba(254, 226, 226, 0.95);
       }
 
       .hud-badge {
@@ -1522,18 +1575,32 @@
         background: rgba(71, 46, 16, 0.58);
       }
 
+      .hud-objective-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        gap: 8px;
+      }
+
       .hud-progress-label,
       .hud-progress-detail,
       .hud-territory-title {
         margin: 0;
-        font-size: 0.74rem;
+        font-size: 0.79rem;
+      }
+
+      .hud-progress-percent {
+        margin: 0;
+        font-size: 0.76rem;
+        font-weight: 700;
+        color: rgba(188, 249, 236, 0.95);
       }
 
       .hud-progress-track {
-        height: 8px;
+        height: 10px;
         border-radius: 999px;
-        border: 1px solid rgba(140, 179, 245, 0.2);
-        background: rgba(11, 21, 36, 0.8);
+        border: 1px solid rgba(140, 179, 245, 0.28);
+        background: rgba(8, 17, 30, 0.95);
         overflow: hidden;
       }
 
@@ -1541,7 +1608,8 @@
         height: 100%;
         width: 0%;
         border-radius: 999px;
-        background: linear-gradient(90deg, rgba(56, 189, 248, 0.95), rgba(45, 212, 191, 0.95));
+        background: linear-gradient(90deg, rgba(14, 165, 233, 0.98), rgba(45, 212, 191, 0.98));
+        box-shadow: 0 0 10px rgba(45, 212, 191, 0.45);
       }
 
       .hud-skill-row {
@@ -1594,15 +1662,17 @@
         display: grid;
         grid-template-columns: 1fr auto;
         gap: 10px;
-        font-size: 0.73rem;
+        font-size: 0.78rem;
+        line-height: 1.35;
       }
 
       .hud-context-label {
-        color: rgba(191, 210, 240, 0.76);
+        color: rgba(195, 216, 246, 0.8);
       }
 
       .hud-context-value {
         color: rgba(232, 242, 255, 0.95);
+        font-weight: 600;
       }
 
       .hud-context-badges {
@@ -1614,7 +1684,8 @@
 
       .hud-context-hint {
         margin: 4px 0 0;
-        font-size: 0.7rem;
+        font-size: 0.73rem;
+        line-height: 1.35;
         color: rgba(193, 214, 246, 0.78);
       }
 
@@ -1641,8 +1712,8 @@
 
       .hud-log-row {
         margin: 0;
-        font-size: 0.68rem;
-        line-height: 1.28;
+        font-size: 0.72rem;
+        line-height: 1.35;
         border-radius: 8px;
         border: 1px solid rgba(137, 178, 246, 0.2);
         background: rgba(12, 23, 40, 0.7);
@@ -1651,7 +1722,7 @@
 
       .hud-row-empty {
         margin: 0;
-        font-size: 0.69rem;
+        font-size: 0.73rem;
         color: rgba(197, 214, 242, 0.75);
       }
 
@@ -2054,6 +2125,10 @@
           width: min(96vw, 460px);
           max-height: calc(100vh - 16px);
           gap: 8px;
+        }
+
+        .hud-overlay-strip {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
         }
 
         .hud-context-zone {

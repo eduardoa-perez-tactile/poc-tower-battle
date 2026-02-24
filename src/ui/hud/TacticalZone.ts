@@ -24,6 +24,11 @@ export function createTacticalZone(onSkillTrigger: (request: SkillTriggerRequest
 
   const objectiveTitle = document.createElement("p");
   objectiveTitle.className = "hud-progress-label";
+  const objectivePercent = document.createElement("p");
+  objectivePercent.className = "hud-progress-percent";
+  const objectiveHead = document.createElement("div");
+  objectiveHead.className = "hud-objective-head";
+  objectiveHead.append(objectiveTitle, objectivePercent);
   const objectiveDetail = document.createElement("p");
   objectiveDetail.className = "hud-progress-detail";
   const objectiveTrack = document.createElement("div");
@@ -46,7 +51,7 @@ export function createTacticalZone(onSkillTrigger: (request: SkillTriggerRequest
   const skills = document.createElement("div");
   skills.className = "hud-skill-row";
 
-  root.append(head, objectiveTitle, objectiveTrack, objectiveDetail, globalBadges, territory, skills);
+  root.append(head, objectiveHead, objectiveTrack, objectiveDetail, globalBadges, territory, skills);
 
   let lastSignature = "";
   return {
@@ -61,6 +66,7 @@ export function createTacticalZone(onSkillTrigger: (request: SkillTriggerRequest
       objectiveTitle.textContent = vm.objective.label;
       objectiveDetail.textContent = vm.objective.detail;
       objectiveFill.style.width = `${Math.round(vm.objective.progress01 * 100)}%`;
+      objectivePercent.textContent = `${Math.round(vm.objective.progress01 * 100)}%`;
 
       globalBadges.replaceChildren();
       if (vm.globalBadges.length === 0) {
@@ -132,6 +138,7 @@ export function createTacticalZone(onSkillTrigger: (request: SkillTriggerRequest
       objectiveTitle.textContent = "Objective Progress";
       objectiveDetail.textContent = "Awaiting telemetry";
       objectiveFill.style.width = "0%";
+      objectivePercent.textContent = "0%";
       globalBadges.replaceChildren();
       territoryBadges.replaceChildren();
       skills.replaceChildren();

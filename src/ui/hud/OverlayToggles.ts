@@ -29,12 +29,25 @@ export function createOverlayToggles(
     const button = document.createElement("button");
     button.type = "button";
     button.className = "hud-overlay-toggle";
-    button.textContent = text;
-    button.setAttribute("aria-pressed", "false");
+    const label = document.createElement("span");
+    label.className = "hud-overlay-toggle-label";
+    label.textContent = text;
+    const status = document.createElement("span");
+    status.className = "hud-overlay-toggle-state";
+    button.append(label, status);
+
+    const syncVisualState = (): void => {
+      const enabled = state[key];
+      button.classList.toggle("active", enabled);
+      button.setAttribute("aria-pressed", enabled ? "true" : "false");
+      status.textContent = enabled ? "ON" : "OFF";
+      status.classList.toggle("on", enabled);
+    };
+
+    syncVisualState();
     button.onclick = () => {
       state[key] = !state[key];
-      button.classList.toggle("active", state[key]);
-      button.setAttribute("aria-pressed", state[key] ? "true" : "false");
+      syncVisualState();
       onChange({ ...state });
     };
     return button;
