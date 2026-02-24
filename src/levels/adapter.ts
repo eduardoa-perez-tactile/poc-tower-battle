@@ -48,6 +48,7 @@ const DEFAULT_AI: LoadedLevel["ai"] = {
   aiThinkIntervalSec: 2.5,
   aiMinTroopsToAttack: 25,
 };
+const DEFAULT_TOWER_VISION = 170;
 
 interface BuildRuntimeLevelOptions {
   viewport: ViewportSize;
@@ -86,6 +87,14 @@ export function buildRuntimeLevelFromLevel(
       troops: Math.min(maxTroops, troops),
       maxTroops,
       regenRate,
+      baseRegen: regenRate,
+      effectiveRegen: regenRate,
+      baseVision: DEFAULT_TOWER_VISION,
+      effectiveVision: DEFAULT_TOWER_VISION,
+      territoryClusterSize: 0,
+      territoryRegenBonusPct: 0,
+      territoryArmorBonusPct: 0,
+      territoryVisionBonusPct: 0,
       baseMaxTroops: maxTroops,
       baseRegenRate: regenRate,
       archetype,

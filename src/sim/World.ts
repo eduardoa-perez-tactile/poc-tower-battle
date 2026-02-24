@@ -1,5 +1,10 @@
 import type { LinkLevelDefinition } from "./DepthTypes";
 import { TowerArchetype } from "./DepthTypes";
+import {
+  applyTerritoryControlBonuses,
+  computeConnectedClusters as computeTerritoryConnectedClusters,
+  type ConnectedCluster,
+} from "./TerritoryControl";
 
 export type Owner = "player" | "enemy" | "neutral";
 
@@ -18,6 +23,14 @@ export interface Tower {
   troops: number;
   maxTroops: number;
   regenRate: number;
+  baseRegen: number;
+  effectiveRegen: number;
+  baseVision: number;
+  effectiveVision: number;
+  territoryClusterSize: number;
+  territoryRegenBonusPct: number;
+  territoryArmorBonusPct: number;
+  territoryVisionBonusPct: number;
   baseMaxTroops: number;
   baseRegenRate: number;
   archetype: TowerArchetype;
@@ -110,6 +123,9 @@ export interface UnitPacket {
   isBoss: boolean;
   bossEnraged: boolean;
   ageSec: number;
+  baseArmor: number;
+  effectiveArmor: number;
+  territoryArmorBonus: number;
   baseArmorMultiplier: number;
   tempSpeedMultiplier: number;
   tempArmorMultiplier: number;
@@ -145,6 +161,7 @@ export class World {
   private readonly linkLevels: Map<number, LinkLevelDefinition>;
   private readonly linkDestroyedEvents: LinkDestroyedEvent[];
   private readonly towerCapturedEvents: TowerCapturedEvent[];
+  private suppressTerritoryRefresh: boolean;
 
   constructor(
     towers: Tower[],
@@ -162,10 +179,13 @@ export class World {
     this.linkLevels = new Map<number, LinkLevelDefinition>(linkLevels);
     this.linkDestroyedEvents = [];
     this.towerCapturedEvents = [];
+    this.suppressTerritoryRefresh = true;
 
     for (const link of initialLinks) {
       this.setOutgoingLink(link.fromTowerId, link.toTowerId, link.level ?? 1);
     }
+    this.suppressTerritoryRefresh = false;
+    this.refreshTerritoryBonuses();
   }
 
   getTowerAtPoint(x: number, y: number): Tower | null {
@@ -211,11 +231,15 @@ export class World {
       return;
     }
 
+    let territoryChanged = false;
     while (this.getOutgoingLinks(fromTowerId).length >= maxOutgoing) {
       let removed = false;
       for (let i = 0; i < this.links.length; i += 1) {
         const link = this.links[i];
         if (!link.isScripted && link.fromTowerId === fromTowerId) {
+          if (this.linkAffectsPlayerTerritory(link.fromTowerId, link.toTowerId)) {
+            territoryChanged = true;
+          }
           this.links.splice(i, 1);
           removed = true;
           break;
@@ -226,6 +250,7 @@ export class World {
       }
     }
 
+    const affectsPlayerTerritory = this.linkAffectsPlayerTerritory(fromTowerId, toTowerId);
     this.links.push(
       this.createRuntimeLink({
         id: `${fromTowerId}->${toTowerId}`,
@@ -241,13 +266,23 @@ export class World {
         hideInRender: false,
       }),
     );
+    if (affectsPlayerTerritory || territoryChanged) {
+      this.refreshTerritoryBonuses();
+    }
   }
 
   clearOutgoingLink(fromTowerId: string): void {
+    let territoryChanged = false;
     for (let i = this.links.length - 1; i >= 0; i -= 1) {
       if (this.links[i].fromTowerId === fromTowerId && !this.links[i].isScripted) {
+        if (this.linkAffectsPlayerTerritory(this.links[i].fromTowerId, this.links[i].toTowerId)) {
+          territoryChanged = true;
+        }
         this.links.splice(i, 1);
       }
+    }
+    if (territoryChanged) {
+      this.refreshTerritoryBonuses();
     }
   }
 
@@ -288,24 +323,37 @@ export class World {
     return null;
   }
 
+  computeConnectedClusters(playerId: Owner): ConnectedCluster[] {
+    return computeTerritoryConnectedClusters(this, playerId);
+  }
+
   upsertScriptedLink(link: LinkSeed): void {
     const scripted = this.createRuntimeLink({
       ...link,
       isScripted: true,
       hideInRender: link.hideInRender ?? true,
     });
+    const affectsPlayerTerritory = this.linkAffectsPlayerTerritory(scripted.fromTowerId, scripted.toTowerId);
 
     for (let i = 0; i < this.links.length; i += 1) {
       if (this.links[i].id === scripted.id) {
+        const previousAffects = this.linkAffectsPlayerTerritory(this.links[i].fromTowerId, this.links[i].toTowerId);
         this.links[i] = scripted;
+        if (previousAffects || affectsPlayerTerritory) {
+          this.refreshTerritoryBonuses();
+        }
         return;
       }
     }
 
     this.links.push(scripted);
+    if (affectsPlayerTerritory) {
+      this.refreshTerritoryBonuses();
+    }
   }
 
   removeScriptedLinksNotIn(activeLinkIds: Set<string>): void {
+    let territoryChanged = false;
     for (let i = this.links.length - 1; i >= 0; i -= 1) {
       const link = this.links[i];
       if (!link.isScripted) {
@@ -314,7 +362,13 @@ export class World {
       if (activeLinkIds.has(link.id)) {
         continue;
       }
+      if (this.linkAffectsPlayerTerritory(link.fromTowerId, link.toTowerId)) {
+        territoryChanged = true;
+      }
       this.links.splice(i, 1);
+    }
+    if (territoryChanged) {
+      this.refreshTerritoryBonuses();
     }
   }
 
@@ -379,6 +433,9 @@ export class World {
       newOwner,
       archetype: tower.archetype,
     });
+    if (previousOwner === "player" || newOwner === "player") {
+      this.refreshTerritoryBonuses();
+    }
   }
 
   drainTowerCapturedEvents(): TowerCapturedEvent[] {
@@ -422,6 +479,7 @@ export class World {
 
   private destroyLinkAt(index: number): void {
     const link = this.links[index];
+    const affectsPlayerTerritory = this.linkAffectsPlayerTerritory(link.fromTowerId, link.toTowerId);
     const middle = samplePointOnPolyline(link.points, 0.5) ?? link.points[link.points.length - 1] ?? { x: 0, y: 0 };
     this.links.splice(index, 1);
     this.linkDestroyedEvents.push({
@@ -430,6 +488,9 @@ export class World {
       x: middle.x,
       y: middle.y,
     });
+    if (affectsPlayerTerritory) {
+      this.refreshTerritoryBonuses();
+    }
   }
 
   private createRuntimeLink(seed: LinkSeed): Link {
@@ -522,12 +583,36 @@ export class World {
     packet.isBoss = false;
     packet.bossEnraged = false;
     packet.ageSec = 0;
+    packet.baseArmor = 0;
+    packet.effectiveArmor = 0;
+    packet.territoryArmorBonus = 0;
     packet.baseArmorMultiplier = 1;
     packet.tempSpeedMultiplier = 1;
     packet.tempArmorMultiplier = 1;
     packet.sourceLane = -1;
     packet.sourceWaveIndex = 0;
     this.packetPool.push(packet);
+  }
+
+  private linkAffectsPlayerTerritory(fromTowerId: string, toTowerId: string): boolean {
+    const fromTower = this.getTowerById(fromTowerId);
+    if (!fromTower || fromTower.owner !== "player") {
+      return false;
+    }
+
+    const toTower = this.getTowerById(toTowerId);
+    if (!toTower || toTower.owner !== "player") {
+      return false;
+    }
+
+    return true;
+  }
+
+  private refreshTerritoryBonuses(): void {
+    if (this.suppressTerritoryRefresh) {
+      return;
+    }
+    applyTerritoryControlBonuses(this, "player");
   }
 }
 

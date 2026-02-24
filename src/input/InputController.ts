@@ -17,12 +17,14 @@ export class InputController {
   private readonly canvas: HTMLCanvasElement;
   private readonly world: World;
   private dragState: DragState | null;
+  private selectedTowerId: string | null;
   private enabled: boolean;
 
   constructor(canvas: HTMLCanvasElement, world: World) {
     this.canvas = canvas;
     this.world = world;
     this.dragState = null;
+    this.selectedTowerId = null;
     this.enabled = true;
 
     this.canvas.addEventListener("mousedown", this.onMouseDown);
@@ -64,6 +66,10 @@ export class InputController {
     return this.enabled && this.dragState !== null;
   }
 
+  getSelectedTowerId(): string | null {
+    return this.selectedTowerId;
+  }
+
   private readonly onMouseDown = (event: MouseEvent): void => {
     if (!this.enabled) {
       return;
@@ -81,7 +87,13 @@ export class InputController {
 
     const pointer = this.toCanvasPoint(event);
     const tower = this.world.getTowerAtPoint(pointer.x, pointer.y);
-    if (!tower || tower.owner !== "player") {
+    if (!tower) {
+      this.selectedTowerId = null;
+      return;
+    }
+
+    this.selectedTowerId = tower.id;
+    if (tower.owner !== "player") {
       return;
     }
 
