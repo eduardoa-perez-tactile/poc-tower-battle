@@ -50,6 +50,11 @@ export class Renderer2D {
     this.showGridLines = enabled;
   }
 
+  clear(): void {
+    const viewport = this.getViewportSize();
+    this.ctx.clearRect(0, 0, viewport.width, viewport.height);
+  }
+
   render(
     world: World,
     preview: DragPreview | null,
@@ -58,8 +63,7 @@ export class Renderer2D {
     bossBar: { name: string; hp01: number } | null,
     linkBreakBursts: ReadonlyArray<{ x: number; y: number; ttlSec: number; radiusPx: number }>,
   ): void {
-    const viewport = this.getViewportSize();
-    this.ctx.clearRect(0, 0, viewport.width, viewport.height);
+    this.clear();
 
     this.drawGroundAndGrid();
     this.drawStaticGraphEdges();

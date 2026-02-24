@@ -1135,6 +1135,7 @@ async function bootstrap(): Promise<void> {
     resetMissionHudUiState(app);
     gameplayHud.reset();
     renderer.setMapRenderData(null);
+    renderer.clear();
   };
 
   window.addEventListener("keydown", (event) => {
@@ -1697,7 +1698,7 @@ function renderCurrentScreen(
 
     const footer = document.createElement("div");
     footer.className = "menu-footer campaign-footer";
-    const backBtn = createButton("Back", app.runState ? openRunMap : openMainMenu, {
+    const backBtn = createButton("Back", openMainMenu, {
       variant: "ghost",
       escapeAction: true,
       hotkey: "Esc",
