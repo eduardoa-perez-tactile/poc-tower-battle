@@ -1353,6 +1353,83 @@
         width: min(92vw, 640px);
       }
 
+      .centered-modal {
+        align-items: center;
+        justify-items: center;
+      }
+
+      .mission-pause-shell {
+        width: min(92vw, 560px);
+        display: grid;
+        gap: 10px;
+        background:
+          radial-gradient(360px 200px at 20% -18%, rgba(43, 108, 238, 0.18), transparent),
+          linear-gradient(165deg, rgba(10, 20, 34, 0.95), rgba(8, 15, 27, 0.96));
+      }
+
+      .mission-pause-hero {
+        border-radius: 12px;
+        border: 1px solid rgba(142, 180, 246, 0.24);
+        background: rgba(11, 21, 35, 0.78);
+        padding: 10px;
+        display: grid;
+        grid-template-columns: auto 1fr;
+        gap: 10px;
+        align-items: center;
+      }
+
+      .mission-pause-emblem {
+        width: 40px;
+        height: 40px;
+        border-radius: 12px;
+        display: grid;
+        place-items: center;
+        font-size: 0.92rem;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        color: #f8fbff;
+        background: linear-gradient(150deg, rgba(43, 108, 238, 0.92), rgba(18, 45, 106, 0.95));
+      }
+
+      .mission-pause-title {
+        margin: 0;
+        font-size: 1rem;
+      }
+
+      .mission-pause-subtitle {
+        margin: 3px 0 0;
+        font-size: 0.79rem;
+        color: rgba(206, 221, 247, 0.84);
+      }
+
+      .mission-pause-summary {
+        border-radius: 11px;
+        border: 1px solid rgba(142, 180, 246, 0.22);
+        background: rgba(10, 20, 34, 0.76);
+        padding: 9px;
+        display: grid;
+        gap: 5px;
+      }
+
+      .mission-pause-actions {
+        display: grid;
+        gap: 8px;
+      }
+
+      .mission-pause-action {
+        width: 100%;
+        min-height: 44px;
+        border-radius: 10px;
+        font-size: 0.84rem;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        font-weight: 700;
+      }
+
+      .mission-pause-action.is-primary {
+        box-shadow: 0 12px 24px rgba(19, 64, 168, 0.42);
+      }
+
       .mission-result-shell {
         width: min(92vw, 760px);
         display: grid;
@@ -1463,7 +1540,7 @@
       }
 
       .pause-panel {
-        width: min(90vw, 620px);
+        width: min(92vw, 560px);
       }
 
       .top-pause-btn {

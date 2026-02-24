@@ -37,3 +37,12 @@
 - Global toggle key is `D` from app root (`src/main.ts`).
 - State lives in `src/ui/debugStore.ts` (`debugOpen` + UI toggles).
 - The tabbed right-dock menu is rendered by `renderDebugPanel()` in `src/main.ts`.
+
+## Mission pause modal style
+- Pause overlay uses `wrapCenteredModal()` in `src/main.ts` to vertically center the popup in gameplay.
+- Modal shell classes are:
+- `mission-pause-shell`
+- `mission-pause-hero`
+- `mission-pause-summary`
+- `mission-pause-actions`
+- Buttons are intentionally full-width and stacked (not horizontal) to improve readability during pause decisions.

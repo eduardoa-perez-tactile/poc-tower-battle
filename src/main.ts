@@ -1878,40 +1878,56 @@ function renderCurrentScreen(
 
     if (app.missionPaused && app.missionResult === null) {
       const pausePanel = document.createElement("div");
-      pausePanel.className = "panel ui-panel menu-panel pause-panel campaign-shell mission-overlay-panel";
+      pausePanel.className = "panel ui-panel menu-panel pause-panel campaign-shell mission-overlay-panel mission-pause-shell";
       pausePanel.appendChild(createCampaignScreenHeader("Mission Paused", "Tactical Freeze"));
 
+      const hero = document.createElement("section");
+      hero.className = "mission-pause-hero";
+      const emblem = document.createElement("div");
+      emblem.className = "mission-pause-emblem";
+      emblem.textContent = "II";
+      const heroCopy = document.createElement("div");
+      const heroTitle = document.createElement("h3");
+      heroTitle.className = "mission-pause-title";
+      heroTitle.textContent = "Command Standby";
+      const heroSubtitle = document.createElement("p");
+      heroSubtitle.className = "mission-pause-subtitle";
+      heroSubtitle.textContent = "Simulation halted. Review your options before redeploying.";
+      heroCopy.append(heroTitle, heroSubtitle);
+      hero.append(emblem, heroCopy);
+      pausePanel.appendChild(hero);
+
       const summary = document.createElement("section");
-      summary.className = "campaign-progress-card";
+      summary.className = "mission-pause-summary";
       summary.appendChild(createMissionHudLabel("Control Summary"));
-      summary.appendChild(createParagraph("Continue: resume simulation and input controls."));
-      summary.appendChild(createParagraph("Restart Mission: reset current mission state."));
+      summary.appendChild(createParagraph("Continue: resume simulation and restore controls."));
+      summary.appendChild(createParagraph("Restart Mission: reset this mission from the start."));
       summary.appendChild(createParagraph("Main Menu: leave mission and return to command menu."));
       pausePanel.appendChild(summary);
 
       const actions = document.createElement("div");
-      actions.className = "menu-footer campaign-footer";
+      actions.className = "mission-pause-actions";
       const continueBtn = createButton("Continue", () => {
         setMissionPaused(false);
       }, { variant: "primary", primaryAction: true, hotkey: "Enter" });
-      continueBtn.classList.add("campaign-footer-btn");
+      continueBtn.classList.add("mission-pause-action", "is-primary");
       actions.appendChild(continueBtn);
 
       const restartBtn = createButton("Restart Mission", () => {
         setMissionPaused(false);
         restartCurrentMission();
       }, { variant: "secondary" });
-      restartBtn.classList.add("campaign-footer-btn");
+      restartBtn.classList.add("mission-pause-action");
       actions.appendChild(restartBtn);
 
       const menuBtn = createButton("Main Menu", () => {
         setMissionPaused(false);
         openMainMenu();
       }, { variant: "ghost", escapeAction: true, hotkey: "Esc" });
-      menuBtn.classList.add("campaign-footer-btn");
+      menuBtn.classList.add("mission-pause-action");
       actions.appendChild(menuBtn);
       pausePanel.appendChild(actions);
-      screenRoot.appendChild(wrapCentered(pausePanel));
+      screenRoot.appendChild(wrapCenteredModal(pausePanel));
     }
 
     if (app.missionResult) {
@@ -3203,6 +3219,13 @@ function showToast(screenRoot: HTMLDivElement, message: string): void {
 function wrapCentered(node: HTMLElement): HTMLDivElement {
   const wrapper = document.createElement("div");
   wrapper.className = "centered";
+  wrapper.appendChild(node);
+  return wrapper;
+}
+
+function wrapCenteredModal(node: HTMLElement): HTMLDivElement {
+  const wrapper = document.createElement("div");
+  wrapper.className = "centered centered-modal";
   wrapper.appendChild(node);
   return wrapper;
 }
