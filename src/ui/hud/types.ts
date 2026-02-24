@@ -1,82 +1,53 @@
 import type { Owner } from "../../sim/World";
-import type { SkillHudState } from "../../game/SkillManager";
 
 export type HudTone = "neutral" | "warning" | "success";
 export type HudToastType = "info" | "warning" | "success" | "danger";
 
-export interface HudBadgeVM {
-  id: string;
-  icon: string;
-  label: string;
-  tone: HudTone;
-}
-
-export interface ThreatItemVM {
+export interface EnemyCompositionItemVM {
   id: string;
   icon: string;
   label: string;
   count: number;
-  etaSec: number | null;
 }
 
-export interface ThreatVM {
+export interface TopBarVM {
+  missionTitle: string;
   waveLabel: string;
-  phaseLabel: string;
-  countdownLabel: string;
-  countdownSec: number | null;
-  threats: ThreatItemVM[];
-  modifiers: HudBadgeVM[];
-}
-
-export interface ObjectiveVM {
-  label: string;
-  detail: string;
-  progress01: number;
-}
-
-export interface TerritorySummaryVM {
-  largestClusterSize: number;
-  bonusBadges: HudBadgeVM[];
-}
-
-export interface SkillHotkeyVM {
-  id: string;
-  name: string;
-  targeting: SkillHudState["targeting"];
-  hotkeyLabel: string;
-  ready: boolean;
-  cooldownRemainingSec: number;
-  cooldownTotalSec: number;
-}
-
-export interface TacticalVM {
-  objective: ObjectiveVM;
-  globalBadges: HudBadgeVM[];
-  territory: TerritorySummaryVM;
-  skills: SkillHotkeyVM[];
-}
-
-export interface GlobalSummaryVM {
+  stateLabel: "LIVE" | "PREP" | "COMPLETE";
+  countdownLabel: string | null;
+  gold: number;
   ownedTowers: number;
   totalRegenPerSec: number;
-  packetsInTransit: number;
-  clusterBonusActive: boolean;
+  paused: boolean;
+  speedMul: 1 | 2;
+}
+
+export interface WaveIntelVM {
+  collapsedLabel: string;
+  waveLabel: string;
+  stateLabel: "LIVE" | "PREP" | "COMPLETE";
+  enemyComposition: EnemyCompositionItemVM[];
+  modifiers: string[];
+  bossPreview: string | null;
+  defaultCollapsed: boolean;
+}
+
+export interface ObjectiveCardVM {
+  title: string;
+  progress01: number;
+  wavesSecuredLabel: string;
+  clusterBonusLabel: "Active" | "Inactive";
 }
 
 export interface TowerInspectVM {
-  towerId: string;
-  owner: Owner;
-  archetypeLabel: string;
-  troops: number;
-  maxTroops: number;
-  regenPerSec: number;
+  towerName: string;
+  troopCountLabel: string;
+  regenLabel: string;
   incomingPackets: number;
-  outgoingPackets: number;
-  clusterSize: number;
-  clusterBadges: HudBadgeVM[];
-  threatIncomingSoon: number;
-  threatLevel: "low" | "medium" | "high";
-  controlHint: string;
+  outgoingLinks: number;
+  localPressureLabel: string;
+  clusterStatusLabel: string;
+  owner: Owner;
 }
 
 export interface HudLogEntryVM {
@@ -86,11 +57,7 @@ export interface HudLogEntryVM {
 }
 
 export interface ContextVM {
-  mode: "global" | "tower";
-  globalSummary: GlobalSummaryVM | null;
   towerInspect: TowerInspectVM | null;
-  logEntries: HudLogEntryVM[];
-  showLogDrawer: boolean;
 }
 
 export interface TowerOverlayVM {
@@ -112,10 +79,9 @@ export interface OverlayVM {
 }
 
 export interface HudVM {
-  missionTitle: string;
-  objectiveText: string;
-  threat: ThreatVM;
-  tactical: TacticalVM;
+  topBar: TopBarVM;
+  waveIntel: WaveIntelVM;
+  objective: ObjectiveCardVM;
   context: ContextVM;
   overlays: OverlayVM;
 }

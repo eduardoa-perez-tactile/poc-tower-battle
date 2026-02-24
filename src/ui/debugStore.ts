@@ -5,6 +5,9 @@ export interface DebugUiState {
   showMissionHud: boolean;
   showWavePreview: boolean;
   showSkillHud: boolean;
+  showOverlayRegenNumbers: boolean;
+  showOverlayCaptureRings: boolean;
+  showOverlayClusterHighlight: boolean;
   showHitboxes: boolean;
   showGridLines: boolean;
 }
@@ -63,6 +66,9 @@ export const debugUiStore = new DebugUiStore({
   showMissionHud: true,
   showWavePreview: true,
   showSkillHud: true,
+  showOverlayRegenNumbers: false,
+  showOverlayCaptureRings: false,
+  showOverlayClusterHighlight: false,
   showHitboxes: false,
   showGridLines: true,
 });

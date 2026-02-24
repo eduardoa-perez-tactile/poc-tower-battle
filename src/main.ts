@@ -86,7 +86,6 @@ import { renderStageSelectScreen } from "./ui/screens/StageSelectScreen";
 import { WorldTooltipOverlay } from "./ui/WorldTooltipOverlay";
 import { GameplayHUD } from "./ui/hud/GameplayHUD";
 import { buildHudViewModel } from "./ui/hud/buildHudViewModel";
-import type { SkillTriggerRequest } from "./ui/hud/TacticalZone";
 import type { HudToastInput } from "./ui/hud/types";
 
 type Screen =
@@ -159,6 +158,7 @@ interface AppState {
   frameTimeMs: number;
   fps: number;
   missionPaused: boolean;
+  missionSpeedMul: 1 | 2;
   missionEvents: MissionEventEntry[];
   missionEventSeq: number;
   missionHudSignals: MissionHudSignals;
@@ -171,7 +171,6 @@ async function bootstrap(): Promise<void> {
   const canvas = getCanvas();
   const ctx = getContext(canvas);
   const renderer = new Renderer2D(canvas, ctx);
-  const pauseBtn = getPauseButton();
   const screenRoot = getScreenRoot();
   const debugPanel = getDebugPanel();
   const debugIndicator = getDebugIndicator();
@@ -232,6 +231,7 @@ async function bootstrap(): Promise<void> {
     frameTimeMs: 0,
     fps: 0,
     missionPaused: false,
+    missionSpeedMul: 1,
     missionEvents: [],
     missionEventSeq: 0,
     missionHudSignals: createDefaultMissionHudSignals(),
@@ -253,50 +253,15 @@ async function bootstrap(): Promise<void> {
     saveRunState(app.runState);
   }
 
-  let gameplayHud: GameplayHUD;
-  const triggerSkillCast = (request: SkillTriggerRequest): void => {
-    if (app.screen !== "mission" || !app.game || app.missionResult !== null || app.missionPaused) {
-      return;
-    }
-    const skillState = app.game.getSkillHudState().find((skill) => skill.id === request.skillId);
-    if (!skillState) {
-      return;
-    }
-    if (!skillState.ready) {
-      gameplayHud.pushToast({
-        type: "info",
-        title: `${skillState.name} Cooling Down`,
-        body: `${skillState.cooldownRemainingSec.toFixed(1)}s remaining.`,
-        ttl: 1500,
-      });
-      return;
-    }
-    const targetTowerId =
-      request.targeting === "NONE"
-        ? undefined
-        : app.inputController?.getSelectedTowerId() ?? undefined;
-    if (request.targeting !== "NONE" && !targetTowerId) {
-      gameplayHud.pushToast({
-        type: "warning",
-        title: "No Target Tower",
-        body: "Select a player tower before casting this skill.",
-        ttl: 1700,
-      });
-      return;
-    }
-    const casted = app.game.castSkill(request.skillId, targetTowerId);
-    if (!casted) {
-      gameplayHud.pushToast({
-        type: "danger",
-        title: "Skill Cast Failed",
-        body: "Command was not accepted by the skill manager.",
-        ttl: 1700,
-      });
-    }
-  };
-  gameplayHud = new GameplayHUD({
+  const gameplayHud = new GameplayHUD({
     canvas,
-    onSkillTrigger: triggerSkillCast,
+    onTogglePause: () => {
+      setMissionPaused(!app.missionPaused);
+    },
+    onSetSpeed: (speed) => {
+      app.missionSpeedMul = speed;
+      render();
+    },
   });
 
   const enemyArchetypesById = new Map(
@@ -325,6 +290,11 @@ async function bootstrap(): Promise<void> {
   const render = (): void => {
     const debugState = debugUiStore.getState();
     renderer.setShowGridLines(debugState.showGridLines);
+    gameplayHud.setOverlayToggles({
+      regenNumbers: debugState.showOverlayRegenNumbers,
+      captureRings: debugState.showOverlayCaptureRings,
+      clusterHighlight: debugState.showOverlayClusterHighlight,
+    });
     renderCurrentScreen(
       app,
       screenRoot,
@@ -367,7 +337,6 @@ async function bootstrap(): Promise<void> {
       runQuickSimDebug,
     );
     syncDebugIndicator(debugIndicator, DEBUG_TOOLS_ENABLED, debugState);
-    syncPauseButton(pauseBtn, app, setMissionPaused);
   };
 
   debugUiStore.subscribe(() => {
@@ -599,6 +568,7 @@ async function bootstrap(): Promise<void> {
       app.missionResult = null;
       app.missionReward = null;
       app.missionPaused = false;
+      app.missionSpeedMul = 1;
       app.activeMissionContext = {
         mode: "campaign",
         stageId: app.selectedStageId,
@@ -686,6 +656,7 @@ async function bootstrap(): Promise<void> {
     app.missionResult = null;
     app.missionReward = null;
     app.missionPaused = false;
+    app.missionSpeedMul = 1;
     app.activeMissionContext = { mode: "run" };
     resetMissionHudUiState(app);
     gameplayHud.reset();
@@ -715,6 +686,7 @@ async function bootstrap(): Promise<void> {
       app.missionResult = result;
       app.missionReward = null;
       app.missionPaused = false;
+      app.missionSpeedMul = 1;
       if (result === "win") {
         app.campaignProgress = markMissionComplete(
           app.activeMissionContext.stageId,
@@ -753,6 +725,7 @@ async function bootstrap(): Promise<void> {
     app.missionResult = result;
     app.missionReward = missionReward;
     app.missionPaused = false;
+    app.missionSpeedMul = 1;
 
     if (result === "win") {
       app.runState.currentMissionIndex += 1;
@@ -997,10 +970,40 @@ async function bootstrap(): Promise<void> {
     if (!skill) {
       return false;
     }
-    triggerSkillCast({
-      skillId: skill.id,
-      targeting: skill.targeting,
-    });
+
+    if (!skill.ready) {
+      gameplayHud.pushToast({
+        type: "info",
+        title: `${skill.name} Cooling Down`,
+        body: `${skill.cooldownRemainingSec.toFixed(1)}s remaining.`,
+        ttl: 1500,
+      });
+      return true;
+    }
+
+    const targetTowerId =
+      skill.targeting === "NONE"
+        ? undefined
+        : app.inputController?.getSelectedTowerId() ?? undefined;
+    if (skill.targeting !== "NONE" && !targetTowerId) {
+      gameplayHud.pushToast({
+        type: "warning",
+        title: "No Target Tower",
+        body: "Select a player tower before casting this skill.",
+        ttl: 1700,
+      });
+      return true;
+    }
+
+    const casted = app.game.castSkill(skill.id, targetTowerId);
+    if (!casted) {
+      gameplayHud.pushToast({
+        type: "danger",
+        title: "Skill Cast Failed",
+        body: "Command was not accepted by the skill manager.",
+        ttl: 1700,
+      });
+    }
     return true;
   };
 
@@ -1132,6 +1135,7 @@ async function bootstrap(): Promise<void> {
     app.missionResult = null;
     app.missionReward = null;
     app.missionPaused = false;
+    app.missionSpeedMul = 1;
     resetMissionHudUiState(app);
     gameplayHud.reset();
     renderer.setMapRenderData(null);
@@ -1224,7 +1228,7 @@ async function bootstrap(): Promise<void> {
       : app.fps * 0.85 + (1 / clampedDtSec) * 0.15;
 
     if (app.game && !app.missionPaused && app.missionResult === null) {
-      app.game.frame(dtSec);
+      app.game.frame(dtSec * app.missionSpeedMul);
       handleMissionResult();
     }
 
@@ -2183,9 +2187,8 @@ function syncMissionHud(app: AppState, debugState: DebugUiState, gameplayHud: Ga
     missionTitle: getMissionHudTitle(app),
     objectiveText: getMissionHudObjective(app),
     selectedTowerId: app.inputController?.getSelectedTowerId() ?? null,
-    showSkills: debugState.showSkillHud,
-    showLogDrawer: debugState.debugOpen,
-    missionEvents: app.missionEvents,
+    missionPaused: app.missionPaused,
+    missionSpeedMul: app.missionSpeedMul,
   });
   gameplayHud.update(vm);
 }
@@ -2281,6 +2284,18 @@ function renderDebugPanel(
           diagnostics.appendChild(createScrollArea(diagnosticsList, { maxHeight: "min(20vh, 160px)" }));
           panel.appendChild(diagnostics);
 
+          const internalState = createCard("Internal State");
+          const internalList = document.createElement("div");
+          internalList.className = "list";
+          for (const eventEntry of app.missionEvents.slice(0, 10)) {
+            internalList.appendChild(createParagraph(`• ${eventEntry.message}`));
+          }
+          if (app.missionEvents.length === 0) {
+            internalList.appendChild(createParagraph("No mission events logged."));
+          }
+          internalState.appendChild(createScrollArea(internalList, { maxHeight: "min(20vh, 180px)" }));
+          panel.appendChild(internalState);
+
           return panel;
         },
       },
@@ -2304,6 +2319,15 @@ function renderDebugPanel(
           }));
           panel.appendChild(createDebugToggle("Show Wave Preview", debugState.showWavePreview, () => {
             debugUiStore.toggle("showWavePreview");
+          }));
+          panel.appendChild(createDebugToggle("Overlay Regen Numbers", debugState.showOverlayRegenNumbers, () => {
+            debugUiStore.toggle("showOverlayRegenNumbers");
+          }));
+          panel.appendChild(createDebugToggle("Overlay Capture Rings", debugState.showOverlayCaptureRings, () => {
+            debugUiStore.toggle("showOverlayCaptureRings");
+          }));
+          panel.appendChild(createDebugToggle("Overlay Cluster Glow", debugState.showOverlayClusterHighlight, () => {
+            debugUiStore.toggle("showOverlayClusterHighlight");
           }));
           panel.appendChild(createDebugToggle("Show Hitboxes", debugState.showHitboxes, () => {
             debugUiStore.toggle("showHitboxes");
@@ -2456,22 +2480,6 @@ function createDebugToggle(
 
   row.append(left, input);
   return row;
-}
-
-function syncPauseButton(
-  pauseBtn: HTMLButtonElement,
-  app: AppState,
-  setMissionPaused: (paused: boolean) => void,
-): void {
-  const missionActive = app.screen === "mission" && app.game !== null && app.missionResult === null;
-  pauseBtn.style.display = missionActive ? "inline-flex" : "none";
-  pauseBtn.className = "ui-button ui-button-secondary top-pause-btn";
-  pauseBtn.textContent = app.missionPaused ? "Resume" : "Pause";
-  pauseBtn.onclick = missionActive
-    ? () => {
-        setMissionPaused(!app.missionPaused);
-      }
-    : null;
 }
 
 async function getLevelByPath(path: string, cache: Map<string, LoadedLevel>): Promise<LoadedLevel> {
@@ -3163,10 +3171,10 @@ function isTypingTarget(target: EventTarget | null): boolean {
 
 function syncDebugIndicator(
   indicator: HTMLDivElement,
-  enabled: boolean,
+  _enabled: boolean,
   debugState: DebugUiState,
 ): void {
-  indicator.style.display = enabled ? "inline-flex" : "none";
+  indicator.style.display = "none";
   indicator.classList.toggle("open", debugState.debugOpen);
   indicator.textContent = debugState.debugOpen ? "DEBUG • OPEN" : "DEBUG";
 }
@@ -3185,14 +3193,6 @@ function getContext(canvas: HTMLCanvasElement): CanvasRenderingContext2D {
     throw new Error("2D rendering context is unavailable");
   }
   return ctx;
-}
-
-function getPauseButton(): HTMLButtonElement {
-  const element = document.getElementById("pauseBtn");
-  if (!(element instanceof HTMLButtonElement)) {
-    throw new Error('Button "#pauseBtn" was not found');
-  }
-  return element;
 }
 
 function getScreenRoot(): HTMLDivElement {

@@ -1,58 +1,50 @@
 import { TOWER_RADIUS_PX, type Owner } from "../../sim/World";
 import { useWorldToScreen } from "../worldToScreen";
-import { createContextZone } from "./ContextZone";
-import { createOverlayToggles } from "./OverlayToggles";
-import { createTacticalZone, type SkillTriggerRequest } from "./TacticalZone";
-import { createThreatZone } from "./ThreatZone";
+import { createObjectiveCard, type ObjectiveCardController } from "./ObjectiveCard";
+import { createTopBarZone, type TopBarZoneController } from "./TopBarZone";
 import { Toasts } from "./Toasts";
+import { createTowerInspectorPanel, type TowerInspectorPanelController } from "./TowerInspectorPanel";
 import type { HudOverlayToggles, HudToastInput, HudVM, OverlayVM, TowerOverlayVM } from "./types";
+import { createWaveIntelPanel, type WaveIntelPanelController } from "./WaveIntelPanel";
 
 export interface GameplayHUDOptions {
   canvas: HTMLCanvasElement;
-  onSkillTrigger: (request: SkillTriggerRequest) => void;
+  onTogglePause: () => void;
+  onSetSpeed: (speed: 1 | 2) => void;
 }
 
 export class GameplayHUD {
   private readonly root: HTMLDivElement;
-  private readonly missionTitle: HTMLHeadingElement;
-  private readonly missionObjective: HTMLParagraphElement;
-  private readonly threatZone = createThreatZone();
-  private readonly tacticalZone: ReturnType<typeof createTacticalZone>;
-  private readonly contextZone = createContextZone();
+  private readonly topBar: TopBarZoneController;
+  private readonly waveIntel: WaveIntelPanelController;
+  private readonly objectiveCard: ObjectiveCardController;
+  private readonly towerInspector: TowerInspectorPanelController;
   private readonly overlays: TacticalOverlayLayer;
   private readonly toasts = new Toasts();
-  private readonly overlayToggles: ReturnType<typeof createOverlayToggles>;
   private lastOverlayVm: OverlayVM | null = null;
+  private overlayToggles: HudOverlayToggles = {
+    regenNumbers: false,
+    captureRings: false,
+    clusterHighlight: false,
+  };
 
   constructor(options: GameplayHUDOptions) {
     this.overlays = new TacticalOverlayLayer(options.canvas);
-    this.tacticalZone = createTacticalZone(options.onSkillTrigger);
-    this.overlayToggles = createOverlayToggles((state) => {
-      if (this.lastOverlayVm) {
-        this.overlays.update(this.lastOverlayVm, state);
-      }
+    this.topBar = createTopBarZone({
+      onTogglePause: options.onTogglePause,
+      onSetSpeed: options.onSetSpeed,
     });
+    this.waveIntel = createWaveIntelPanel();
+    this.objectiveCard = createObjectiveCard();
+    this.towerInspector = createTowerInspectorPanel();
 
     this.root = document.createElement("div");
-    this.root.className = "panel ui-panel mission-hud gameplay-hud";
-
-    const header = document.createElement("header");
-    header.className = "hud-mission-header";
-    const overline = document.createElement("p");
-    overline.className = "hud-mission-overline";
-    overline.textContent = "Battlefield HUD";
-    this.missionTitle = document.createElement("h3");
-    this.missionTitle.className = "hud-mission-title";
-    this.missionObjective = document.createElement("p");
-    this.missionObjective.className = "hud-mission-objective";
-    header.append(overline, this.missionTitle, this.missionObjective);
-
+    this.root.className = "gameplay-hud";
     this.root.append(
-      header,
-      this.overlayToggles.element,
-      this.threatZone.element,
-      this.tacticalZone.element,
-      this.contextZone.element,
+      this.topBar.element,
+      this.waveIntel.element,
+      this.objectiveCard.element,
+      this.towerInspector.element,
     );
   }
 
@@ -60,14 +52,20 @@ export class GameplayHUD {
     return this.root;
   }
 
+  setOverlayToggles(toggles: HudOverlayToggles): void {
+    this.overlayToggles = { ...toggles };
+    if (this.lastOverlayVm) {
+      this.overlays.update(this.lastOverlayVm, this.overlayToggles);
+    }
+  }
+
   update(vm: HudVM): void {
-    this.missionTitle.textContent = vm.missionTitle;
-    this.missionObjective.textContent = vm.objectiveText;
-    this.threatZone.update(vm.threat);
-    this.tacticalZone.update(vm.tactical);
-    this.contextZone.update(vm.context);
+    this.topBar.update(vm.topBar);
+    this.waveIntel.update(vm.waveIntel);
+    this.objectiveCard.update(vm.objective);
+    this.towerInspector.update(vm.context.towerInspect);
     this.lastOverlayVm = vm.overlays;
-    this.overlays.update(vm.overlays, this.overlayToggles.getState());
+    this.overlays.update(vm.overlays, this.overlayToggles);
   }
 
   clearOverlays(): void {
@@ -80,9 +78,10 @@ export class GameplayHUD {
   }
 
   reset(): void {
-    this.threatZone.reset();
-    this.tacticalZone.reset();
-    this.contextZone.reset();
+    this.topBar.reset();
+    this.waveIntel.reset();
+    this.objectiveCard.reset();
+    this.towerInspector.reset();
     this.clearOverlays();
     this.toasts.clear();
   }
