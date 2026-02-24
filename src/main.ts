@@ -33,7 +33,7 @@ import {
 } from "./meta/MetaProgression";
 import { calculateMissionGloryReward, calculateRunBonusGlory, type MissionGloryReward } from "./meta/Rewards";
 import { Renderer2D } from "./render/Renderer2D";
-import { loadMissionCatalog, createRunState, type MissionTemplate } from "./run/RunGeneration";
+import { loadMissionCatalog, type MissionTemplate } from "./run/RunGeneration";
 import {
   createDefaultMetaModifiers,
   createDefaultMetaProfile,
@@ -89,6 +89,7 @@ import { WorldTooltipOverlay } from "./ui/WorldTooltipOverlay";
 type Screen =
   | "title"
   | "main-menu"
+  | "profile-snapshot"
   | "meta"
   | "run-map"
   | "run-summary"
@@ -258,10 +259,9 @@ async function bootstrap(): Promise<void> {
       upgradeCatalog,
       ascensionCatalog,
       missionTemplates,
-      startNewRun,
-      continueRun,
       openMetaScreen,
       openMainMenu,
+      openProfileSnapshot,
       openRunMap,
       startCurrentMission,
       restartCurrentMission,
@@ -325,6 +325,12 @@ async function bootstrap(): Promise<void> {
   const openMainMenu = (): void => {
     stopMission();
     app.screen = "main-menu";
+    render();
+  };
+
+  const openProfileSnapshot = (): void => {
+    stopMission();
+    app.screen = "profile-snapshot";
     render();
   };
 
@@ -431,44 +437,6 @@ async function bootstrap(): Promise<void> {
     } else {
       app.screen = "run-map";
     }
-    render();
-  };
-
-  const continueRun = (): void => {
-    if (!app.runState) {
-      return;
-    }
-    openRunMap();
-  };
-
-  const startNewRun = (): void => {
-    stopMission();
-    const seed = Math.floor(Date.now() % 2147483647);
-    const snapshot = createRunUnlockSnapshot(
-      app.metaProfile,
-      unlockCatalog,
-      ascensionCatalog,
-      Object.values(TowerArchetype),
-      waveContent.enemyCatalog,
-    );
-    const selectedAscensions = app.pendingAscensionIds
-      .filter((id) => snapshot.ascensionIds.includes(id))
-      .sort((a, b) => a.localeCompare(b))
-      .slice(0, ascensionCatalog.maxSelected);
-    const bonuses = computeBaseMetaModifiers(app.metaProfile, upgradeCatalog, ascensionCatalog, selectedAscensions);
-    const runState = createRunState({
-      seed,
-      templates: missionTemplates,
-      bonuses,
-      unlockSnapshot: snapshot,
-      selectedAscensionIds: selectedAscensions,
-    });
-    app.metaProfile.stats.runsPlayed += 1;
-    app.runState = runState;
-    app.runSummary = null;
-    saveMetaProfile(app.metaProfile);
-    saveRunState(runState);
-    app.screen = "run-map";
     render();
   };
 
@@ -1175,10 +1143,9 @@ function renderCurrentScreen(
   upgradeCatalog: MetaUpgradeCatalog,
   ascensionCatalog: AscensionCatalog,
   missionTemplates: MissionTemplate[],
-  startNewRun: () => void,
-  continueRun: () => void,
   openMetaScreen: () => void,
   openMainMenu: () => void,
+  openProfileSnapshot: () => void,
   openRunMap: () => void,
   startCurrentMission: () => Promise<void>,
   restartCurrentMission: () => void,
@@ -1235,54 +1202,100 @@ function renderCurrentScreen(
   }
 
   if (app.screen === "main-menu") {
-    const panel = createPanel("Main Menu", "Choose where to go next");
-    panel.classList.add("menu-panel");
+    const panel = document.createElement("div");
+    panel.className = "panel ui-panel menu-panel campaign-main-menu";
 
-    const introCard = createCard("What This Is");
-    introCard.appendChild(
-      createParagraph(
-        "Tower Battle is a deterministic lane-control strategy game. Link towers to route troops and outscale enemy waves.",
-      ),
-    );
-    introCard.appendChild(
-      createParagraph(
-        "Play Campaign for stage-based progression, or use Level Generator to create JSON maps.",
-      ),
-    );
-    panel.appendChild(introCard);
+    const topBar = document.createElement("div");
+    topBar.className = "campaign-topbar";
+    const badge = document.createElement("div");
+    badge.className = "campaign-topbar-badge";
+    badge.textContent = "TB";
+    const title = document.createElement("p");
+    title.className = "campaign-topbar-title";
+    title.textContent = "Command Interface";
+    topBar.append(badge, title);
+    panel.appendChild(topBar);
 
-    const profileCard = createCard("Profile Snapshot");
-    profileCard.appendChild(createParagraph(`Current Glory: ${app.metaProfile.glory}`));
-    profileCard.appendChild(createParagraph(`Meta Level: ${computeMetaAccountLevel(app.metaProfile)}`));
-    profileCard.appendChild(createParagraph(`Runs Completed: ${app.metaProfile.metaProgress.runsCompleted}`));
-    profileCard.appendChild(createParagraph(`Campaign Stages: ${app.campaignStages.length}`));
-    profileCard.appendChild(createParagraph(`Mission Templates Loaded (legacy run): ${missionTemplates.length}`));
-    if (app.runState) {
-      profileCard.appendChild(createParagraph(`Run In Progress: ${app.runState.currentMissionIndex + 1}/${app.runState.missions.length}`));
-    }
-    panel.appendChild(profileCard);
+    const hero = document.createElement("div");
+    hero.className = "campaign-main-hero";
+    const overline = document.createElement("p");
+    overline.className = "campaign-overline";
+    overline.textContent = "Main Menu";
+    const heading = document.createElement("h2");
+    heading.className = "campaign-main-heading";
+    heading.innerHTML = `GRID <span>DEFENDER</span>`;
+    const subtitle = document.createElement("p");
+    subtitle.className = "campaign-main-subtitle";
+    subtitle.textContent =
+      "Launch campaign operations, review profile progress, or generate new battlefields.";
+    hero.append(overline, heading, subtitle);
+    panel.appendChild(hero);
 
-    const actionCard = createCard("Actions");
+    const actionCard = document.createElement("div");
+    actionCard.className = "campaign-main-actions";
     const campaignBtn = createButton("Play Campaign", openStageSelect, {
       variant: "primary",
       primaryAction: true,
       hotkey: "Enter",
     });
+    campaignBtn.classList.add("campaign-main-action");
     actionCard.appendChild(campaignBtn);
-    actionCard.appendChild(createButton("Level Generator", openLevelGenerator, { variant: "secondary" }));
-    actionCard.appendChild(createButton("Meta Progression", openMetaScreen, { variant: "secondary" }));
 
-    actionCard.appendChild(createDivider());
-    actionCard.appendChild(createParagraph("Legacy Run Mode"));
-    const startBtn = createButton("Start New Run", startNewRun, {
-      variant: "secondary",
-    });
-    actionCard.appendChild(startBtn);
-    const continueBtn = createButton("Continue Run", continueRun, { variant: "secondary" });
-    continueBtn.disabled = !app.runState;
-    actionCard.appendChild(continueBtn);
+    const profileBtn = createButton("Profile Snapshot", openProfileSnapshot, { variant: "secondary" });
+    profileBtn.classList.add("campaign-main-action");
+    actionCard.appendChild(profileBtn);
+
+    const generatorBtn = createButton("Level Generator", openLevelGenerator, { variant: "secondary" });
+    generatorBtn.classList.add("campaign-main-action");
+    actionCard.appendChild(generatorBtn);
+
+    const metaBtn = createButton("Meta Progression", openMetaScreen, { variant: "secondary" });
+    metaBtn.classList.add("campaign-main-action");
+    actionCard.appendChild(metaBtn);
     panel.appendChild(actionCard);
 
+    const quickStats = document.createElement("div");
+    quickStats.className = "campaign-main-stats";
+    quickStats.append(
+      createInfoPill("Glory", `${app.metaProfile.glory}`),
+      createInfoPill("Meta Lv", `${computeMetaAccountLevel(app.metaProfile)}`),
+      createInfoPill("Stages", `${app.campaignStages.length}`),
+    );
+    panel.appendChild(quickStats);
+
+    screenRoot.appendChild(wrapCentered(panel));
+    return;
+  }
+
+  if (app.screen === "profile-snapshot") {
+    const panel = createPanel("Profile Snapshot", "View your persistent account and campaign status.");
+    panel.classList.add("menu-panel");
+
+    const accountCard = createCard("Account");
+    accountCard.appendChild(createParagraph(`Current Glory: ${app.metaProfile.glory}`));
+    accountCard.appendChild(createParagraph(`Meta Level: ${computeMetaAccountLevel(app.metaProfile)}`));
+    accountCard.appendChild(createParagraph(`Runs Completed: ${app.metaProfile.metaProgress.runsCompleted}`));
+    accountCard.appendChild(createParagraph(`Runs Won: ${app.metaProfile.metaProgress.runsWon}`));
+    accountCard.appendChild(createParagraph(`Total Glory Spent: ${Math.round(app.metaProfile.metaProgress.glorySpentTotal)}`));
+    panel.appendChild(accountCard);
+
+    const campaignCard = createCard("Campaign");
+    const unlockedStages = app.campaignStages.filter((stage) => app.campaignUnlocks.stage[stage.stageId]?.unlocked).length;
+    const completedStages = app.campaignStages.filter((stage) => app.campaignUnlocks.stage[stage.stageId]?.completed).length;
+    campaignCard.appendChild(createParagraph(`Stages Unlocked: ${unlockedStages}/${app.campaignStages.length}`));
+    campaignCard.appendChild(createParagraph(`Stages Completed: ${completedStages}/${app.campaignStages.length}`));
+    campaignCard.appendChild(createParagraph(`Mission Templates Loaded: ${missionTemplates.length}`));
+    campaignCard.appendChild(createParagraph(`Campaign Missions Completed: ${app.campaignProgress.completedMissionKeys.length}`));
+    if (app.runState) {
+      campaignCard.appendChild(createParagraph(`Run In Progress: ${app.runState.currentMissionIndex + 1}/${app.runState.missions.length}`));
+    }
+    panel.appendChild(campaignCard);
+
+    panel.appendChild(createButton("Back to Main Menu", openMainMenu, {
+      variant: "ghost",
+      escapeAction: true,
+      hotkey: "Esc",
+    }));
     screenRoot.appendChild(wrapCentered(panel));
     return;
   }
@@ -2645,6 +2658,22 @@ function createParagraph(text: string): HTMLParagraphElement {
   paragraph.textContent = text;
   paragraph.style.margin = "6px 0";
   return paragraph;
+}
+
+function createInfoPill(label: string, value: string): HTMLDivElement {
+  const pill = document.createElement("div");
+  pill.className = "campaign-info-pill";
+
+  const heading = document.createElement("span");
+  heading.className = "campaign-info-pill-label";
+  heading.textContent = label;
+
+  const amount = document.createElement("strong");
+  amount.className = "campaign-info-pill-value";
+  amount.textContent = value;
+
+  pill.append(heading, amount);
+  return pill;
 }
 
 function showToast(screenRoot: HTMLDivElement, message: string): void {
