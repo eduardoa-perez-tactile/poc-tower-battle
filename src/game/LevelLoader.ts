@@ -1,25 +1,11 @@
+import { buildRuntimeLevelFromLevel } from "../levels/adapter";
+import { parseLevelJson } from "../levels/loader";
+import type { LoadedLevel } from "../levels/runtime";
 import { parseTowerArchetype } from "../sim/DepthConfig";
 import { TowerArchetype } from "../sim/DepthTypes";
 import type { LinkSeed, Owner, Tower } from "../sim/World";
-import type { SimulationRules } from "../sim/Simulation";
 
-export interface AiRules {
-  aiThinkIntervalSec: number;
-  aiMinTroopsToAttack: number;
-}
-
-export interface LevelRules extends SimulationRules {
-  maxOutgoingLinksPerTower: number;
-  collisionDistancePx: number;
-  captureSeedTroops: number;
-}
-
-export interface LoadedLevel {
-  towers: Tower[];
-  initialLinks: LinkSeed[];
-  rules: LevelRules;
-  ai: AiRules;
-}
+export type { AiRules, LevelRules, LoadedLevel } from "../levels/runtime";
 
 export async function loadLevel(path: string): Promise<LoadedLevel> {
   const response = await fetch(path);
@@ -28,10 +14,24 @@ export async function loadLevel(path: string): Promise<LoadedLevel> {
   }
 
   const data: unknown = await response.json();
-  return parseLevel(data);
+  return parseLevel(data, path);
 }
 
-function parseLevel(data: unknown): LoadedLevel {
+function parseLevel(data: unknown, sourceLabel: string): LoadedLevel {
+  if (isObject(data) && data.version === 1 && typeof data.stageId === "string" && isObject(data.grid)) {
+    const modernLevel = parseLevelJson(data, sourceLabel);
+    return buildRuntimeLevelFromLevel(modernLevel, {
+      viewport: {
+        width: window.innerWidth,
+        height: window.innerHeight,
+      },
+    });
+  }
+
+  return parseLegacyLevel(data);
+}
+
+function parseLegacyLevel(data: unknown): LoadedLevel {
   if (!isObject(data)) {
     throw new Error("Level JSON root must be an object");
   }
@@ -116,7 +116,7 @@ function parseTower(value: unknown, index: number): Tower {
   };
 }
 
-function parseRules(value: Record<string, unknown>): LevelRules {
+function parseRules(value: Record<string, unknown>): LoadedLevel["rules"] {
   if (!isObject(value.defaultUnit)) {
     throw new Error("rules.defaultUnit must be an object");
   }
@@ -178,7 +178,7 @@ function parseRules(value: Record<string, unknown>): LevelRules {
   };
 }
 
-function parseAi(value: unknown): AiRules {
+function parseAi(value: unknown): LoadedLevel["ai"] {
   if (!isObject(value)) {
     throw new Error("Level JSON must include an ai object");
   }

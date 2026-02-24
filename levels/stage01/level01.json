@@ -1,0 +1,83 @@
+{
+  "version": 1,
+  "stageId": "stage01",
+  "levelId": "level01",
+  "name": "Verdant Crossroads",
+  "size": "medium",
+  "grid": {
+    "width": 24,
+    "height": 16,
+    "minCellSize": 40,
+    "layers": {
+      "ground": {
+        "default": "grass",
+        "overrides": [
+          { "x": 11, "y": 7, "tile": "dirt" },
+          { "x": 12, "y": 7, "tile": "dirt" },
+          { "x": 13, "y": 7, "tile": "dirt" }
+        ]
+      },
+      "decor": {
+        "overrides": []
+      },
+      "blocked": [
+        { "x": 8, "y": 4 },
+        { "x": 8, "y": 5 },
+        { "x": 15, "y": 10 }
+      ]
+    }
+  },
+  "nodes": [
+    { "id": "HQ", "x": 3, "y": 8, "type": "stronghold", "owner": "player", "regen": 3, "cap": 120, "archetype": "STRONGHOLD" },
+    { "id": "A", "x": 6, "y": 6, "type": "tower", "owner": "player", "regen": 2, "cap": 90, "archetype": "BARRACKS" },
+    { "id": "B", "x": 9, "y": 9, "type": "tower", "owner": "neutral", "regen": 1.3, "cap": 75, "archetype": "OBELISK" },
+    { "id": "C", "x": 12, "y": 6, "type": "tower", "owner": "neutral", "regen": 1.3, "cap": 75, "archetype": "RELAY" },
+    { "id": "D", "x": 18, "y": 5, "type": "tower", "owner": "enemy", "regen": 2.1, "cap": 95, "archetype": "FORTRESS" },
+    { "id": "E", "x": 17, "y": 10, "type": "tower", "owner": "enemy", "regen": 1.9, "cap": 88, "archetype": "BANK" },
+    { "id": "F", "x": 13, "y": 11, "type": "tower", "owner": "neutral", "regen": 1.1, "cap": 70, "archetype": "BARRACKS" }
+  ],
+  "edges": [
+    { "from": "HQ", "to": "A" },
+    { "from": "A", "to": "B" },
+    { "from": "B", "to": "C" },
+    { "from": "C", "to": "D" },
+    { "from": "C", "to": "F" },
+    { "from": "F", "to": "E" },
+    { "from": "B", "to": "F" }
+  ],
+  "missions": [
+    {
+      "missionId": "m01",
+      "name": "Hold the Line",
+      "seed": 12345,
+      "waveSetId": "waves_basic_01",
+      "objectiveText": "Survive all waves at the crossroads.",
+      "difficulty": 1
+    },
+    {
+      "missionId": "m02",
+      "name": "Push Forward",
+      "seed": 22347,
+      "waveSetId": "waves_basic_02",
+      "objectiveText": "Stabilize all lanes and outlast the assault.",
+      "difficulty": 1.08
+    }
+  ],
+  "runtime": {
+    "rules": {
+      "maxOutgoingLinksPerTower": 1,
+      "sendRatePerSec": 6,
+      "collisionDistancePx": 14,
+      "captureSeedTroops": 10,
+      "defaultUnit": {
+        "speedPxPerSec": 120,
+        "dpsPerUnit": 1,
+        "hpPerUnit": 1
+      }
+    },
+    "ai": {
+      "aiThinkIntervalSec": 2.5,
+      "aiMinTroopsToAttack": 25
+    }
+  }
+}

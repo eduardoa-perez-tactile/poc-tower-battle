@@ -1,0 +1,96 @@
+{
+  "version": 1,
+  "stageId": "stage01",
+  "levelId": "level02",
+  "name": "River Gates",
+  "size": "medium",
+  "grid": {
+    "width": 24,
+    "height": 16,
+    "minCellSize": 40,
+    "layers": {
+      "ground": {
+        "default": "grass",
+        "overrides": [
+          { "x": 10, "y": 7, "tile": "water" },
+          { "x": 11, "y": 7, "tile": "water" },
+          { "x": 12, "y": 7, "tile": "water" },
+          { "x": 13, "y": 7, "tile": "water" },
+          { "x": 10, "y": 8, "tile": "water" },
+          { "x": 11, "y": 8, "tile": "water" },
+          { "x": 12, "y": 8, "tile": "water" },
+          { "x": 13, "y": 8, "tile": "water" }
+        ]
+      },
+      "decor": {
+        "overrides": []
+      },
+      "blocked": [
+        { "x": 10, "y": 7 },
+        { "x": 11, "y": 7 },
+        { "x": 12, "y": 7 },
+        { "x": 13, "y": 7 },
+        { "x": 10, "y": 8 },
+        { "x": 11, "y": 8 },
+        { "x": 12, "y": 8 },
+        { "x": 13, "y": 8 }
+      ]
+    }
+  },
+  "nodes": [
+    { "id": "HQ", "x": 2, "y": 8, "type": "stronghold", "owner": "player", "regen": 3, "cap": 120, "archetype": "STRONGHOLD" },
+    { "id": "A", "x": 6, "y": 5, "type": "tower", "owner": "player", "regen": 2.1, "cap": 95, "archetype": "BARRACKS" },
+    { "id": "B", "x": 6, "y": 11, "type": "tower", "owner": "neutral", "regen": 1.1, "cap": 72, "archetype": "RELAY" },
+    { "id": "C", "x": 9, "y": 4, "type": "tower", "owner": "neutral", "regen": 1.2, "cap": 75, "archetype": "OBELISK" },
+    { "id": "D", "x": 9, "y": 12, "type": "tower", "owner": "neutral", "regen": 1.2, "cap": 75, "archetype": "BARRACKS" },
+    { "id": "E", "x": 15, "y": 4, "type": "tower", "owner": "enemy", "regen": 2, "cap": 90, "archetype": "FORTRESS" },
+    { "id": "F", "x": 15, "y": 12, "type": "tower", "owner": "enemy", "regen": 2, "cap": 90, "archetype": "FORTRESS" },
+    { "id": "G", "x": 19, "y": 8, "type": "stronghold", "owner": "enemy", "regen": 3.2, "cap": 125, "archetype": "STRONGHOLD" }
+  ],
+  "edges": [
+    { "from": "HQ", "to": "A" },
+    { "from": "HQ", "to": "B" },
+    { "from": "A", "to": "C" },
+    { "from": "B", "to": "D" },
+    { "from": "C", "to": "E" },
+    { "from": "D", "to": "F" },
+    { "from": "E", "to": "G" },
+    { "from": "F", "to": "G" },
+    { "from": "C", "to": "D" }
+  ],
+  "missions": [
+    {
+      "missionId": "m01",
+      "name": "Open the Gates",
+      "seed": 33421,
+      "waveSetId": "waves_basic_02",
+      "objectiveText": "Secure crossings and survive the counterattack.",
+      "difficulty": 1.1
+    },
+    {
+      "missionId": "m02",
+      "name": "Floodplain Siege",
+      "seed": 44119,
+      "waveSetId": "waves_elite_01",
+      "objectiveText": "Hold both flanks as elite waves converge.",
+      "difficulty": 1.2
+    }
+  ],
+  "runtime": {
+    "rules": {
+      "maxOutgoingLinksPerTower": 1,
+      "sendRatePerSec": 6,
+      "collisionDistancePx": 14,
+      "captureSeedTroops": 10,
+      "defaultUnit": {
+        "speedPxPerSec": 120,
+        "dpsPerUnit": 1,
+        "hpPerUnit": 1
+      }
+    },
+    "ai": {
+      "aiThinkIntervalSec": 2.3,
+      "aiMinTroopsToAttack": 24
+    }
+  }
+}

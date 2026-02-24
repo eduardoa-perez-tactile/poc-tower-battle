@@ -6,6 +6,7 @@ export interface DebugUiState {
   showWavePreview: boolean;
   showSkillHud: boolean;
   showHitboxes: boolean;
+  showGridLines: boolean;
 }
 
 type DebugUiListener = (state: DebugUiState) => void;
@@ -63,4 +64,5 @@ export const debugUiStore = new DebugUiStore({
   showWavePreview: true,
   showSkillHud: true,
   showHitboxes: false,
+  showGridLines: true,
 });
