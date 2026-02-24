@@ -1268,34 +1268,67 @@ function renderCurrentScreen(
   }
 
   if (app.screen === "profile-snapshot") {
-    const panel = createPanel("Profile Snapshot", "View your persistent account and campaign status.");
-    panel.classList.add("menu-panel");
+    const panel = document.createElement("div");
+    panel.className = "panel ui-panel menu-panel campaign-shell campaign-profile-shell";
+    panel.appendChild(createCampaignScreenHeader("Profile Snapshot", "Commander Record"));
 
-    const accountCard = createCard("Account");
-    accountCard.appendChild(createParagraph(`Current Glory: ${app.metaProfile.glory}`));
-    accountCard.appendChild(createParagraph(`Meta Level: ${computeMetaAccountLevel(app.metaProfile)}`));
-    accountCard.appendChild(createParagraph(`Runs Completed: ${app.metaProfile.metaProgress.runsCompleted}`));
-    accountCard.appendChild(createParagraph(`Runs Won: ${app.metaProfile.metaProgress.runsWon}`));
-    accountCard.appendChild(createParagraph(`Total Glory Spent: ${Math.round(app.metaProfile.metaProgress.glorySpentTotal)}`));
-    panel.appendChild(accountCard);
-
-    const campaignCard = createCard("Campaign");
     const unlockedStages = app.campaignStages.filter((stage) => app.campaignUnlocks.stage[stage.stageId]?.unlocked).length;
     const completedStages = app.campaignStages.filter((stage) => app.campaignUnlocks.stage[stage.stageId]?.completed).length;
-    campaignCard.appendChild(createParagraph(`Stages Unlocked: ${unlockedStages}/${app.campaignStages.length}`));
-    campaignCard.appendChild(createParagraph(`Stages Completed: ${completedStages}/${app.campaignStages.length}`));
-    campaignCard.appendChild(createParagraph(`Mission Templates Loaded: ${missionTemplates.length}`));
-    campaignCard.appendChild(createParagraph(`Campaign Missions Completed: ${app.campaignProgress.completedMissionKeys.length}`));
-    if (app.runState) {
-      campaignCard.appendChild(createParagraph(`Run In Progress: ${app.runState.currentMissionIndex + 1}/${app.runState.missions.length}`));
-    }
-    panel.appendChild(campaignCard);
+    const totalMissions = app.campaignStages.reduce(
+      (sum, stage) => sum + stage.levels.reduce((levelSum, entry) => levelSum + entry.level.missions.length, 0),
+      0,
+    );
+    const completedMissions = app.campaignProgress.completedMissionKeys.length;
+    const missionPercent = totalMissions > 0 ? Math.round((completedMissions / totalMissions) * 100) : 0;
+    panel.appendChild(
+      createCampaignProgressCard({
+        title: "Campaign Progress",
+        subtitle: "Track your account and mission completion at a glance.",
+        value: `${completedMissions}/${totalMissions}`,
+        label: "Missions Cleared",
+        percent: missionPercent,
+      }),
+    );
 
-    panel.appendChild(createButton("Back to Main Menu", openMainMenu, {
+    const accountCard = document.createElement("section");
+    accountCard.className = "campaign-profile-card";
+    accountCard.append(
+      createInfoPill("Current Glory", `${app.metaProfile.glory}`),
+      createInfoPill("Meta Level", `${computeMetaAccountLevel(app.metaProfile)}`),
+      createInfoPill("Runs Completed", `${app.metaProfile.metaProgress.runsCompleted}`),
+      createInfoPill("Runs Won", `${app.metaProfile.metaProgress.runsWon}`),
+      createInfoPill("Glory Spent", `${Math.round(app.metaProfile.metaProgress.glorySpentTotal)}`),
+      createInfoPill("Stages Unlocked", `${unlockedStages}/${app.campaignStages.length}`),
+      createInfoPill("Stages Completed", `${completedStages}/${app.campaignStages.length}`),
+      createInfoPill("Templates Loaded", `${missionTemplates.length}`),
+    );
+    panel.appendChild(accountCard);
+
+    const campaignNote = document.createElement("section");
+    campaignNote.className = "campaign-progress-card";
+    const noteTitle = document.createElement("p");
+    noteTitle.className = "campaign-progress-title";
+    noteTitle.textContent = "Current Operation";
+    const noteText = document.createElement("p");
+    noteText.className = "campaign-progress-subtitle";
+    if (app.runState) {
+      noteText.textContent = `Run in progress: Mission ${app.runState.currentMissionIndex + 1}/${app.runState.missions.length}.`;
+    } else {
+      noteText.textContent = "No active run. Start from campaign screens when ready.";
+    }
+    campaignNote.append(noteTitle, noteText);
+    panel.appendChild(campaignNote);
+
+    const footer = document.createElement("div");
+    footer.className = "menu-footer campaign-footer";
+    const backBtn = createButton("Back to Main Menu", openMainMenu, {
       variant: "ghost",
       escapeAction: true,
       hotkey: "Esc",
-    }));
+    });
+    backBtn.classList.add("campaign-footer-btn");
+    footer.appendChild(backBtn);
+    panel.appendChild(footer);
     screenRoot.appendChild(wrapCentered(panel));
     return;
   }
@@ -1381,97 +1414,99 @@ function renderCurrentScreen(
   }
 
   if (app.screen === "meta") {
-    const panel = createPanel("Meta Progression", "Persistent upgrades and ascensions");
-    panel.classList.add("menu-panel", "menu-panel-wide");
+    const panel = document.createElement("div");
+    panel.className = "panel ui-panel menu-panel menu-panel-wide campaign-shell campaign-meta-shell";
+    panel.appendChild(createCampaignScreenHeader("Meta Progression", "Persistent Upgrades"));
 
-    const body = document.createElement("div");
-    body.className = "menu-body";
-    const scroll = document.createElement("div");
-    scroll.className = "menu-body-scroll";
+    const glorySpent = Math.round(app.metaProfile.metaProgress.glorySpentTotal);
+    const totalTrackedGlory = Math.max(1, glorySpent + app.metaProfile.glory);
+    const investmentPercent = Math.round((glorySpent / totalTrackedGlory) * 100);
+    panel.appendChild(
+      createCampaignProgressCard({
+        title: "Account Overview",
+        subtitle: `Glory available: ${app.metaProfile.glory} • Runs won: ${app.metaProfile.metaProgress.runsWon}`,
+        value: `Lv ${computeMetaAccountLevel(app.metaProfile)}`,
+        label: "Meta Level",
+        percent: investmentPercent,
+      }),
+    );
 
-    const summary = createCard("Section 1: Account Overview");
-    summary.appendChild(
-      createParagraph(
-        "This section shows your persistent profile stats and available Glory to spend on upgrades.",
-      ),
-    );
-    summary.appendChild(createParagraph(`Available Glory: ${app.metaProfile.glory}`));
-    summary.appendChild(
-      createParagraph(
-        `Meta Lv ${computeMetaAccountLevel(app.metaProfile)} • Runs ${app.metaProfile.metaProgress.runsCompleted} • Wins ${app.metaProfile.metaProgress.runsWon}`,
-      ),
-    );
-    summary.appendChild(createParagraph(`Total Glory Spent: ${Math.round(app.metaProfile.metaProgress.glorySpentTotal)}`));
-    summary.appendChild(
-      createParagraph(
-        `Ascension Clears: ${Object.values(app.metaProfile.metaProgress.ascensionsCleared).reduce((sum, value) => sum + value, 0)}`,
-      ),
-    );
-    scroll.appendChild(summary);
-
-    const trees = createCard("Section 2: Upgrade Trees");
-    trees.appendChild(
-      createParagraph(
-        "Each tree focuses on one domain. Buy nodes with Glory; prerequisites are shown inline.",
-      ),
-    );
+    const trees = document.createElement("div");
+    trees.className = "campaign-meta-tree-row";
     for (const tree of upgradeCatalog.trees) {
-      const treeCard = createCard(tree.name);
+      const treeCard = document.createElement("article");
+      treeCard.className = "campaign-meta-tree-card";
+
+      const treeHeader = document.createElement("div");
+      treeHeader.className = "campaign-meta-tree-header";
+      const treeTitle = document.createElement("h3");
+      treeTitle.className = "campaign-meta-tree-title";
+      treeTitle.textContent = tree.name;
+      const treeSubtitle = document.createElement("p");
+      treeSubtitle.className = "campaign-meta-tree-subtitle";
+      treeSubtitle.textContent = `${tree.nodes.length} upgrades • Spend Glory to rank up`;
+      treeHeader.append(treeTitle, treeSubtitle);
+      treeCard.appendChild(treeHeader);
 
       const list = document.createElement("div");
-      list.className = "list";
+      list.className = "campaign-meta-node-list";
       for (const node of tree.nodes) {
         const rank = getPurchasedRank(app.metaProfile, node.id);
         const cost = getNextUpgradeCost(app.metaProfile, node);
         const row = document.createElement("div");
-        row.className = "meta-row";
+        row.className = "campaign-meta-node-row";
 
         const left = document.createElement("div");
-        left.textContent = `${node.name} Lv ${rank}/${node.maxRank}`;
+        left.className = "campaign-meta-node-copy";
+        const name = document.createElement("p");
+        name.className = "campaign-meta-node-name";
+        name.textContent = `${node.name} Lv ${rank}/${node.maxRank}`;
         const details = document.createElement("div");
-        details.style.fontSize = "12px";
-        details.style.opacity = "0.8";
+        details.className = "campaign-meta-node-details";
         const prereqText = node.prereqs.length > 0
           ? ` • Req: ${node.prereqs.map((req) => `${req.nodeId}(${req.minRank})`).join(", ")}`
           : "";
         details.textContent = `${node.desc}${prereqText}`;
-        left.appendChild(details);
+        left.append(name, details);
 
         const buyBtn = createButton(
           cost === null ? "Maxed" : `Buy (${cost})`,
           () => purchaseUpgradeById(node.id),
-          { variant: cost === null ? "ghost" : "secondary" },
+          { variant: cost === null ? "ghost" : app.metaProfile.glory >= cost ? "primary" : "secondary" },
         );
+        buyBtn.classList.add("campaign-meta-buy-btn");
         buyBtn.disabled = cost === null || app.metaProfile.glory < cost;
         row.append(left, buyBtn);
         list.appendChild(row);
       }
-      treeCard.appendChild(createScrollArea(list, { maxHeight: "min(32vh, 280px)" }));
+      const treeList = createScrollArea(list, { maxHeight: "min(42vh, 420px)" });
+      treeList.classList.add("campaign-meta-node-scroll");
+      treeCard.appendChild(treeList);
       trees.appendChild(treeCard);
     }
-    scroll.appendChild(trees);
+    panel.appendChild(trees);
 
-    const progressionCard = createCard("Section 3: Progress Notes");
-    progressionCard.appendChild(
-      createParagraph(
-        "Meta upgrades affect future runs only. Current run state remains deterministic and unchanged.",
-      ),
-    );
-    progressionCard.appendChild(createParagraph("Tip: spend Glory before starting a new run for best value."));
-    scroll.appendChild(progressionCard);
+    const progressionCard = document.createElement("section");
+    progressionCard.className = "campaign-progress-card";
+    const noteTitle = document.createElement("p");
+    noteTitle.className = "campaign-progress-title";
+    noteTitle.textContent = "Progress Notes";
+    const noteText = document.createElement("p");
+    noteText.className = "campaign-progress-subtitle";
+    noteText.textContent =
+      "Meta upgrades only affect future runs. Spend Glory before launching new operations for maximum impact.";
+    progressionCard.append(noteTitle, noteText);
+    panel.appendChild(progressionCard);
 
-    body.appendChild(scroll);
-    panel.appendChild(body);
-    panel.appendChild(createDivider());
     const footer = document.createElement("div");
-    footer.className = "menu-footer";
-    footer.appendChild(
-      createButton("Back", app.runState ? openRunMap : openMainMenu, {
-        variant: "ghost",
-        escapeAction: true,
-        hotkey: "Esc",
-      }),
-    );
+    footer.className = "menu-footer campaign-footer";
+    const backBtn = createButton("Back", app.runState ? openRunMap : openMainMenu, {
+      variant: "ghost",
+      escapeAction: true,
+      hotkey: "Esc",
+    });
+    backBtn.classList.add("campaign-footer-btn");
+    footer.appendChild(backBtn);
     panel.appendChild(footer);
     screenRoot.appendChild(wrapCentered(panel));
     return;
@@ -2674,6 +2709,65 @@ function createInfoPill(label: string, value: string): HTMLDivElement {
 
   pill.append(heading, amount);
   return pill;
+}
+
+function createCampaignScreenHeader(title: string, subtitle: string): HTMLElement {
+  const header = document.createElement("header");
+  header.className = "campaign-screen-header";
+
+  const overline = document.createElement("p");
+  overline.className = "campaign-overline";
+  overline.textContent = subtitle;
+
+  const heading = document.createElement("h2");
+  heading.className = "campaign-screen-title";
+  heading.textContent = title;
+
+  header.append(overline, heading);
+  return header;
+}
+
+function createCampaignProgressCard(input: {
+  title: string;
+  subtitle: string;
+  value: string;
+  label: string;
+  percent: number;
+}): HTMLElement {
+  const card = document.createElement("section");
+  card.className = "campaign-progress-card";
+
+  const top = document.createElement("div");
+  top.className = "campaign-progress-top";
+
+  const text = document.createElement("div");
+  const title = document.createElement("p");
+  title.className = "campaign-progress-title";
+  title.textContent = input.title;
+  const subtitle = document.createElement("p");
+  subtitle.className = "campaign-progress-subtitle";
+  subtitle.textContent = input.subtitle;
+  text.append(title, subtitle);
+
+  const valueWrap = document.createElement("div");
+  valueWrap.className = "campaign-progress-value";
+  valueWrap.textContent = input.value;
+  const label = document.createElement("span");
+  label.className = "campaign-progress-value-label";
+  label.textContent = input.label;
+  valueWrap.appendChild(label);
+
+  top.append(text, valueWrap);
+  card.appendChild(top);
+
+  const track = document.createElement("div");
+  track.className = "campaign-progress-track";
+  const fill = document.createElement("div");
+  fill.className = "campaign-progress-fill";
+  fill.style.width = `${Math.max(0, Math.min(100, input.percent))}%`;
+  track.appendChild(fill);
+  card.appendChild(track);
+  return card;
 }
 
 function showToast(screenRoot: HTMLDivElement, message: string): void {
