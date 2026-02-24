@@ -1308,23 +1308,6 @@ function renderCurrentScreen(
       openMainMenu();
     };
 
-    const status = document.createElement("div");
-    status.className = "splash-status";
-    const statusTime = document.createElement("span");
-    statusTime.className = "splash-status-time";
-    statusTime.textContent = "9:41";
-    const statusIcons = document.createElement("div");
-    statusIcons.className = "splash-status-icons";
-    const statusSignal = document.createElement("span");
-    statusSignal.className = "splash-status-icon splash-status-bars";
-    statusSignal.innerHTML = "<i></i><i></i><i></i>";
-    const statusWifi = document.createElement("span");
-    statusWifi.className = "splash-status-icon splash-status-dot";
-    const statusBattery = document.createElement("span");
-    statusBattery.className = "splash-status-icon splash-status-battery";
-    statusIcons.append(statusSignal, statusWifi, statusBattery);
-    status.append(statusTime, statusIcons);
-
     const hero = document.createElement("div");
     hero.className = "splash-hero";
 
@@ -1369,23 +1352,6 @@ function renderCurrentScreen(
     const footer = document.createElement("div");
     footer.className = "splash-footer";
 
-    const loading = document.createElement("div");
-    loading.className = "splash-loading";
-    const loadingTop = document.createElement("div");
-    loadingTop.className = "splash-loading-top";
-    const loadingLabel = document.createElement("span");
-    loadingLabel.textContent = "Initializing Systems";
-    const loadingPct = document.createElement("span");
-    loadingPct.textContent = "84%";
-    loadingTop.append(loadingLabel, loadingPct);
-    const loadingTrack = document.createElement("div");
-    loadingTrack.className = "splash-loading-track";
-    const loadingFill = document.createElement("div");
-    loadingFill.className = "splash-loading-fill";
-    loadingFill.style.width = "84%";
-    loadingTrack.appendChild(loadingFill);
-    loading.append(loadingTop, loadingTrack);
-
     const cta = document.createElement("div");
     cta.className = "splash-cta";
     const ctaText = document.createElement("p");
@@ -1405,8 +1371,8 @@ function renderCurrentScreen(
     const homeIndicator = document.createElement("div");
     homeIndicator.className = "splash-home-indicator";
 
-    footer.append(loading, cta, startBtn, homeIndicator);
-    shell.append(status, hero, footer);
+    footer.append(cta, startBtn, homeIndicator);
+    shell.append(hero, footer);
     wrapper.appendChild(shell);
     screenRoot.appendChild(wrapper);
     return;

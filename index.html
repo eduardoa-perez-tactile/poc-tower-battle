@@ -76,7 +76,7 @@
         height: 100%;
         min-height: 100vh;
         display: grid;
-        grid-template-rows: auto 1fr auto;
+        grid-template-rows: 1fr auto;
         align-items: center;
         justify-items: center;
         padding: clamp(16px, 2.2vh, 24px) clamp(16px, 2.8vw, 32px) clamp(20px, 3.2vh, 34px);
@@ -112,107 +112,6 @@
         background: radial-gradient(closest-side, rgba(43, 108, 238, 0.18), transparent);
         filter: blur(34px);
         z-index: 0;
-      }
-
-      .splash-status {
-        width: min(980px, 100%);
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        z-index: 1;
-      }
-
-      .splash-status-time {
-        font-size: 0.75rem;
-        font-weight: 700;
-        letter-spacing: 0.04em;
-        color: rgba(234, 243, 255, 0.86);
-      }
-
-      .splash-status-icons {
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
-        color: rgba(208, 226, 254, 0.74);
-      }
-
-      .splash-status-icon {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-      }
-
-      .splash-status-bars {
-        gap: 2px;
-      }
-
-      .splash-status-bars i {
-        display: block;
-        width: 2px;
-        border-radius: 999px;
-        background: currentColor;
-      }
-
-      .splash-status-bars i:nth-child(1) {
-        height: 5px;
-        opacity: 0.6;
-      }
-
-      .splash-status-bars i:nth-child(2) {
-        height: 7px;
-        opacity: 0.78;
-      }
-
-      .splash-status-bars i:nth-child(3) {
-        height: 9px;
-      }
-
-      .splash-status-dot {
-        width: 9px;
-        height: 9px;
-        border-radius: 999px;
-        border: 1px solid currentColor;
-        position: relative;
-      }
-
-      .splash-status-dot::after {
-        content: "";
-        position: absolute;
-        left: 50%;
-        top: 50%;
-        transform: translate(-50%, -50%);
-        display: block;
-        width: 4px;
-        height: 4px;
-        border-radius: 999px;
-        background: currentColor;
-      }
-
-      .splash-status-battery {
-        width: 14px;
-        height: 8px;
-        border: 1px solid currentColor;
-        border-radius: 2px;
-        position: relative;
-      }
-
-      .splash-status-battery::before {
-        content: "";
-        position: absolute;
-        inset: 1px 3px 1px 1px;
-        border-radius: 1px;
-        background: currentColor;
-      }
-
-      .splash-status-battery::after {
-        content: "";
-        position: absolute;
-        right: -3px;
-        top: 2px;
-        width: 2px;
-        height: 4px;
-        border-radius: 0 1px 1px 0;
-        background: currentColor;
       }
 
       .splash-hero {
@@ -340,63 +239,26 @@
         z-index: 1;
       }
 
-      .splash-loading {
-        width: 100%;
-        display: grid;
-        gap: 8px;
-        padding: 10px 12px;
-        border-radius: 11px;
-        border: 1px solid rgba(147, 182, 246, 0.2);
-        background: rgba(11, 22, 40, 0.66);
-      }
-
-      .splash-loading-top {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        font-size: 0.72rem;
-        letter-spacing: 0.12em;
-        text-transform: uppercase;
-        color: rgba(171, 196, 238, 0.82);
-      }
-
-      .splash-loading-top span:last-child {
-        color: rgba(230, 241, 255, 0.74);
-        letter-spacing: 0.08em;
-      }
-
-      .splash-loading-track {
-        width: 100%;
-        height: 6px;
-        border-radius: 999px;
-        background: rgba(12, 25, 43, 0.95);
-        border: 1px solid rgba(148, 186, 255, 0.24);
-        overflow: hidden;
-      }
-
-      .splash-loading-fill {
-        height: 100%;
-        border-radius: inherit;
-        background: linear-gradient(90deg, #2b6cee, #52a0ff);
-        box-shadow: 0 0 10px rgba(43, 108, 238, 0.52);
-      }
-
       .splash-cta {
         display: grid;
-        gap: 4px;
+        gap: 8px;
         justify-items: center;
       }
 
       .splash-cta-text {
         margin: 0;
-        font-size: 0.8rem;
-        color: rgba(191, 211, 244, 0.78);
+        font-size: clamp(1.2rem, 2.8vw, 1.85rem);
+        font-weight: 700;
+        letter-spacing: 0.03em;
+        text-transform: uppercase;
+        color: rgba(219, 233, 255, 0.92);
+        text-shadow: 0 0 22px rgba(82, 160, 255, 0.36);
         animation: splashPulse 1.6s ease-in-out infinite;
       }
 
       .splash-cta-dot {
-        width: 5px;
-        height: 5px;
+        width: 8px;
+        height: 8px;
         border-radius: 999px;
         background: var(--campaign-accent);
       }
@@ -2841,7 +2703,7 @@
 
         .splash-shell {
           padding: 14px 16px 20px;
-          grid-template-rows: auto 1fr auto;
+          grid-template-rows: 1fr auto;
         }
 
         .splash-hero {
