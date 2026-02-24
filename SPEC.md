@@ -26,7 +26,7 @@ Build a playable browser strategy prototype with tower-link control, mission-bas
 - `8+` towers: `+20%` vision radius
 - Recompute is event-driven (ownership change, link create, link destroy), not per-frame.
 - UI/visual feedback:
-- Mission HUD shows selected tower cluster size + active bonuses.
+- Mission HUD uses modular zones: compact top bar, collapsible wave intel panel, objective card, and contextual tower inspector.
 - Renderer draws cluster indicators (regen ring, shield marker, expanded vision circle).
 
 ## M7 combat extension
@@ -40,7 +40,7 @@ Build a playable browser strategy prototype with tower-link control, mission-bas
 
 ## M8 retention engine extension
 - Data-driven branching persistent upgrade trees (Offense / Economy / Tactical).
-- Data-driven skills with fixed-tick cooldown manager and mission HUD skill bar.
+- Data-driven skills with fixed-tick cooldown manager and hotkey-driven casting.
 - Ascension mutators selectable per run with reward multipliers.
 - Permanent unlock pacing rules evaluated from persistent account progress metrics.
 - Run-start unlock snapshot for deterministic generation and mid-run stability.
@@ -50,7 +50,7 @@ Build a playable browser strategy prototype with tower-link control, mission-bas
 - Drag from owned tower to target tower to create/replace outgoing link.
 - Right click or `Escape` cancels an active drag.
 - Clicking a tower selects it for mission HUD detail display.
-- Mission skill cast buttons trigger unlocked tactical skills.
+- Number hotkeys (`1-9`) trigger unlocked tactical skills.
 - Restart button and debug mission controls are available in UI.
 
 ## Core entities

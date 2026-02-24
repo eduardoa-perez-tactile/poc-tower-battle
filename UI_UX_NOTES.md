@@ -6,14 +6,14 @@
 - `src/ui/WorldTooltipOverlay.ts` applies viewport clamping and above/below flipping, then smooths position in RAF by updating DOM `transform` (no per-frame React/state updates).
 
 ## Territory control mission HUD
-- Mission HUD includes a "Tower Selection" card in `src/main.ts`.
-- Synced DOM ids:
-- `missionSelectedTower`
-- `missionClusterSize`
-- `missionClusterBonusRegen`
-- `missionClusterBonusArmor`
-- `missionClusterBonusVision`
-- Selected tower id is provided by `InputController.getSelectedTowerId()`.
+- Mission HUD is modular and lives in `src/ui/hud/`.
+- Composition root: `GameplayHUD` (`src/ui/hud/GameplayHUD.ts`).
+- Zones:
+- `TopBarZone` (mission/wave/state, gold/towers/regen, pause/speed, overlay mini-toggles)
+- `WaveIntelPanel` (collapsible right-side wave intelligence)
+- `ObjectiveCard` (bottom-left objective + progress + waves secured + cluster status)
+- `TowerInspectorPanel` (bottom-right, visible only when tower is selected)
+- Data binding is built in `buildHudViewModel.ts` and selected tower id still comes from `InputController.getSelectedTowerId()`.
 
 ## Territory visual indicators
 - Renderer draws cluster feedback in `src/render/Renderer2D.ts`.
@@ -37,6 +37,12 @@
 - Global toggle key is `D` from app root (`src/main.ts`).
 - State lives in `src/ui/debugStore.ts` (`debugOpen` + UI toggles).
 - The tabbed right-dock menu is rendered by `renderDebugPanel()` in `src/main.ts`.
+- Overlay toggles (`Regen`, `Capture`, `Cluster`) are mirrored between debug UI toggles and top HUD mini-toggle buttons.
+
+## Splash screen
+- Splash screen is rendered in `renderCurrentScreen()` (`src/main.ts`, `title` branch).
+- The mock device status strip and loading bar were removed.
+- Primary CTA is the enlarged `Tap screen to begin` prompt plus optional `Press Enter` button.
 
 ## Mission pause modal style
 - Pause overlay uses `wrapCenteredModal()` in `src/main.ts` to vertically center the popup in gameplay.
