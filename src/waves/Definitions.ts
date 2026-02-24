@@ -1,4 +1,11 @@
+/*
+ * Patch Notes (2026-02-24):
+ * - Added optional stage/ascension difficulty config loading to wave content.
+ */
+
 import type { DifficultyTierId } from "../config/Difficulty";
+import { loadDifficultyConfig } from "./DifficultyConfig";
+import type { AscensionDifficultyCatalog, StageDifficultyCatalog } from "./DifficultyTypes";
 
 export interface EnemyBaseStats {
   hp: number;
@@ -313,6 +320,8 @@ export interface LoadedWaveContent {
   balanceBaselines: BalanceBaselinesConfig;
   difficultyTiers: DifficultyTierCatalog;
   wavePacingTargets: WavePacingTargetCatalog;
+  stageDifficulty: StageDifficultyCatalog | null;
+  ascensionDifficulty: AscensionDifficultyCatalog | null;
 }
 
 export interface WaveSpawnEntry {
@@ -340,15 +349,17 @@ export interface WaveGeneratorInputs {
 }
 
 export async function loadWaveContent(): Promise<LoadedWaveContent> {
-  const [enemyCatalog, modifierCatalog, handcraftedWaves, balance, balanceBaselines, difficultyTiers, wavePacingTargets] = await Promise.all([
-    fetchJson<EnemyCatalog>("/data/enemyArchetypes.json"),
-    fetchJson<WaveModifierCatalog>("/data/wave-modifiers.json"),
-    fetchJson<HandcraftedWaveCatalog>("/data/waves-handcrafted.json"),
-    fetchJson<WaveBalanceConfig>("/data/wave-balance.json"),
-    fetchJson<BalanceBaselinesConfig>("/data/balanceBaselines.json"),
-    fetchJson<DifficultyTierCatalog>("/data/difficultyTiers.json"),
-    fetchJson<WavePacingTargetCatalog>("/data/wavePacingTargets.json"),
-  ]);
+  const [enemyCatalog, modifierCatalog, handcraftedWaves, balance, balanceBaselines, difficultyTiers, wavePacingTargets, difficultyConfig] =
+    await Promise.all([
+      fetchJson<EnemyCatalog>("/data/enemyArchetypes.json"),
+      fetchJson<WaveModifierCatalog>("/data/wave-modifiers.json"),
+      fetchJson<HandcraftedWaveCatalog>("/data/waves-handcrafted.json"),
+      fetchJson<WaveBalanceConfig>("/data/wave-balance.json"),
+      fetchJson<BalanceBaselinesConfig>("/data/balanceBaselines.json"),
+      fetchJson<DifficultyTierCatalog>("/data/difficultyTiers.json"),
+      fetchJson<WavePacingTargetCatalog>("/data/wavePacingTargets.json"),
+      loadDifficultyConfig(),
+    ]);
 
   validateWaveContent(
     enemyCatalog,
@@ -367,6 +378,8 @@ export async function loadWaveContent(): Promise<LoadedWaveContent> {
     balanceBaselines,
     difficultyTiers,
     wavePacingTargets,
+    stageDifficulty: difficultyConfig.stageCatalog,
+    ascensionDifficulty: difficultyConfig.ascensionCatalog,
   };
 }
 

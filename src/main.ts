@@ -1,3 +1,8 @@
+/*
+ * Patch Notes (2026-02-24):
+ * - Passed stage/mission/ascension context into WaveDirector for budgeted difficulty profiles.
+ */
+
 import { Game, type MatchResult } from "./game/Game";
 import {
   DIFFICULTY_TIER_IDS,
@@ -539,6 +544,10 @@ async function bootstrap(): Promise<void> {
         levelPath: levelEntry.path,
         difficulty: mission.difficulty ?? 1,
       };
+      const missionIndex = Math.max(
+        0,
+        levelEntry.level.missions.findIndex((entry) => entry.missionId === mission.missionId),
+      );
       const tunedLevel = createMissionLevel(
         baseLevel,
         runMission,
@@ -560,6 +569,10 @@ async function bootstrap(): Promise<void> {
         runSeed: mission.seed,
         missionDifficultyScalar,
         difficultyTier: DEFAULT_DIFFICULTY_TIER,
+        stageId: app.selectedStageId,
+        stageIndex: deriveStageIndexFromValue(app.selectedStageId),
+        missionIndex,
+        ascensionLevel: 0,
         balanceDiagnosticsEnabled: app.balanceDiagnosticsEnabled,
         rewardGoldMultiplier: missionModifiers.rewardGoldMul,
         bossHpMultiplier: missionModifiers.bossHpMul,
@@ -644,6 +657,10 @@ async function bootstrap(): Promise<void> {
       runSeed: app.runState.seed + app.runState.currentMissionIndex * 911,
       missionDifficultyScalar,
       difficultyTier: app.runState.runModifiers.tier,
+      stageId: deriveStageIdFromLevelPath(mission.levelPath),
+      stageIndex: deriveStageIndexFromValue(deriveStageIdFromLevelPath(mission.levelPath)),
+      missionIndex: app.runState.currentMissionIndex,
+      ascensionLevel: app.runState.runAscensionIds.length,
       balanceDiagnosticsEnabled: app.balanceDiagnosticsEnabled,
       allowedEnemyIds:
         app.runState.runUnlockSnapshot.enemyTypes.length > 0
@@ -1066,6 +1083,10 @@ async function bootstrap(): Promise<void> {
         runSeed: fixedSeedBase + runIndex * 101,
         missionDifficultyScalar,
         difficultyTier: tierId,
+        stageId: deriveStageIdFromLevelPath(mission.levelPath),
+        stageIndex: deriveStageIndexFromValue(deriveStageIdFromLevelPath(mission.levelPath)),
+        missionIndex: app.runState.currentMissionIndex,
+        ascensionLevel: app.runState.runAscensionIds.length,
         balanceDiagnosticsEnabled: false,
         allowedEnemyIds:
           app.runState.runUnlockSnapshot.enemyTypes.length > 0
@@ -2713,6 +2734,30 @@ function difficultyTierRank(value: DifficultyTierId): number {
     return 2;
   }
   return 1;
+}
+
+function deriveStageIdFromLevelPath(path: string): string {
+  const match = path.match(/stage\d+/i);
+  if (!match) {
+    return "stage01";
+  }
+  const numeric = Number.parseInt(match[0].replace(/[^0-9]/g, ""), 10);
+  if (!Number.isFinite(numeric) || numeric <= 0) {
+    return "stage01";
+  }
+  return `stage${numeric.toString().padStart(2, "0")}`;
+}
+
+function deriveStageIndexFromValue(stageValue?: string): number {
+  if (!stageValue) {
+    return 1;
+  }
+  const match = stageValue.match(/(\d+)/);
+  if (!match) {
+    return 1;
+  }
+  const parsed = Number.parseInt(match[1], 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 1;
 }
 
 function countPlayerTowers(world: World): number {

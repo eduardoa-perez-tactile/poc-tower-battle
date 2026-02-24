@@ -1,3 +1,9 @@
+/*
+ * Patch Notes (2026-02-24):
+ * - Added world-level difficulty context for stage/mission scaling.
+ * - Territory bonus refresh now uses stage-scaled per-cluster coefficients.
+ */
+
 import type { LinkLevelDefinition } from "./DepthTypes";
 import { TowerArchetype } from "./DepthTypes";
 import {
@@ -148,8 +154,37 @@ export interface TowerCapturedEvent {
   archetype: TowerArchetype;
 }
 
+export interface WorldDifficultyContext {
+  stageId: string;
+  stageIndex: number;
+  missionIndex: number;
+  enemyRegenMultiplier: number;
+  interferenceLinkDecayPerSec: number;
+  linkDecayCanBreak: boolean;
+  territoryScaling: {
+    regenPerCluster: number;
+    armorPerCluster: number;
+    visionPerCluster: number;
+  };
+  playerTerritoryPenalty: number;
+}
+
 export const TOWER_RADIUS_PX = 28;
 const EMPTY_TAGS: string[] = [];
+const DEFAULT_DIFFICULTY_CONTEXT: WorldDifficultyContext = {
+  stageId: "stage01",
+  stageIndex: 1,
+  missionIndex: 0,
+  enemyRegenMultiplier: 1,
+  interferenceLinkDecayPerSec: 0,
+  linkDecayCanBreak: false,
+  territoryScaling: {
+    regenPerCluster: 0.1,
+    armorPerCluster: 0.15,
+    visionPerCluster: 0.2,
+  },
+  playerTerritoryPenalty: 0,
+};
 
 export class World {
   readonly towers: Tower[];
@@ -162,6 +197,7 @@ export class World {
   private readonly linkDestroyedEvents: LinkDestroyedEvent[];
   private readonly towerCapturedEvents: TowerCapturedEvent[];
   private suppressTerritoryRefresh: boolean;
+  private difficultyContext: WorldDifficultyContext;
 
   constructor(
     towers: Tower[],
@@ -180,6 +216,10 @@ export class World {
     this.linkDestroyedEvents = [];
     this.towerCapturedEvents = [];
     this.suppressTerritoryRefresh = true;
+    this.difficultyContext = {
+      ...DEFAULT_DIFFICULTY_CONTEXT,
+      territoryScaling: { ...DEFAULT_DIFFICULTY_CONTEXT.territoryScaling },
+    };
 
     for (const link of initialLinks) {
       this.setOutgoingLink(link.fromTowerId, link.toTowerId, link.level ?? 1);
@@ -458,6 +498,25 @@ export class World {
     return drained;
   }
 
+  getDifficultyContext(): WorldDifficultyContext {
+    return {
+      ...this.difficultyContext,
+      territoryScaling: { ...this.difficultyContext.territoryScaling },
+    };
+  }
+
+  setDifficultyContext(nextContext: Partial<WorldDifficultyContext>): void {
+    this.difficultyContext = {
+      ...this.difficultyContext,
+      ...nextContext,
+      territoryScaling: {
+        ...this.difficultyContext.territoryScaling,
+        ...(nextContext.territoryScaling ?? {}),
+      },
+    };
+    this.refreshTerritoryBonuses();
+  }
+
   acquirePacket(packet: UnitPacket): UnitPacket {
     const pooled = this.packetPool.pop();
     if (!pooled) {
@@ -612,7 +671,13 @@ export class World {
     if (this.suppressTerritoryRefresh) {
       return;
     }
-    applyTerritoryControlBonuses(this, "player");
+    const penalty = clamp(this.difficultyContext.playerTerritoryPenalty, 0, 1);
+    const penaltyMultiplier = 1 - penalty;
+    applyTerritoryControlBonuses(this, "player", undefined, {
+      regenPerCluster: this.difficultyContext.territoryScaling.regenPerCluster * penaltyMultiplier,
+      armorPerCluster: this.difficultyContext.territoryScaling.armorPerCluster * penaltyMultiplier,
+      visionPerCluster: this.difficultyContext.territoryScaling.visionPerCluster * penaltyMultiplier,
+    });
   }
 }
 
@@ -653,6 +718,10 @@ function samplePointOnPolyline(points: Vec2[], progress01: number): Vec2 | null 
   }
 
   return points[points.length - 1];
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, value));
 }
 
 function getPolylineLength(points: Vec2[]): number {
