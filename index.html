@@ -1349,6 +1349,410 @@
         color: rgba(191, 210, 240, 0.86);
       }
 
+      .gameplay-hud {
+        display: grid;
+        gap: 10px;
+        width: min(440px, calc(100vw - 24px));
+        max-height: calc(100vh - 24px);
+        overflow: hidden;
+        padding: 12px;
+        background:
+          radial-gradient(360px 180px at 14% -14%, rgba(41, 121, 255, 0.26), transparent),
+          linear-gradient(168deg, rgba(8, 16, 28, 0.93), rgba(6, 12, 22, 0.96));
+        border-color: rgba(137, 184, 255, 0.34);
+      }
+
+      .hud-mission-header {
+        display: grid;
+        gap: 3px;
+      }
+
+      .hud-mission-overline {
+        margin: 0;
+        font-size: 0.64rem;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: rgba(198, 216, 244, 0.75);
+      }
+
+      .hud-mission-title {
+        margin: 0;
+        font-size: 1.02rem;
+      }
+
+      .hud-mission-objective {
+        margin: 0;
+        font-size: 0.76rem;
+        color: rgba(204, 223, 252, 0.85);
+      }
+
+      .hud-overlay-strip {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+
+      .hud-overlay-toggle {
+        border: 1px solid rgba(148, 187, 255, 0.34);
+        background: rgba(16, 28, 48, 0.74);
+        color: var(--text);
+        border-radius: 999px;
+        padding: 4px 10px;
+        font-size: 0.68rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .hud-overlay-toggle.active {
+        border-color: rgba(45, 212, 191, 0.68);
+        background: rgba(22, 76, 71, 0.68);
+      }
+
+      .hud-zone {
+        border-radius: 12px;
+        border: 1px solid rgba(138, 183, 250, 0.22);
+        background: rgba(10, 19, 33, 0.74);
+        padding: 9px;
+        display: grid;
+        gap: 8px;
+      }
+
+      .hud-zone-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .hud-zone-label {
+        margin: 0;
+        font-size: 0.63rem;
+        letter-spacing: 0.13em;
+        text-transform: uppercase;
+        color: rgba(194, 213, 242, 0.78);
+      }
+
+      .hud-threat-phase,
+      .hud-context-mode {
+        margin: 0;
+        font-size: 0.7rem;
+        color: rgba(206, 222, 247, 0.86);
+      }
+
+      .hud-threat-meter {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 8px;
+        align-items: center;
+      }
+
+      .hud-wave-label {
+        margin: 0;
+        font-size: 0.94rem;
+        font-weight: 700;
+      }
+
+      .hud-countdown {
+        margin: 0;
+        font-size: 1.38rem;
+        line-height: 1;
+        letter-spacing: 0.03em;
+        color: #d8e8ff;
+      }
+
+      .hud-countdown.urgent {
+        color: #fca5a5;
+      }
+
+      .hud-threat-row,
+      .hud-modifier-row,
+      .hud-global-badges,
+      .hud-territory-badges {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+
+      .hud-threat-chip {
+        display: grid;
+        grid-template-columns: auto 1fr auto;
+        gap: 6px;
+        align-items: center;
+        min-width: 0;
+        border-radius: 999px;
+        border: 1px solid rgba(150, 189, 255, 0.24);
+        background: rgba(16, 30, 50, 0.78);
+        padding: 4px 10px;
+        font-size: 0.71rem;
+      }
+
+      .hud-chip-icon {
+        font-weight: 700;
+      }
+
+      .hud-chip-text {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .hud-chip-eta {
+        color: rgba(210, 227, 252, 0.75);
+      }
+
+      .hud-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        border-radius: 999px;
+        border: 1px solid rgba(149, 188, 255, 0.24);
+        background: rgba(18, 31, 52, 0.78);
+        padding: 3px 9px;
+        font-size: 0.68rem;
+      }
+
+      .hud-badge.tone-success {
+        border-color: rgba(74, 222, 128, 0.38);
+        background: rgba(19, 56, 40, 0.6);
+      }
+
+      .hud-badge.tone-warning {
+        border-color: rgba(251, 191, 36, 0.42);
+        background: rgba(71, 46, 16, 0.58);
+      }
+
+      .hud-progress-label,
+      .hud-progress-detail,
+      .hud-territory-title {
+        margin: 0;
+        font-size: 0.74rem;
+      }
+
+      .hud-progress-track {
+        height: 8px;
+        border-radius: 999px;
+        border: 1px solid rgba(140, 179, 245, 0.2);
+        background: rgba(11, 21, 36, 0.8);
+        overflow: hidden;
+      }
+
+      .hud-progress-fill {
+        height: 100%;
+        width: 0%;
+        border-radius: 999px;
+        background: linear-gradient(90deg, rgba(56, 189, 248, 0.95), rgba(45, 212, 191, 0.95));
+      }
+
+      .hud-skill-row {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(95px, 1fr));
+        gap: 6px;
+      }
+
+      .hud-skill-chip {
+        border-radius: 10px;
+        border: 1px solid rgba(142, 181, 248, 0.28);
+        background: rgba(13, 24, 42, 0.78);
+        color: var(--text);
+        padding: 6px;
+        display: grid;
+        gap: 2px;
+        text-align: left;
+      }
+
+      .hud-skill-chip:disabled {
+        opacity: 0.58;
+      }
+
+      .hud-skill-hotkey {
+        font-size: 0.66rem;
+        color: rgba(191, 214, 246, 0.76);
+      }
+
+      .hud-skill-name {
+        font-size: 0.72rem;
+        font-weight: 600;
+      }
+
+      .hud-skill-cd {
+        font-size: 0.66rem;
+        color: rgba(203, 221, 250, 0.78);
+      }
+
+      .hud-context-zone {
+        min-height: 160px;
+        overflow-y: auto;
+      }
+
+      .hud-context-content {
+        display: grid;
+        gap: 5px;
+      }
+
+      .hud-context-row {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 10px;
+        font-size: 0.73rem;
+      }
+
+      .hud-context-label {
+        color: rgba(191, 210, 240, 0.76);
+      }
+
+      .hud-context-value {
+        color: rgba(232, 242, 255, 0.95);
+      }
+
+      .hud-context-badges {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin-top: 2px;
+      }
+
+      .hud-context-hint {
+        margin: 4px 0 0;
+        font-size: 0.7rem;
+        color: rgba(193, 214, 246, 0.78);
+      }
+
+      .hud-log-drawer {
+        border-top: 1px solid rgba(144, 185, 255, 0.18);
+        padding-top: 6px;
+      }
+
+      .hud-log-drawer.hidden {
+        display: none;
+      }
+
+      .hud-log-drawer > summary {
+        cursor: pointer;
+        font-size: 0.7rem;
+        color: rgba(196, 213, 240, 0.86);
+      }
+
+      .hud-log-list {
+        margin-top: 6px;
+        display: grid;
+        gap: 4px;
+      }
+
+      .hud-log-row {
+        margin: 0;
+        font-size: 0.68rem;
+        line-height: 1.28;
+        border-radius: 8px;
+        border: 1px solid rgba(137, 178, 246, 0.2);
+        background: rgba(12, 23, 40, 0.7);
+        padding: 4px 6px;
+      }
+
+      .hud-row-empty {
+        margin: 0;
+        font-size: 0.69rem;
+        color: rgba(197, 214, 242, 0.75);
+      }
+
+      .hud-map-overlays {
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        z-index: 18;
+      }
+
+      .hud-overlay-layer {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+      }
+
+      .hud-overlay-regen {
+        position: absolute;
+        transform: translate(-50%, -50%);
+        font-size: 0.68rem;
+        font-weight: 600;
+        color: rgba(203, 246, 238, 0.92);
+        text-shadow: 0 1px 4px rgba(0, 0, 0, 0.7);
+        white-space: nowrap;
+      }
+
+      .hud-overlay-capture {
+        position: absolute;
+        width: 72px;
+        height: 72px;
+        border-radius: 50%;
+        background: conic-gradient(
+          var(--capture-color) calc(var(--capture-progress, 0) * 1turn),
+          rgba(104, 124, 161, 0.16) 0
+        );
+        -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 4px), #000 0);
+        mask: radial-gradient(farthest-side, transparent calc(100% - 4px), #000 0);
+      }
+
+      .hud-overlay-cluster {
+        position: absolute;
+        width: 76px;
+        height: 76px;
+        border-radius: 50%;
+        border: 2px solid rgba(45, 212, 191, 0.34);
+        box-shadow: 0 0 14px rgba(45, 212, 191, 0.28);
+      }
+
+      .hud-toast-root {
+        position: fixed;
+        right: 14px;
+        bottom: 14px;
+        z-index: 26;
+        width: min(360px, calc(100vw - 28px));
+        display: grid;
+        gap: 8px;
+        pointer-events: none;
+      }
+
+      .hud-toast {
+        border-radius: 10px;
+        border: 1px solid rgba(150, 190, 255, 0.26);
+        background: rgba(9, 17, 30, 0.9);
+        box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35);
+        padding: 8px 10px;
+        transition: opacity 180ms ease, transform 180ms ease;
+      }
+
+      .hud-toast.leaving {
+        opacity: 0;
+        transform: translateY(6px);
+      }
+
+      .hud-toast.tone-warning {
+        border-color: rgba(251, 191, 36, 0.4);
+      }
+
+      .hud-toast.tone-success {
+        border-color: rgba(74, 222, 128, 0.38);
+      }
+
+      .hud-toast.tone-danger {
+        border-color: rgba(248, 113, 113, 0.45);
+      }
+
+      .hud-toast-title,
+      .hud-toast-body {
+        margin: 0;
+      }
+
+      .hud-toast-title {
+        font-size: 0.76rem;
+        font-weight: 700;
+      }
+
+      .hud-toast-body {
+        margin-top: 2px;
+        font-size: 0.72rem;
+        color: rgba(208, 225, 251, 0.84);
+      }
+
       .mission-overlay-panel {
         width: min(92vw, 640px);
       }
@@ -1644,6 +2048,16 @@
           top: 8px;
           width: min(96vw, 460px);
           max-height: calc(100vh - 16px);
+        }
+
+        .gameplay-hud {
+          width: min(96vw, 460px);
+          max-height: calc(100vh - 16px);
+          gap: 8px;
+        }
+
+        .hud-context-zone {
+          min-height: 130px;
         }
       }
     </style>
