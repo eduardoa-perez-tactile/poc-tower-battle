@@ -1713,19 +1713,6 @@
         color: rgba(191, 210, 240, 0.86);
       }
 
-      .gameplay-hud {
-        display: grid;
-        gap: 10px;
-        width: min(440px, calc(100vw - 24px));
-        max-height: calc(100vh - 24px);
-        overflow: hidden;
-        padding: 12px;
-        background:
-          radial-gradient(360px 180px at 14% -14%, rgba(41, 121, 255, 0.26), transparent),
-          linear-gradient(168deg, rgba(8, 16, 28, 0.93), rgba(6, 12, 22, 0.96));
-        border-color: rgba(137, 184, 255, 0.34);
-      }
-
       .hud-mission-header {
         display: grid;
         gap: 3px;
@@ -2226,7 +2213,8 @@
 
       .hud-top-left {
         justify-content: flex-start;
-        flex: 0 1 48%;
+        flex: 0 0 auto;
+        max-width: min(56vw, 640px);
       }
 
       .hud-top-center {
