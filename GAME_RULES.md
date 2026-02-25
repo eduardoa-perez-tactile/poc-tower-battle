@@ -56,6 +56,13 @@
 - Selected tower displays:
 - `Cluster Size`
 - Active bonuses (`Regen`, `Armor`, `Vision`)
+- Capture overlay uses two phases to communicate takeover progress:
+- `Contested`: incoming hostile pressure is reducing defenders.
+- `Breaching`: defenders are depleted and hostile pressure is now burning tower HP.
+- Tower ownership color does not change until ownership actually flips.
+- Capture overlay uses separate progress tracks:
+- Outer pressure ring = defender pressure.
+- Inner breach ring = tower HP breach progress after defenders are broken.
 
 ## Arrival resolution
 - Friendly target tower: packet count is added to `troopCount` and clamped.
@@ -64,6 +71,11 @@
 - overflow damages tower hp
 - if hp reaches 0, tower flips ownership
 - capture sets hp to `maxHp` and troops to `captureSeedTroops`
+- World tooltip shows contextual control state (`Stable`, `Contested`, `Breaching`) and a capture rule hint:
+- `Control transfers only when HP reaches 0.`
+- Mission event feed emits capture milestones:
+- `Defenders broken at <tower>` when phase enters breaching.
+- `<tower> captured` / `<tower> lost` when ownership changes.
 
 ## Enemy wave system
 - Missions run wave progression with deterministic generation from run seed.
