@@ -60,7 +60,7 @@ import {
 } from "./save/Storage";
 import { applyTowerArchetypeModifiers, loadDepthContent } from "./sim/DepthConfig";
 import { updateWorld as updateQuickSimWorld } from "./sim/Simulation";
-import { World } from "./sim/World";
+import { World, type Owner } from "./sim/World";
 import { TowerArchetype, type TowerArchetypeCatalog } from "./sim/DepthTypes";
 import type { BalanceBaselinesConfig, DifficultyTierConfig } from "./waves/Definitions";
 import { loadWaveContent } from "./waves/Definitions";
@@ -93,7 +93,7 @@ import { renderStageSelectScreen } from "./ui/screens/StageSelectScreen";
 import { WorldTooltipOverlay } from "./ui/WorldTooltipOverlay";
 import { GameplayHUD } from "./ui/hud/GameplayHUD";
 import { buildHudViewModel } from "./ui/hud/buildHudViewModel";
-import type { HudToastInput } from "./ui/hud/types";
+import type { HudToastInput, TowerCapturePhase, TowerOverlayVM } from "./ui/hud/types";
 import { TutorialHintRunner } from "./tutorial/TutorialHintRunner";
 
 type Screen =
@@ -139,6 +139,8 @@ interface MissionHudSignals {
   playerTowers: number;
   enemyTowers: number;
   clusterBonusActive: boolean;
+  towerCapturePhaseById: Record<string, TowerCapturePhase>;
+  towerOwnerById: Record<string, Owner>;
 }
 
 interface AppState {
@@ -2188,13 +2190,6 @@ function syncMissionHud(app: AppState, debugState: DebugUiState, gameplayHud: Ga
 
   const telemetry = app.game.getWaveTelemetry();
   const world = app.game.getWorld();
-  updateMissionEventFeed(app, telemetry, world, (toast) => {
-    gameplayHud.pushToast(toast);
-  });
-  runTutorialHintFeed(app, telemetry, world, (toast) => {
-    gameplayHud.pushToast(toast);
-  });
-
   const vm = buildHudViewModel({
     game: app.game,
     missionTitle: getMissionHudTitle(app),
@@ -2206,6 +2201,14 @@ function syncMissionHud(app: AppState, debugState: DebugUiState, gameplayHud: Ga
     overlayCaptureEnabled: debugState.showOverlayCaptureRings,
     overlayClusterEnabled: debugState.showOverlayClusterHighlight,
   });
+
+  updateMissionEventFeed(app, telemetry, world, (toast) => {
+    gameplayHud.pushToast(toast);
+  }, vm.overlays.towers);
+  runTutorialHintFeed(app, telemetry, world, (toast) => {
+    gameplayHud.pushToast(toast);
+  });
+
   gameplayHud.update(vm);
 }
 
@@ -2978,6 +2981,8 @@ function createDefaultMissionHudSignals(): MissionHudSignals {
     playerTowers: -1,
     enemyTowers: -1,
     clusterBonusActive: false,
+    towerCapturePhaseById: {},
+    towerOwnerById: {},
   };
 }
 
@@ -3054,6 +3059,7 @@ function updateMissionEventFeed(
   telemetry: MissionWaveTelemetry | null,
   world: World,
   notifyToast: (toast: HudToastInput) => void,
+  towerOverlays: readonly TowerOverlayVM[],
 ): void {
   if (!telemetry) {
     return;
@@ -3132,6 +3138,8 @@ function updateMissionEventFeed(
     pushMissionEvent(app, "Cluster bonus online: regen boost activated.", "success", notifyToast);
   }
 
+  emitTowerCaptureTransitionEvents(app, towerOverlays, notifyToast);
+
   signals.waveIndex = currentWave;
   signals.waveActive = waveActive;
   signals.nextWaveBucket = nextWaveBucket;
@@ -3139,6 +3147,59 @@ function updateMissionEventFeed(
   signals.playerTowers = playerTowers;
   signals.enemyTowers = enemyTowers;
   signals.clusterBonusActive = clusterBonusActive;
+}
+
+function emitTowerCaptureTransitionEvents(
+  app: AppState,
+  towerOverlays: readonly TowerOverlayVM[],
+  notifyToast: (toast: HudToastInput) => void,
+): void {
+  const signals = app.missionHudSignals;
+  const nextPhaseByTower: Record<string, TowerCapturePhase> = {};
+  const nextOwnerByTower: Record<string, Owner> = {};
+
+  for (const tower of towerOverlays) {
+    const towerId = tower.towerId;
+    const previousPhase = signals.towerCapturePhaseById[towerId];
+    const previousOwner = signals.towerOwnerById[towerId];
+    const currentPhase = tower.capture.phase;
+    const currentOwner = tower.owner;
+
+    if (previousPhase && previousPhase !== "breaching" && currentPhase === "breaching") {
+      pushMissionEvent(
+        app,
+        `Defenders broken at ${towerId}. ${tower.capture.attacker === "player" ? "Finalize takeover." : "Hostile breach underway."}`,
+        tower.capture.attacker === "player" ? "success" : "warning",
+        notifyToast,
+      );
+    }
+
+    if (previousOwner && previousOwner !== currentOwner) {
+      if (currentOwner === "player") {
+        pushMissionEvent(app, `${towerId} captured.`, "success", notifyToast);
+      } else if (previousOwner === "player") {
+        pushMissionEvent(app, `${towerId} lost to ${describeOwner(currentOwner)}.`, "warning", notifyToast);
+      } else {
+        pushMissionEvent(app, `${towerId} switched to ${describeOwner(currentOwner)}.`, "neutral", notifyToast);
+      }
+    }
+
+    nextPhaseByTower[towerId] = currentPhase;
+    nextOwnerByTower[towerId] = currentOwner;
+  }
+
+  signals.towerCapturePhaseById = nextPhaseByTower;
+  signals.towerOwnerById = nextOwnerByTower;
+}
+
+function describeOwner(owner: Owner): string {
+  if (owner === "player") {
+    return "your command";
+  }
+  if (owner === "enemy") {
+    return "enemy command";
+  }
+  return "neutral control";
 }
 
 function toMissionToast(entry: MissionEventEntry): HudToastInput {

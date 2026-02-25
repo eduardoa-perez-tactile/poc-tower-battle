@@ -14,6 +14,12 @@
 - `ObjectiveCard` (bottom-left objective + progress + waves secured + cluster status)
 - `TowerInspectorPanel` (bottom-right, visible only when tower is selected)
 - Data binding is built in `buildHudViewModel.ts` and selected tower id still comes from `InputController.getSelectedTowerId()`.
+- Capture communication model (phase-aware):
+- `stable` (no hostile pressure), `contested` (defenders being reduced), `breaching` (tower HP being reduced).
+- Capture overlay renders dual-ring progress:
+- `--capture-pressure` for defender pressure.
+- `--capture-breach` for post-defender HP breach.
+- `--capture-takeover` for label emphasis.
 
 ## Territory visual indicators
 - Renderer draws cluster feedback in `src/render/Renderer2D.ts`.
@@ -26,6 +32,9 @@
 - Tower tooltip content is assembled in `WorldTooltipOverlay.showTowerTooltip()`.
 - Enemy tooltip content is assembled in `WorldTooltipOverlay.showEnemyTooltip()`.
 - To add fields, extend `collectTowerData()` or `pickEnemyPacket()` and append rows/chips with `createTooltipRow()` / `createTooltipChipRow()`.
+- Tower tooltip now includes a derived control row and capture rule hint:
+- `Control: Stable/Contested/Breaching (...)`
+- `Capture: Control transfers only when HP reaches 0.`
 
 ## Enemy descriptions data
 - Enemy one-line descriptions are read from `description` in:

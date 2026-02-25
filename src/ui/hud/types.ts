@@ -63,6 +63,18 @@ export interface ContextVM {
   towerInspect: TowerInspectVM | null;
 }
 
+export type TowerCapturePhase = "stable" | "contested" | "breaching";
+
+export interface TowerCaptureVM {
+  visible: boolean;
+  attacker: Owner;
+  phase: TowerCapturePhase;
+  phaseLabel: string;
+  troopPressure01: number;
+  breachProgress01: number;
+  takeoverProgress01: number;
+}
+
 export interface TowerOverlayVM {
   towerId: string;
   x: number;
@@ -70,11 +82,7 @@ export interface TowerOverlayVM {
   owner: Owner;
   regenPerSec: number;
   clusterHighlight: boolean;
-  capture: {
-    visible: boolean;
-    progress01: number;
-    attacker: Owner;
-  };
+  capture: TowerCaptureVM;
 }
 
 export interface OverlayVM {

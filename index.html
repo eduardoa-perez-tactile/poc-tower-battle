@@ -1962,15 +1962,77 @@
 
       .hud-overlay-capture {
         position: absolute;
-        width: 72px;
-        height: 72px;
+        width: 84px;
+        height: 84px;
+      }
+
+      .hud-overlay-capture-pressure,
+      .hud-overlay-capture-breach {
+        position: absolute;
+        inset: 0;
         border-radius: 50%;
+      }
+
+      .hud-overlay-capture-pressure {
+        opacity: 0.72;
         background: conic-gradient(
-          var(--capture-color) calc(var(--capture-progress, 0) * 1turn),
+          var(--capture-color) calc(var(--capture-pressure, 0) * 1turn),
           rgba(104, 124, 161, 0.16) 0
+        );
+        -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 5px), #000 0);
+        mask: radial-gradient(farthest-side, transparent calc(100% - 5px), #000 0);
+      }
+
+      .hud-overlay-capture-breach {
+        inset: 8px;
+        opacity: 0.95;
+        background: conic-gradient(
+          var(--capture-color) calc(var(--capture-breach, 0) * 1turn),
+          rgba(120, 135, 160, 0.2) 0
         );
         -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 4px), #000 0);
         mask: radial-gradient(farthest-side, transparent calc(100% - 4px), #000 0);
+      }
+
+      .hud-overlay-capture-label {
+        position: absolute;
+        left: 50%;
+        top: calc(100% + 3px);
+        transform: translateX(-50%);
+        font-size: 0.61rem;
+        font-weight: 700;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        color: rgba(224, 238, 255, 0.86);
+        text-shadow: 0 1px 3px rgba(0, 0, 0, 0.65);
+      }
+
+      .hud-overlay-capture.is-contested .hud-overlay-capture-label {
+        color: rgba(248, 228, 188, 0.92);
+      }
+
+      .hud-overlay-capture.is-breaching .hud-overlay-capture-pressure,
+      .hud-overlay-capture.is-breaching .hud-overlay-capture-breach {
+        animation: capturePulse 0.9s ease-in-out infinite;
+      }
+
+      .hud-overlay-capture.is-breaching .hud-overlay-capture-label {
+        color: rgba(255, 193, 166, 0.95);
+      }
+
+      @keyframes capturePulse {
+        0% {
+          transform: scale(1);
+          opacity: 0.86;
+        }
+        50% {
+          transform: scale(1.03);
+          opacity: 1;
+        }
+        100% {
+          transform: scale(1);
+          opacity: 0.86;
+        }
       }
 
       .hud-overlay-cluster {

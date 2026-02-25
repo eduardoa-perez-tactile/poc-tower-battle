@@ -22,6 +22,9 @@ interface HoverTowerData {
   tower: Tower;
   incomingFriendlyCount: number;
   incomingEnemyCount: number;
+  incomingPlayerUnits: number;
+  incomingEnemyUnits: number;
+  incomingNeutralUnits: number;
   outgoingTargets: string[];
   statusChips: string[];
 }
@@ -30,6 +33,11 @@ interface HoverEnemyData {
   packet: UnitPacket;
   archetype: EnemyArchetypeDefinition | null;
   mechanicText: string | null;
+}
+
+interface TowerControlState {
+  statusLabel: string;
+  ruleHint: string | null;
 }
 
 const PICK_INTERVAL_MS = 80;
@@ -218,6 +226,9 @@ export class WorldTooltipOverlay {
   private collectTowerData(world: World, tower: Tower): HoverTowerData {
     let incomingFriendlyCount = 0;
     let incomingEnemyCount = 0;
+    let incomingPlayerUnits = 0;
+    let incomingEnemyUnits = 0;
+    let incomingNeutralUnits = 0;
 
     for (const packet of world.packets) {
       const link = world.getLinkById(packet.linkId);
@@ -228,6 +239,14 @@ export class WorldTooltipOverlay {
         incomingFriendlyCount += 1;
       } else {
         incomingEnemyCount += 1;
+      }
+
+      if (packet.owner === "player") {
+        incomingPlayerUnits += packet.count;
+      } else if (packet.owner === "enemy") {
+        incomingEnemyUnits += packet.count;
+      } else {
+        incomingNeutralUnits += packet.count;
       }
     }
 
@@ -251,6 +270,9 @@ export class WorldTooltipOverlay {
       tower,
       incomingFriendlyCount,
       incomingEnemyCount,
+      incomingPlayerUnits,
+      incomingEnemyUnits,
+      incomingNeutralUnits,
       outgoingTargets,
       statusChips,
     };
@@ -301,6 +323,7 @@ export class WorldTooltipOverlay {
     const ownerLabel = ownerText(data.tower.owner);
     const outgoingVisible = data.outgoingTargets.slice(0, 3);
     const outgoingOverflow = Math.max(0, data.outgoingTargets.length - outgoingVisible.length);
+    const controlState = resolveTowerControlState(data);
 
     const signature = [
       "tower",
@@ -310,9 +333,12 @@ export class WorldTooltipOverlay {
       data.tower.regenRate.toFixed(2),
       data.incomingFriendlyCount,
       data.incomingEnemyCount,
+      Math.round(data.tower.hp),
       outgoingVisible.join(","),
       outgoingOverflow,
       data.statusChips.join(","),
+      controlState.statusLabel,
+      controlState.ruleHint ?? "",
       minimalMode ? "minimal" : "full",
     ].join("|");
 
@@ -337,6 +363,10 @@ export class WorldTooltipOverlay {
             ? `F ${data.incomingFriendlyCount} / E ${data.incomingEnemyCount}`
             : "?";
         this.tooltip.appendChild(createTooltipRow("Incoming", incomingText));
+        this.tooltip.appendChild(createTooltipRow("Control", controlState.statusLabel));
+        if (controlState.ruleHint) {
+          this.tooltip.appendChild(createTooltipRow("Capture", controlState.ruleHint));
+        }
 
         if (outgoingVisible.length > 0) {
           const outgoingText =
@@ -483,6 +513,52 @@ function createTooltipChipRow(chips: string[]): HTMLDivElement {
   }
 
   return row;
+}
+
+function resolveTowerControlState(data: HoverTowerData): TowerControlState {
+  const tower = data.tower;
+  let hostileUnits = 0;
+  let attackerLabel = "unknown";
+
+  if (tower.owner === "player") {
+    const enemyPressure = data.incomingEnemyUnits;
+    const neutralPressure = data.incomingNeutralUnits;
+    hostileUnits = enemyPressure + neutralPressure;
+    attackerLabel = enemyPressure >= neutralPressure ? "enemy pressure" : "neutral pressure";
+  } else if (tower.owner === "enemy") {
+    const playerPressure = data.incomingPlayerUnits;
+    const neutralPressure = data.incomingNeutralUnits;
+    hostileUnits = playerPressure + neutralPressure;
+    attackerLabel = playerPressure >= neutralPressure ? "player pressure" : "neutral pressure";
+  } else {
+    const playerPressure = data.incomingPlayerUnits;
+    const enemyPressure = data.incomingEnemyUnits;
+    hostileUnits = Math.max(playerPressure, enemyPressure);
+    attackerLabel = playerPressure >= enemyPressure ? "player pressure" : "enemy pressure";
+  }
+
+  const defendersBroken = tower.troops <= 0.001;
+  const hpAboveZero = tower.hp > 0.001;
+  const hasBreachDamage = hpAboveZero && tower.hp < tower.maxHp;
+
+  if (defendersBroken && hpAboveZero && (hostileUnits > 0.001 || hasBreachDamage)) {
+    return {
+      statusLabel: `Breaching (${attackerLabel})`,
+      ruleHint: "Control transfers only when HP reaches 0.",
+    };
+  }
+
+  if (hostileUnits > 0.001) {
+    return {
+      statusLabel: `Contested (${attackerLabel})`,
+      ruleHint: "Control transfers only when HP reaches 0.",
+    };
+  }
+
+  return {
+    statusLabel: "Stable",
+    ruleHint: null,
+  };
 }
 
 function resolveMechanicText(packet: UnitPacket): string | null {
