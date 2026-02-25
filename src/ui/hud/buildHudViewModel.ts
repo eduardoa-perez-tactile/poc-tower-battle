@@ -1,7 +1,7 @@
 import type { Game } from "../../game/Game";
 import type { Link, Owner, Tower } from "../../sim/World";
 import type { MissionWaveTelemetry } from "../../waves/WaveDirector";
-import type { HudVM } from "./types";
+import type { HudVM, TowerCaptureVM } from "./types";
 
 export interface BuildHudViewModelInput {
   game: Game;
@@ -256,45 +256,88 @@ function getBossPreviewLabel(telemetry: MissionWaveTelemetry | null): string | n
 function computeCaptureOverlay(
   tower: Tower,
   traffic: TowerPacketTraffic | undefined,
-): {
-  visible: boolean;
-  progress01: number;
-  attacker: Owner;
-} {
+): TowerCaptureVM {
+  const attackContext = resolveAttackContext(tower, traffic);
+  const troops = Math.max(0, sanitizeNumber(tower.troops));
+  const maxTroops = Math.max(1, sanitizeNumber(tower.maxTroops));
+  const hp01 = clamp01(sanitizeNumber(tower.hp) / Math.max(1, sanitizeNumber(tower.maxHp)));
+
+  const defendersBroken = troops <= 0.001;
+  const hasIncomingPressure = attackContext.attackingPower > 0.001;
+  const hasBreachDamage = defendersBroken && hp01 < 0.999;
+
+  const troopPressure01 = defendersBroken
+    ? 1
+    : clamp01(attackContext.attackingPower / Math.max(1, troops + attackContext.attackingPower));
+  const breachProgress01 = defendersBroken ? clamp01(1 - hp01) : 0;
+
+  let phase: TowerCaptureVM["phase"] = "stable";
+  if (defendersBroken && (hasIncomingPressure || hasBreachDamage)) {
+    phase = "breaching";
+  } else if (hasIncomingPressure) {
+    phase = "contested";
+  }
+
+  const takeoverProgress01 =
+    phase === "breaching"
+      ? clamp01(0.5 + breachProgress01 * 0.5)
+      : phase === "contested"
+        ? clamp01(troopPressure01 * 0.5 + (1 - troops / maxTroops) * 0.2)
+        : 0;
+
+  return {
+    visible: phase !== "stable",
+    attacker: attackContext.attacker,
+    phase,
+    phaseLabel: phase === "breaching" ? "Breaching" : phase === "contested" ? "Contested" : "Stable",
+    troopPressure01,
+    breachProgress01,
+    takeoverProgress01,
+  };
+}
+
+function resolveAttackContext(
+  tower: Tower,
+  traffic: TowerPacketTraffic | undefined,
+): { attacker: Owner; attackingPower: number } {
   if (!traffic) {
     return {
-      visible: false,
-      progress01: 0,
       attacker: "neutral",
+      attackingPower: 0,
     };
   }
 
-  let attacker: Owner = "neutral";
-  let attackingPower = 0;
   if (tower.owner === "player") {
-    attacker = "enemy";
-    attackingPower = traffic.incomingEnemyUnits + traffic.incomingNeutralUnits;
-  } else if (tower.owner === "enemy") {
-    attacker = "player";
-    attackingPower = traffic.incomingPlayerUnits + traffic.incomingNeutralUnits;
-  } else {
-    attacker = traffic.incomingPlayerUnits >= traffic.incomingEnemyUnits ? "player" : "enemy";
-    attackingPower = Math.max(traffic.incomingPlayerUnits, traffic.incomingEnemyUnits);
+    const enemyPressure = traffic.incomingEnemyUnits;
+    const neutralPressure = traffic.incomingNeutralUnits;
+    return {
+      attacker: enemyPressure >= neutralPressure ? "enemy" : "neutral",
+      attackingPower: enemyPressure + neutralPressure,
+    };
   }
 
+  if (tower.owner === "enemy") {
+    const playerPressure = traffic.incomingPlayerUnits;
+    const neutralPressure = traffic.incomingNeutralUnits;
+    return {
+      attacker: playerPressure >= neutralPressure ? "player" : "neutral",
+      attackingPower: playerPressure + neutralPressure,
+    };
+  }
+
+  const playerPressure = traffic.incomingPlayerUnits;
+  const enemyPressure = traffic.incomingEnemyUnits;
+  const attackingPower = Math.max(playerPressure, enemyPressure);
   if (attackingPower <= 0) {
     return {
-      visible: false,
-      progress01: 0,
-      attacker,
+      attacker: "neutral",
+      attackingPower: 0,
     };
   }
 
-  const progress01 = clamp01(attackingPower / Math.max(1, tower.troops + attackingPower));
   return {
-    visible: true,
-    progress01,
-    attacker,
+    attacker: playerPressure >= enemyPressure ? "player" : "enemy",
+    attackingPower,
   };
 }
 

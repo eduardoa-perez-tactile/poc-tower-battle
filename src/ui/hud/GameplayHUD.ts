@@ -186,10 +186,28 @@ class TacticalOverlayLayer {
 
       const ring = document.createElement("div");
       ring.className = "hud-overlay-capture";
-      ring.style.setProperty("--capture-progress", clamp01(tower.capture.progress01).toFixed(3));
+      ring.classList.add(`is-${tower.capture.phase}`);
+      ring.style.setProperty("--capture-pressure", clamp01(tower.capture.troopPressure01).toFixed(3));
+      ring.style.setProperty("--capture-breach", clamp01(tower.capture.breachProgress01).toFixed(3));
+      ring.style.setProperty("--capture-takeover", clamp01(tower.capture.takeoverProgress01).toFixed(3));
       ring.style.setProperty("--capture-color", toOwnerColor(tower.capture.attacker));
-      ring.style.left = `${point.x - (TOWER_RADIUS_PX + 8)}px`;
-      ring.style.top = `${point.y - (TOWER_RADIUS_PX + 8)}px`;
+      ring.style.left = `${point.x - (TOWER_RADIUS_PX + 14)}px`;
+      ring.style.top = `${point.y - (TOWER_RADIUS_PX + 14)}px`;
+
+      const pressure = document.createElement("div");
+      pressure.className = "hud-overlay-capture-pressure";
+      ring.appendChild(pressure);
+
+      const breach = document.createElement("div");
+      breach.className = "hud-overlay-capture-breach";
+      ring.appendChild(breach);
+
+      const label = document.createElement("div");
+      label.className = "hud-overlay-capture-label";
+      label.textContent = tower.capture.phaseLabel;
+      label.style.opacity = (0.62 + clamp01(tower.capture.takeoverProgress01) * 0.38).toFixed(2);
+      ring.appendChild(label);
+
       fragment.appendChild(ring);
     }
     this.captureLayer.appendChild(fragment);
