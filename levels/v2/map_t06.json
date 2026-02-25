@@ -1,0 +1,184 @@
+{
+  "id": "map_t06",
+  "size": {
+    "w": 28,
+    "h": 18
+  },
+  "nodes": [
+    {
+      "id": "p_start",
+      "x": 2,
+      "y": 9,
+      "owner": "player",
+      "tier": 2,
+      "cap": 120,
+      "regen": 3.1
+    },
+    {
+      "id": "e_start",
+      "x": 25,
+      "y": 9,
+      "owner": "enemy",
+      "tier": 2,
+      "cap": 120,
+      "regen": 3
+    },
+    {
+      "id": "choke_a",
+      "x": 8,
+      "y": 9,
+      "owner": "neutral",
+      "tier": 1,
+      "cap": 78,
+      "regen": 1.2
+    },
+    {
+      "id": "choke_b",
+      "x": 19,
+      "y": 9,
+      "owner": "neutral",
+      "tier": 1,
+      "cap": 78,
+      "regen": 1.2
+    },
+    {
+      "id": "l1_1",
+      "x": 7,
+      "y": 6,
+      "owner": "neutral",
+      "tier": 1,
+      "cap": 70,
+      "regen": 1.23
+    },
+    {
+      "id": "l1_2",
+      "x": 11,
+      "y": 6,
+      "owner": "neutral",
+      "tier": 1,
+      "cap": 82,
+      "regen": 1.23
+    },
+    {
+      "id": "l1_3",
+      "x": 15,
+      "y": 5,
+      "owner": "neutral",
+      "tier": 1,
+      "cap": 79,
+      "regen": 1.2999999999999998
+    },
+    {
+      "id": "l1_4",
+      "x": 19,
+      "y": 6,
+      "owner": "neutral",
+      "tier": 1,
+      "cap": 71,
+      "regen": 1.18
+    },
+    {
+      "id": "l2_1",
+      "x": 8,
+      "y": 12,
+      "owner": "neutral",
+      "tier": 1,
+      "cap": 86,
+      "regen": 1.16
+    },
+    {
+      "id": "l2_2",
+      "x": 11,
+      "y": 12,
+      "owner": "neutral",
+      "tier": 1,
+      "cap": 73,
+      "regen": 1.02
+    },
+    {
+      "id": "l2_3",
+      "x": 15,
+      "y": 12,
+      "owner": "neutral",
+      "tier": 1,
+      "cap": 73,
+      "regen": 1.27
+    },
+    {
+      "id": "l2_4",
+      "x": 20,
+      "y": 11,
+      "owner": "neutral",
+      "tier": 1,
+      "cap": 74,
+      "regen": 1.1099999999999999
+    }
+  ],
+  "links": [
+    {
+      "a": "choke_a",
+      "b": "l1_1"
+    },
+    {
+      "a": "l1_1",
+      "b": "l1_2"
+    },
+    {
+      "a": "l1_2",
+      "b": "l1_3"
+    },
+    {
+      "a": "l1_3",
+      "b": "l1_4"
+    },
+    {
+      "a": "l1_4",
+      "b": "choke_b"
+    },
+    {
+      "a": "choke_a",
+      "b": "l2_1"
+    },
+    {
+      "a": "l2_1",
+      "b": "l2_2"
+    },
+    {
+      "a": "l2_2",
+      "b": "l2_3"
+    },
+    {
+      "a": "l2_3",
+      "b": "l2_4"
+    },
+    {
+      "a": "l2_4",
+      "b": "choke_b"
+    },
+    {
+      "a": "p_start",
+      "b": "choke_a"
+    },
+    {
+      "a": "choke_b",
+      "b": "e_start"
+    },
+    {
+      "a": "choke_a",
+      "b": "choke_b"
+    },
+    {
+      "a": "l1_2",
+      "b": "l2_2"
+    },
+    {
+      "a": "l2_3",
+      "b": "l1_3"
+    }
+  ],
+  "tags": {
+    "chokepoints": 0.65,
+    "linkDensity": 1.15,
+    "lanes": 2
+  }
+}

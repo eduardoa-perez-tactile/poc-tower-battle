@@ -1,0 +1,429 @@
+{
+  "stages": [
+    {
+      "id": "stage01",
+      "displayName": "Stage 01 - Frontier Economy",
+      "baseMissionValue": 26,
+      "stageIndex": 1,
+      "missionCount": 6,
+      "axesByMission": [
+        { "economy": 0.25, "spatial": 0.1, "complexity": 0.05, "tempo": 0.05, "interference": 0.0 },
+        { "economy": 0.35, "spatial": 0.12, "complexity": 0.08, "tempo": 0.06, "interference": 0.0 },
+        { "economy": 0.45, "spatial": 0.15, "complexity": 0.12, "tempo": 0.08, "interference": 0.02 },
+        { "economy": 0.58, "spatial": 0.18, "complexity": 0.16, "tempo": 0.1, "interference": 0.03 },
+        { "economy": 0.72, "spatial": 0.22, "complexity": 0.22, "tempo": 0.12, "interference": 0.05 },
+        { "economy": 0.85, "spatial": 0.28, "complexity": 0.28, "tempo": 0.16, "interference": 0.06 }
+      ],
+      "dbTuning": {
+        "missionSlope": 0.18,
+        "stageSlope": 0.25,
+        "ascensionMultiplierPerLevel": 0.15,
+        "clamp": { "min": 18, "max": 120 }
+      },
+      "budgetAllocation": {
+        "unitCount": 0.4,
+        "complexity": 0.25,
+        "elite": 0.15,
+        "regen": 0.1,
+        "tempo": 0.1
+      },
+      "archetypeProgression": {
+        "tiers": [
+          {
+            "minComplexity": 0.0,
+            "allowedArchetypes": ["swarm", "support", "ranged"],
+            "weights": { "swarm": 4.2, "support": 1.8, "ranged": 1.6 },
+            "eliteChance": 0.06,
+            "minibossChance": 0.04
+          },
+          {
+            "minComplexity": 0.3,
+            "allowedArchetypes": ["swarm", "support", "ranged", "shield"],
+            "weights": { "swarm": 3.4, "support": 1.6, "ranged": 1.9, "shield": 1.5 },
+            "eliteChance": 0.09,
+            "minibossChance": 0.07
+          },
+          {
+            "minComplexity": 0.6,
+            "allowedArchetypes": ["swarm", "support", "ranged", "shield", "tank", "splitter", "link_cutter"],
+            "weights": { "swarm": 2.6, "support": 1.6, "ranged": 1.8, "shield": 1.7, "tank": 1.1, "splitter": 1.2, "link_cutter": 1.0 },
+            "eliteChance": 0.12,
+            "minibossChance": 0.1
+          }
+        ],
+        "maxNewArchetypesPerMission": 1
+      },
+      "tempoModel": {
+        "baseCooldownSec": 9,
+        "maxCompression": 0.2,
+        "wpi": {
+          "enabled": true,
+          "targetLow": 1.2,
+          "targetHigh": 2,
+          "earlySpawnFactor": 0.92,
+          "lateSpawnFactor": 1.08,
+          "smoothing": 0.15
+        }
+      },
+      "territoryScaling": {
+        "regenPerCluster": 0.05,
+        "armorPerCluster": 0.035,
+        "visionPerCluster": 0.04
+      },
+      "bossModel": {
+        "enabled": true,
+        "powerMultiplier": 2.2,
+        "phases": [
+          { "hpThreshold": 0.66, "addReinforcementWave": true, "regenSpike": 0.12, "tempoSpike": 0.08 },
+          { "hpThreshold": 0.36, "addReinforcementWave": true, "regenSpike": 0.16, "tempoSpike": 0.1 }
+        ],
+        "enrage": {
+          "enabled": true,
+          "hpBelow": 0.3,
+          "addPhaseOnHighAscension": true
+        }
+      }
+    },
+    {
+      "id": "stage02",
+      "displayName": "Stage 02 - Spatial Squeeze",
+      "baseMissionValue": 30,
+      "stageIndex": 2,
+      "missionCount": 6,
+      "axesByMission": [
+        { "economy": 0.3, "spatial": 0.28, "complexity": 0.12, "tempo": 0.12, "interference": 0.03 },
+        { "economy": 0.34, "spatial": 0.4, "complexity": 0.15, "tempo": 0.14, "interference": 0.04 },
+        { "economy": 0.38, "spatial": 0.52, "complexity": 0.2, "tempo": 0.16, "interference": 0.05 },
+        { "economy": 0.42, "spatial": 0.64, "complexity": 0.24, "tempo": 0.18, "interference": 0.06 },
+        { "economy": 0.46, "spatial": 0.76, "complexity": 0.28, "tempo": 0.2, "interference": 0.08 },
+        { "economy": 0.5, "spatial": 0.88, "complexity": 0.32, "tempo": 0.22, "interference": 0.1 }
+      ],
+      "dbTuning": {
+        "missionSlope": 0.18,
+        "stageSlope": 0.25,
+        "ascensionMultiplierPerLevel": 0.15,
+        "clamp": { "min": 22, "max": 150 }
+      },
+      "budgetAllocation": {
+        "unitCount": 0.42,
+        "complexity": 0.24,
+        "elite": 0.14,
+        "regen": 0.1,
+        "tempo": 0.1
+      },
+      "archetypeProgression": {
+        "tiers": [
+          {
+            "minComplexity": 0.0,
+            "allowedArchetypes": ["swarm", "ranged", "support", "shield"],
+            "weights": { "swarm": 3.2, "ranged": 2.0, "support": 1.6, "shield": 1.6 },
+            "eliteChance": 0.08,
+            "minibossChance": 0.06
+          },
+          {
+            "minComplexity": 0.3,
+            "allowedArchetypes": ["swarm", "ranged", "support", "shield", "tank", "link_cutter"],
+            "weights": { "swarm": 2.8, "ranged": 2.1, "support": 1.5, "shield": 1.6, "tank": 1.3, "link_cutter": 1.2 },
+            "eliteChance": 0.11,
+            "minibossChance": 0.09
+          },
+          {
+            "minComplexity": 0.6,
+            "allowedArchetypes": ["swarm", "ranged", "support", "shield", "tank", "splitter", "link_cutter"],
+            "weights": { "swarm": 2.2, "ranged": 2.0, "support": 1.6, "shield": 1.5, "tank": 1.4, "splitter": 1.4, "link_cutter": 1.4 },
+            "eliteChance": 0.14,
+            "minibossChance": 0.13
+          }
+        ],
+        "maxNewArchetypesPerMission": 1
+      },
+      "tempoModel": {
+        "baseCooldownSec": 8.5,
+        "maxCompression": 0.22,
+        "wpi": {
+          "enabled": true,
+          "targetLow": 1.25,
+          "targetHigh": 2.05,
+          "earlySpawnFactor": 0.9,
+          "lateSpawnFactor": 1.1,
+          "smoothing": 0.16
+        }
+      },
+      "territoryScaling": {
+        "regenPerCluster": 0.06,
+        "armorPerCluster": 0.045,
+        "visionPerCluster": 0.05
+      },
+      "bossModel": {
+        "enabled": true,
+        "powerMultiplier": 2.35,
+        "phases": [
+          { "hpThreshold": 0.68, "addReinforcementWave": true, "regenSpike": 0.14, "tempoSpike": 0.1 },
+          { "hpThreshold": 0.42, "addReinforcementWave": true, "regenSpike": 0.2, "tempoSpike": 0.12 }
+        ],
+        "enrage": {
+          "enabled": true,
+          "hpBelow": 0.32,
+          "addPhaseOnHighAscension": true
+        }
+      }
+    },
+    {
+      "id": "stage03",
+      "displayName": "Stage 03 - Complexity Shift",
+      "baseMissionValue": 34,
+      "stageIndex": 3,
+      "missionCount": 6,
+      "axesByMission": [
+        { "economy": 0.38, "spatial": 0.46, "complexity": 0.25, "tempo": 0.18, "interference": 0.08 },
+        { "economy": 0.42, "spatial": 0.5, "complexity": 0.38, "tempo": 0.2, "interference": 0.1 },
+        { "economy": 0.45, "spatial": 0.54, "complexity": 0.52, "tempo": 0.22, "interference": 0.12 },
+        { "economy": 0.48, "spatial": 0.58, "complexity": 0.66, "tempo": 0.24, "interference": 0.14 },
+        { "economy": 0.5, "spatial": 0.62, "complexity": 0.8, "tempo": 0.26, "interference": 0.16 },
+        { "economy": 0.54, "spatial": 0.66, "complexity": 0.95, "tempo": 0.28, "interference": 0.18 }
+      ],
+      "dbTuning": {
+        "missionSlope": 0.18,
+        "stageSlope": 0.25,
+        "ascensionMultiplierPerLevel": 0.15,
+        "clamp": { "min": 26, "max": 190 }
+      },
+      "budgetAllocation": {
+        "unitCount": 0.4,
+        "complexity": 0.27,
+        "elite": 0.14,
+        "regen": 0.09,
+        "tempo": 0.1
+      },
+      "archetypeProgression": {
+        "tiers": [
+          {
+            "minComplexity": 0.0,
+            "allowedArchetypes": ["swarm", "ranged", "shield", "support"],
+            "weights": { "swarm": 2.7, "ranged": 2.2, "shield": 1.7, "support": 1.5 },
+            "eliteChance": 0.1,
+            "minibossChance": 0.08
+          },
+          {
+            "minComplexity": 0.35,
+            "allowedArchetypes": ["swarm", "ranged", "shield", "support", "splitter", "link_cutter"],
+            "weights": { "swarm": 2.3, "ranged": 2.1, "shield": 1.6, "support": 1.5, "splitter": 1.5, "link_cutter": 1.5 },
+            "eliteChance": 0.13,
+            "minibossChance": 0.12
+          },
+          {
+            "minComplexity": 0.65,
+            "allowedArchetypes": ["swarm", "tank", "ranged", "shield", "support", "splitter", "link_cutter"],
+            "weights": { "swarm": 1.8, "tank": 1.7, "ranged": 2.0, "shield": 1.5, "support": 1.5, "splitter": 1.7, "link_cutter": 1.8 },
+            "eliteChance": 0.17,
+            "minibossChance": 0.16
+          }
+        ],
+        "maxNewArchetypesPerMission": 1
+      },
+      "tempoModel": {
+        "baseCooldownSec": 8,
+        "maxCompression": 0.24,
+        "wpi": {
+          "enabled": true,
+          "targetLow": 1.3,
+          "targetHigh": 2.1,
+          "earlySpawnFactor": 0.89,
+          "lateSpawnFactor": 1.11,
+          "smoothing": 0.17
+        }
+      },
+      "territoryScaling": {
+        "regenPerCluster": 0.07,
+        "armorPerCluster": 0.055,
+        "visionPerCluster": 0.06
+      },
+      "bossModel": {
+        "enabled": true,
+        "powerMultiplier": 2.5,
+        "phases": [
+          { "hpThreshold": 0.7, "addReinforcementWave": true, "regenSpike": 0.16, "tempoSpike": 0.11 },
+          { "hpThreshold": 0.48, "addReinforcementWave": true, "regenSpike": 0.22, "tempoSpike": 0.14 },
+          { "hpThreshold": 0.28, "addReinforcementWave": true, "regenSpike": 0.26, "tempoSpike": 0.15 }
+        ],
+        "enrage": {
+          "enabled": true,
+          "hpBelow": 0.3,
+          "addPhaseOnHighAscension": true
+        }
+      }
+    },
+    {
+      "id": "stage04",
+      "displayName": "Stage 04 - Tempo Compression",
+      "baseMissionValue": 39,
+      "stageIndex": 4,
+      "missionCount": 6,
+      "axesByMission": [
+        { "economy": 0.45, "spatial": 0.56, "complexity": 0.48, "tempo": 0.38, "interference": 0.12 },
+        { "economy": 0.48, "spatial": 0.6, "complexity": 0.54, "tempo": 0.52, "interference": 0.14 },
+        { "economy": 0.5, "spatial": 0.64, "complexity": 0.6, "tempo": 0.66, "interference": 0.16 },
+        { "economy": 0.52, "spatial": 0.68, "complexity": 0.66, "tempo": 0.8, "interference": 0.18 },
+        { "economy": 0.55, "spatial": 0.72, "complexity": 0.72, "tempo": 0.95, "interference": 0.2 },
+        { "economy": 0.58, "spatial": 0.76, "complexity": 0.78, "tempo": 1.1, "interference": 0.24 }
+      ],
+      "dbTuning": {
+        "missionSlope": 0.18,
+        "stageSlope": 0.25,
+        "ascensionMultiplierPerLevel": 0.15,
+        "clamp": { "min": 30, "max": 235 }
+      },
+      "budgetAllocation": {
+        "unitCount": 0.39,
+        "complexity": 0.24,
+        "elite": 0.16,
+        "regen": 0.09,
+        "tempo": 0.12
+      },
+      "archetypeProgression": {
+        "tiers": [
+          {
+            "minComplexity": 0.0,
+            "allowedArchetypes": ["swarm", "ranged", "support", "shield", "link_cutter"],
+            "weights": { "swarm": 2.5, "ranged": 2.3, "support": 1.4, "shield": 1.5, "link_cutter": 1.4 },
+            "eliteChance": 0.12,
+            "minibossChance": 0.1
+          },
+          {
+            "minComplexity": 0.35,
+            "allowedArchetypes": ["swarm", "tank", "ranged", "shield", "support", "splitter", "link_cutter"],
+            "weights": { "swarm": 2.0, "tank": 1.6, "ranged": 2.2, "shield": 1.5, "support": 1.4, "splitter": 1.5, "link_cutter": 1.6 },
+            "eliteChance": 0.16,
+            "minibossChance": 0.14
+          },
+          {
+            "minComplexity": 0.65,
+            "allowedArchetypes": ["swarm", "tank", "ranged", "shield", "support", "splitter", "link_cutter"],
+            "weights": { "swarm": 1.7, "tank": 1.9, "ranged": 2.1, "shield": 1.5, "support": 1.4, "splitter": 1.7, "link_cutter": 1.8 },
+            "eliteChance": 0.2,
+            "minibossChance": 0.19
+          }
+        ],
+        "maxNewArchetypesPerMission": 1
+      },
+      "tempoModel": {
+        "baseCooldownSec": 7.2,
+        "maxCompression": 0.25,
+        "wpi": {
+          "enabled": true,
+          "targetLow": 1.35,
+          "targetHigh": 2.15,
+          "earlySpawnFactor": 0.88,
+          "lateSpawnFactor": 1.12,
+          "smoothing": 0.18
+        }
+      },
+      "territoryScaling": {
+        "regenPerCluster": 0.08,
+        "armorPerCluster": 0.065,
+        "visionPerCluster": 0.07
+      },
+      "bossModel": {
+        "enabled": true,
+        "powerMultiplier": 2.7,
+        "phases": [
+          { "hpThreshold": 0.72, "addReinforcementWave": true, "regenSpike": 0.18, "tempoSpike": 0.12 },
+          { "hpThreshold": 0.52, "addReinforcementWave": true, "regenSpike": 0.24, "tempoSpike": 0.16 },
+          { "hpThreshold": 0.32, "addReinforcementWave": true, "regenSpike": 0.3, "tempoSpike": 0.18 }
+        ],
+        "enrage": {
+          "enabled": true,
+          "hpBelow": 0.3,
+          "addPhaseOnHighAscension": true
+        }
+      }
+    },
+    {
+      "id": "stage05",
+      "displayName": "Stage 05 - Interference Theater",
+      "baseMissionValue": 45,
+      "stageIndex": 5,
+      "missionCount": 6,
+      "axesByMission": [
+        { "economy": 0.52, "spatial": 0.64, "complexity": 0.62, "tempo": 0.66, "interference": 0.36 },
+        { "economy": 0.54, "spatial": 0.68, "complexity": 0.68, "tempo": 0.74, "interference": 0.52 },
+        { "economy": 0.56, "spatial": 0.72, "complexity": 0.74, "tempo": 0.82, "interference": 0.68 },
+        { "economy": 0.58, "spatial": 0.76, "complexity": 0.8, "tempo": 0.92, "interference": 0.84 },
+        { "economy": 0.6, "spatial": 0.8, "complexity": 0.88, "tempo": 1.02, "interference": 1.0 },
+        { "economy": 0.62, "spatial": 0.84, "complexity": 0.96, "tempo": 1.12, "interference": 1.15 }
+      ],
+      "dbTuning": {
+        "missionSlope": 0.18,
+        "stageSlope": 0.25,
+        "ascensionMultiplierPerLevel": 0.15,
+        "clamp": { "min": 34, "max": 280 }
+      },
+      "budgetAllocation": {
+        "unitCount": 0.37,
+        "complexity": 0.24,
+        "elite": 0.17,
+        "regen": 0.1,
+        "tempo": 0.12
+      },
+      "archetypeProgression": {
+        "tiers": [
+          {
+            "minComplexity": 0.0,
+            "allowedArchetypes": ["swarm", "tank", "ranged", "shield", "support", "splitter", "link_cutter"],
+            "weights": { "swarm": 2.0, "tank": 1.8, "ranged": 2.1, "shield": 1.4, "support": 1.3, "splitter": 1.6, "link_cutter": 1.7 },
+            "eliteChance": 0.14,
+            "minibossChance": 0.13
+          },
+          {
+            "minComplexity": 0.35,
+            "allowedArchetypes": ["swarm", "tank", "ranged", "shield", "support", "splitter", "link_cutter"],
+            "weights": { "swarm": 1.8, "tank": 1.9, "ranged": 2.0, "shield": 1.4, "support": 1.3, "splitter": 1.8, "link_cutter": 1.9 },
+            "eliteChance": 0.19,
+            "minibossChance": 0.18
+          },
+          {
+            "minComplexity": 0.65,
+            "allowedArchetypes": ["swarm", "tank", "ranged", "shield", "support", "splitter", "link_cutter"],
+            "weights": { "swarm": 1.6, "tank": 2.0, "ranged": 1.9, "shield": 1.4, "support": 1.2, "splitter": 2.0, "link_cutter": 2.1 },
+            "eliteChance": 0.24,
+            "minibossChance": 0.24
+          }
+        ],
+        "maxNewArchetypesPerMission": 1
+      },
+      "tempoModel": {
+        "baseCooldownSec": 6.8,
+        "maxCompression": 0.25,
+        "wpi": {
+          "enabled": true,
+          "targetLow": 1.4,
+          "targetHigh": 2.2,
+          "earlySpawnFactor": 0.87,
+          "lateSpawnFactor": 1.13,
+          "smoothing": 0.18
+        }
+      },
+      "territoryScaling": {
+        "regenPerCluster": 0.09,
+        "armorPerCluster": 0.075,
+        "visionPerCluster": 0.08,
+        "penaltyMultiplier": 0.75
+      },
+      "bossModel": {
+        "enabled": true,
+        "powerMultiplier": 2.9,
+        "phases": [
+          { "hpThreshold": 0.75, "addReinforcementWave": true, "regenSpike": 0.22, "tempoSpike": 0.14 },
+          { "hpThreshold": 0.55, "addReinforcementWave": true, "regenSpike": 0.28, "tempoSpike": 0.18 },
+          { "hpThreshold": 0.36, "addReinforcementWave": true, "regenSpike": 0.34, "tempoSpike": 0.2 }
+        ],
+        "enrage": {
+          "enabled": true,
+          "hpBelow": 0.32,
+          "timeSec": 55,
+          "addPhaseOnHighAscension": true
+        }
+      }
+    }
+  ]
+}

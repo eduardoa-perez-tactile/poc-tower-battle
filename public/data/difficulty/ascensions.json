@@ -1,0 +1,52 @@
+{
+  "levels": [
+    {
+      "level": 0,
+      "enemyRegenBonus": 0,
+      "linkDecayEnabled": false,
+      "eliteEarlier": false,
+      "bossExtraPhase": false,
+      "territoryPenalty": 0
+    },
+    {
+      "level": 1,
+      "enemyRegenBonus": 0.04,
+      "linkDecayEnabled": false,
+      "eliteEarlier": true,
+      "bossExtraPhase": false,
+      "territoryPenalty": 0.05
+    },
+    {
+      "level": 2,
+      "enemyRegenBonus": 0.08,
+      "linkDecayEnabled": true,
+      "eliteEarlier": true,
+      "bossExtraPhase": false,
+      "territoryPenalty": 0.1
+    },
+    {
+      "level": 3,
+      "enemyRegenBonus": 0.12,
+      "linkDecayEnabled": true,
+      "eliteEarlier": true,
+      "bossExtraPhase": true,
+      "territoryPenalty": 0.15
+    },
+    {
+      "level": 4,
+      "enemyRegenBonus": 0.16,
+      "linkDecayEnabled": true,
+      "eliteEarlier": true,
+      "bossExtraPhase": true,
+      "territoryPenalty": 0.2
+    },
+    {
+      "level": 5,
+      "enemyRegenBonus": 0.2,
+      "linkDecayEnabled": true,
+      "eliteEarlier": true,
+      "bossExtraPhase": true,
+      "territoryPenalty": 0.25
+    }
+  ]
+}

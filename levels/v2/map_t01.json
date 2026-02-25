@@ -1,0 +1,116 @@
+{
+  "id": "map_t01",
+  "size": {
+    "w": 24,
+    "h": 16
+  },
+  "nodes": [
+    {
+      "id": "p_start",
+      "x": 2,
+      "y": 8,
+      "owner": "player",
+      "tier": 2,
+      "cap": 120,
+      "regen": 3.1
+    },
+    {
+      "id": "e_start",
+      "x": 21,
+      "y": 8,
+      "owner": "enemy",
+      "tier": 2,
+      "cap": 120,
+      "regen": 3
+    },
+    {
+      "id": "l1_1",
+      "x": 6,
+      "y": 9,
+      "owner": "neutral",
+      "tier": 1,
+      "cap": 78,
+      "regen": 1.18
+    },
+    {
+      "id": "l1_2",
+      "x": 8,
+      "y": 8,
+      "owner": "neutral",
+      "tier": 1,
+      "cap": 79,
+      "regen": 1.29
+    },
+    {
+      "id": "l1_3",
+      "x": 10,
+      "y": 7,
+      "owner": "neutral",
+      "tier": 1,
+      "cap": 75,
+      "regen": 1.23
+    },
+    {
+      "id": "l1_4",
+      "x": 13,
+      "y": 9,
+      "owner": "neutral",
+      "tier": 1,
+      "cap": 77,
+      "regen": 0.99
+    },
+    {
+      "id": "l1_5",
+      "x": 15,
+      "y": 8,
+      "owner": "neutral",
+      "tier": 1,
+      "cap": 69,
+      "regen": 1.02
+    },
+    {
+      "id": "l1_6",
+      "x": 18,
+      "y": 8,
+      "owner": "neutral",
+      "tier": 1,
+      "cap": 69,
+      "regen": 1.18
+    }
+  ],
+  "links": [
+    {
+      "a": "p_start",
+      "b": "l1_1"
+    },
+    {
+      "a": "l1_1",
+      "b": "l1_2"
+    },
+    {
+      "a": "l1_2",
+      "b": "l1_3"
+    },
+    {
+      "a": "l1_3",
+      "b": "l1_4"
+    },
+    {
+      "a": "l1_4",
+      "b": "l1_5"
+    },
+    {
+      "a": "l1_5",
+      "b": "l1_6"
+    },
+    {
+      "a": "l1_6",
+      "b": "e_start"
+    }
+  ],
+  "tags": {
+    "chokepoints": 0.05,
+    "linkDensity": 1.4,
+    "lanes": 1
+  }
+}

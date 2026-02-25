@@ -1,36 +1,44 @@
-import { BUNDLED_LEVEL_PATHS, loadBundledLevels, loadUserLevelsFromStorage } from "./loader";
+/*
+ * Patch Notes (2026-02-24):
+ * - Registry now sources bundled campaign data from campaign_v2 (tutorial-first progression).
+ * - Added mission metadata map for campaign-specific difficulty/wave/hint settings.
+ */
+
+import { loadCampaignRegistryV2 } from "../campaign/CampaignLoader";
+import type { CampaignMissionRuntimeMeta } from "../campaign/CampaignTypes";
+import { loadUserLevelsFromStorage } from "./loader";
 import type { LevelJson, LevelSourceEntry, StageRegistryEntry } from "./types";
 
 const DEFAULT_STAGE_NAMES: Record<string, string> = {
-  stage01: "Stage 01: Frontier Line",
-  stage02: "Stage 02: Iron Divide",
+  training: "Training Grounds",
+  core: "Core Front",
   user: "User Generated",
 };
 
 const ORDER_HINTS: Record<string, number> = {
-  stage01: 1,
-  stage02: 2,
+  training: 1,
+  core: 2,
   user: 999,
 };
 
 export interface LevelRegistry {
   stages: StageRegistryEntry[];
+  missionMetaByKey: Record<string, CampaignMissionRuntimeMeta>;
 }
 
 export async function loadLevelRegistry(): Promise<LevelRegistry> {
-  const [bundledLevels, userLevels] = await Promise.all([
-    loadBundledLevels(BUNDLED_LEVEL_PATHS),
+  const [campaignRegistry, userLevels] = await Promise.all([
+    loadCampaignRegistryV2(),
     Promise.resolve(loadUserLevelsFromStorage()),
   ]);
 
   const grouped = new Map<string, LevelSourceEntry[]>();
-
-  for (const level of bundledLevels) {
-    pushLevel(grouped, level.stageId, {
+  for (const stage of campaignRegistry.stages) {
+    grouped.set(stage.stageId, stage.levels.map((entry) => ({
       source: "bundled",
-      path: `/levels/${level.stageId}/${level.levelId}.json`,
-      level,
-    });
+      path: entry.path,
+      level: entry.level,
+    })));
   }
 
   for (const level of userLevels) {
@@ -65,7 +73,10 @@ export async function loadLevelRegistry(): Promise<LevelRegistry> {
     return left.stageId.localeCompare(right.stageId);
   });
 
-  return { stages };
+  return {
+    stages,
+    missionMetaByKey: campaignRegistry.missionMetaByKey,
+  };
 }
 
 export function findStageById(stages: StageRegistryEntry[], stageId: string): StageRegistryEntry | null {

@@ -1,0 +1,42 @@
+{
+  "version": 1,
+  "presets": {
+    "teach_easy": {
+      "id": "teach_easy",
+      "waves": 2,
+      "missionDifficultyScalar": 0.9,
+      "firstAppearanceWave": 1,
+      "bossEnabled": false
+    },
+    "teach_new_archetype": {
+      "id": "teach_new_archetype",
+      "waves": 3,
+      "missionDifficultyScalar": 1,
+      "firstAppearanceWave": 2,
+      "bossEnabled": false
+    },
+    "test_normal": {
+      "id": "test_normal",
+      "waves": 4,
+      "missionDifficultyScalar": 1.08,
+      "firstAppearanceWave": 2,
+      "bossEnabled": false
+    },
+    "remix": {
+      "id": "remix",
+      "waves": 5,
+      "missionDifficultyScalar": 1.16,
+      "firstAppearanceWave": 2,
+      "minibossWave": 4,
+      "bossEnabled": false
+    },
+    "boss_intro": {
+      "id": "boss_intro",
+      "waves": 5,
+      "missionDifficultyScalar": 1.24,
+      "firstAppearanceWave": 2,
+      "minibossWave": 4,
+      "bossEnabled": true
+    }
+  }
+}

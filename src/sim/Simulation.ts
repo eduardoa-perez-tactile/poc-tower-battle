@@ -1,3 +1,8 @@
+/*
+ * Patch Notes (2026-02-24):
+ * - Added difficulty-context hooks for enemy regen and interference link decay.
+ */
+
 import type { Link, Owner, Tower, UnitPacket, Vec2, World } from "./World";
 import { armorFromMultiplier, combineArmorMultiplicative } from "./TerritoryControl";
 
@@ -62,7 +67,14 @@ export function updateWorld(
   rules: SimulationRules,
   temporaryModifiers: SimulationTemporaryModifiers = DEFAULT_TEMPORARY_MODIFIERS,
 ): void {
-  world.tickLinkRuntime(dtSec, rules.linkDecayPerSec, rules.linkDecayCanBreak);
+  const difficultyContext = world.getDifficultyContext();
+  const effectiveLinkDecayPerSec = Math.max(
+    0,
+    rules.linkDecayPerSec + difficultyContext.interferenceLinkDecayPerSec,
+  );
+  const effectiveLinkDecayCanBreak = rules.linkDecayCanBreak || difficultyContext.linkDecayCanBreak;
+
+  world.tickLinkRuntime(dtSec, effectiveLinkDecayPerSec, effectiveLinkDecayCanBreak);
   applyOverchargeDrain(world, dtSec);
   regenTowers(world, dtSec, rules);
   sendTroops(world, dtSec, rules);
@@ -96,6 +108,7 @@ function clamp(value: number, min: number, max: number): number {
 
 function regenTowers(world: World, dtSec: number, rules: SimulationRules): void {
   const auraBonuses = computeTowerAuraBonuses(world);
+  const difficultyContext = world.getDifficultyContext();
 
   for (const tower of world.towers) {
     if (tower.owner === "neutral") {
@@ -103,7 +116,10 @@ function regenTowers(world: World, dtSec: number, rules: SimulationRules): void 
     }
 
     const auraBonus = auraBonuses.get(tower.id) ?? 0;
-    const ownerRegenMul = tower.owner === "player" ? rules.playerRegenMultiplier : rules.enemyRegenMultiplier;
+    const ownerRegenMul =
+      tower.owner === "player"
+        ? rules.playerRegenMultiplier
+        : rules.enemyRegenMultiplier * difficultyContext.enemyRegenMultiplier;
     const effectiveRegen = Number.isFinite(tower.effectiveRegen) ? tower.effectiveRegen : tower.regenRate;
     const regenRate = effectiveRegen * ownerRegenMul * (1 + auraBonus);
     const clampedRegenRate = clamp(regenRate, rules.regenMinPerSec, rules.regenMaxPerSec);

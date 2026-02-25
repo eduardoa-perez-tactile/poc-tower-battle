@@ -1,8 +1,20 @@
+/*
+ * Patch Notes (2026-02-24):
+ * - Added Difficulty Budget wave planning with stage/mission/ascension profile support.
+ * - Added WPI-based dynamic pacing and bounded cooldown compression.
+ * - Added stage-scaled territory + enemy regen context integration for deterministic sim tuning.
+ * - Added boss power/phase hooks and wave-boundary difficulty telemetry.
+ * - Added mission-level wave-count and boss toggle overrides for campaign preset control.
+ */
+
 import type { Tower, UnitPacket, Vec2, World } from "../sim/World";
 import { armorFromMultiplier } from "../sim/TerritoryControl";
 import type { DifficultyTierId } from "../config/Difficulty";
-import { EnemyFactory } from "./EnemyFactory";
+import { DifficultyTelemetry } from "../debug/DifficultyTelemetry";
+import { EnemyFactory, type EnemyBossSpawnModifiers } from "./EnemyFactory";
+import { computeDifficultyBudget, resolveAscensionModifiers, resolveStageProfile } from "./DifficultyConfig";
 import type {
+  EnemyArchetypeDefinition,
   DifficultyTierConfig,
   LoadedWaveContent,
   LossRiskBand,
@@ -12,6 +24,12 @@ import type {
   WavePlan,
   WaveSpawnEntry,
 } from "./Definitions";
+import type {
+  AscensionDifficultyModifiers,
+  BossDifficultyModifiers,
+  DifficultyAxes,
+  StageDifficultyProfile,
+} from "./DifficultyTypes";
 import { WaveGenerator } from "./WaveGenerator";
 
 interface WaveLane {
@@ -88,8 +106,14 @@ export interface WaveDirectorOptions {
   runSeed: number;
   missionDifficultyScalar: number;
   difficultyTier: DifficultyTierId;
+  stageId?: string;
+  stageIndex?: number;
+  missionIndex?: number;
+  ascensionLevel?: number;
   balanceDiagnosticsEnabled?: boolean;
   allowedEnemyIds?: string[];
+  waveCountOverride?: number;
+  bossEnabledOverride?: boolean;
   rewardGoldMultiplier?: number;
   bossHpMultiplier?: number;
   bossExtraPhases?: number;
@@ -110,12 +134,48 @@ interface AggregatedEffects {
   spawnRateMultiplier: number;
 }
 
+interface DifficultyBudgetSnapshot {
+  enabled: boolean;
+  stageProfile: StageDifficultyProfile | null;
+  axes: DifficultyAxes;
+  ascension: AscensionDifficultyModifiers;
+  missionIndex: number;
+  budgetValue: number;
+  unitBudget: number;
+  complexityBudget: number;
+  eliteBudget: number;
+  regenBudget: number;
+  tempoBudget: number;
+  normalizedEliteBudget: number;
+  normalizedRegenBudget: number;
+  normalizedTempoBudget: number;
+  enemyRegenMultiplier: number;
+  cooldownBaseSec: number;
+}
+
+interface WaveBudgetTuning {
+  difficultyBudget: number;
+  cooldownSec: number;
+  eliteChance: number;
+  bossModifiers: BossDifficultyModifiers | null;
+  archetypeMix: Record<string, number>;
+  totalUnits: number;
+}
+
+interface RuntimeBossState {
+  modifiers: BossDifficultyModifiers | null;
+  phaseThresholds: number[];
+  triggeredPhases: Set<number>;
+  spawnedAtSec: number;
+}
+
 export class WaveDirector {
   private readonly content: LoadedWaveContent;
   private readonly world: World;
   private readonly waveGenerator: WaveGenerator;
   private readonly enemyFactory: EnemyFactory;
   private readonly options: WaveDirectorOptions;
+  private readonly allowedEnemyIds: Set<string> | null;
   private readonly lanes: WaveLane[];
   private readonly modifierById: Map<string, WaveModifierDefinition>;
   private readonly packetSnapshots: Map<string, PacketSnapshot>;
@@ -124,6 +184,11 @@ export class WaveDirector {
   private readonly difficultyConfig: DifficultyTierConfig;
   private readonly goldRewardMultiplier: number;
   private readonly bossCooldownFactor: number;
+  private readonly difficultyBudget: DifficultyBudgetSnapshot;
+  private readonly waveBudgetByIndex: Map<number, WaveBudgetTuning>;
+  private readonly plannedWavePlansByIndex: Map<number, WavePlan>;
+  private readonly missionArchetypesSeen: Set<string>;
+  private readonly telemetry: DifficultyTelemetry;
 
   private currentWaveIndex: number;
   private readonly totalWaveCount: number;
@@ -143,12 +208,16 @@ export class WaveDirector {
   private packetRateAccumulatorSec: number;
   private packetRateAccumulatorCount: number;
   private previousPlayerPacketCount: number;
+  private wpiEma: number;
+  private runtimeBossState: RuntimeBossState | null;
+  private playerTowersAtWaveStart: number;
 
   constructor(world: World, content: LoadedWaveContent, options: WaveDirectorOptions) {
     this.content = content;
     this.world = world;
     this.options = options;
     const allowedEnemyIds = options.allowedEnemyIds ? new Set(options.allowedEnemyIds) : null;
+    this.allowedEnemyIds = allowedEnemyIds;
     this.waveGenerator = new WaveGenerator(content, allowedEnemyIds);
     this.enemyFactory = new EnemyFactory(content, {
       allowedEnemyIds: allowedEnemyIds ?? undefined,
@@ -162,14 +231,76 @@ export class WaveDirector {
     this.difficultyConfig = content.difficultyTiers.difficultyTiers[options.difficultyTier];
     this.goldRewardMultiplier = this.difficultyConfig.economy.goldMul * (options.rewardGoldMultiplier ?? 1);
     this.bossCooldownFactor = 1 / (1 + Math.max(0, options.bossExtraPhases ?? 0) * 0.5);
+    this.waveBudgetByIndex = new Map<number, WaveBudgetTuning>();
+    this.plannedWavePlansByIndex = new Map<number, WavePlan>();
+    this.missionArchetypesSeen = new Set<string>();
+    this.telemetry = new DifficultyTelemetry();
+
+    const missionIndex = Math.max(0, Math.floor(options.missionIndex ?? 0));
+    const stageProfile = resolveStageProfile(content.stageDifficulty, {
+      stageId: options.stageId,
+      stageIndex: options.stageIndex,
+    });
+    const stageId = stageProfile?.id ?? normalizeStageId(options.stageId);
+    const stageIndex = stageProfile?.stageIndex ?? Math.max(1, Math.floor(options.stageIndex ?? deriveStageIndex(stageId)));
+    const ascensionLevel = Math.max(
+      0,
+      Math.floor(options.ascensionLevel ?? Math.max(0, options.bossExtraPhases ?? 0)),
+    );
+    const ascension = resolveAscensionModifiers(content.ascensionDifficulty, ascensionLevel);
+    const axes = resolveAxesForMission(stageProfile, missionIndex);
+    const budgetValue = stageProfile ? computeDifficultyBudget(stageProfile, missionIndex, ascensionLevel) : 0;
+
+    const unitBudget = budgetValue * (stageProfile?.budgetAllocation.unitCount ?? 0);
+    const complexityBudget = budgetValue * (stageProfile?.budgetAllocation.complexity ?? 0);
+    const eliteBudget = budgetValue * (stageProfile?.budgetAllocation.elite ?? 0);
+    const regenBudget = budgetValue * (stageProfile?.budgetAllocation.regen ?? 0);
+    const tempoBudget = budgetValue * (stageProfile?.budgetAllocation.tempo ?? 0);
+    const normalizedEliteBudget = eliteBudget > 0 ? eliteBudget / Math.max(1, budgetValue) : 0;
+    const normalizedRegenBudget = regenBudget > 0 ? regenBudget / Math.max(1, budgetValue) : 0;
+    const normalizedTempoBudget = tempoBudget > 0 ? tempoBudget / Math.max(1, budgetValue) : 0;
+    const enemyRegenMultiplier = clamp(
+      1 + axes.economy * 0.15 + normalizedRegenBudget * 0.1 + ascension.enemyRegenBonus,
+      1,
+      1.75,
+    );
+    const cooldownBaseSec = stageProfile
+      ? computeBaseCooldown(stageProfile, axes, normalizedTempoBudget)
+      : 3;
+
+    this.difficultyBudget = {
+      enabled: Boolean(stageProfile),
+      stageProfile,
+      axes,
+      ascension,
+      missionIndex,
+      budgetValue,
+      unitBudget,
+      complexityBudget,
+      eliteBudget,
+      regenBudget,
+      tempoBudget,
+      normalizedEliteBudget,
+      normalizedRegenBudget,
+      normalizedTempoBudget,
+      enemyRegenMultiplier,
+      cooldownBaseSec,
+    };
 
     for (const modifier of content.modifierCatalog.modifiers) {
       this.modifierById.set(modifier.id, modifier);
     }
 
     this.currentWaveIndex = 0;
-    this.totalWaveCount = this.waveGenerator.getTotalWaveCount();
-    this.cooldownUntilNextWaveSec = 1;
+    const baseWaveCount = this.waveGenerator.getTotalWaveCount();
+    this.totalWaveCount = clamp(
+      options.waveCountOverride ?? baseWaveCount,
+      1,
+      baseWaveCount,
+    );
+    this.cooldownUntilNextWaveSec = this.difficultyBudget.enabled
+      ? Math.max(0.75, this.difficultyBudget.cooldownBaseSec * 0.35)
+      : 1;
     this.runtimeWave = null;
     this.missionGold = 0;
     this.activeBuffId = null;
@@ -185,13 +316,42 @@ export class WaveDirector {
     this.packetRateAccumulatorSec = 0;
     this.packetRateAccumulatorCount = 0;
     this.previousPlayerPacketCount = 0;
+    this.wpiEma = this.difficultyBudget.stageProfile
+      ? (this.difficultyBudget.stageProfile.tempoModel.wpi.targetLow +
+          this.difficultyBudget.stageProfile.tempoModel.wpi.targetHigh) *
+        0.5
+      : 1;
+    this.runtimeBossState = null;
+    this.playerTowersAtWaveStart = countOwnedTowers(this.world.towers, "player");
 
+    const territoryPenalty = resolveTerritoryPenalty(
+      this.difficultyBudget.stageProfile,
+      this.difficultyBudget.ascension.territoryPenalty,
+    );
+    this.world.setDifficultyContext({
+      stageId,
+      stageIndex,
+      missionIndex,
+      enemyRegenMultiplier: this.difficultyBudget.enemyRegenMultiplier,
+      interferenceLinkDecayPerSec:
+        this.difficultyBudget.axes.interference * (this.difficultyBudget.ascension.linkDecayEnabled ? 0.35 : 0),
+      linkDecayCanBreak: this.difficultyBudget.ascension.linkDecayEnabled,
+      territoryScaling: {
+        regenPerCluster: this.difficultyBudget.stageProfile?.territoryScaling.regenPerCluster ?? 0.1,
+        armorPerCluster: this.difficultyBudget.stageProfile?.territoryScaling.armorPerCluster ?? 0.15,
+        visionPerCluster: this.difficultyBudget.stageProfile?.territoryScaling.visionPerCluster ?? 0.2,
+      },
+      playerTerritoryPenalty: territoryPenalty,
+    });
+
+    this.preparePlannedWaves();
     this.preparePreviews();
   }
 
   updatePreStep(dtSec: number): void {
     this.simulationTimeSec += dtSec;
     this.updatePlayerPacketRate(dtSec);
+    this.sampleWavePressureIndex();
 
     if (this.activeBuffRemainingSec > 0) {
       this.activeBuffRemainingSec = Math.max(0, this.activeBuffRemainingSec - dtSec);
@@ -239,13 +399,20 @@ export class WaveDirector {
         this.content.balanceBaselines.economy.baseGoldPerWave +
         this.currentWaveIndex * this.content.balance.goldRewards.waveClearPerWave;
       this.addMissionGold(waveClearReward);
+      const currentWaveRuntime = this.runtimeWave;
       this.validateWaveEnd(this.runtimeWave, dtSec);
+      this.telemetry.finishWave(
+        Math.max(0, this.playerTowersAtWaveStart - countOwnedTowers(this.world.towers, "player")),
+      );
       this.runtimeWave = null;
       this.currentWavePressureScore = 0;
-      this.cooldownUntilNextWaveSec = 3;
+      this.cooldownUntilNextWaveSec = this.computeNextWaveCooldown();
+      this.playerTowersAtWaveStart = countOwnedTowers(this.world.towers, "player");
+      this.runtimeBossState = null;
       if (this.currentWaveIndex >= this.totalWaveCount) {
         this.finished = true;
       }
+      void currentWaveRuntime;
     }
   }
 
@@ -306,8 +473,13 @@ export class WaveDirector {
     }
 
     const healthRatio = clamp(boss.count / Math.max(1, boss.baseCount), 0, 1);
+    const dynamicPhaseLabel = this.runtimeBossState
+      ? `Phase ${Math.min(this.runtimeBossState.phaseThresholds.length + 1, this.runtimeBossState.triggeredPhases.size + 1)}`
+      : null;
     const phase = boss.bossEnraged
       ? "Enraged"
+      : dynamicPhaseLabel
+        ? dynamicPhaseLabel
       : healthRatio > 0.66
         ? "Phase 1"
         : healthRatio > this.content.balance.boss.enrageThreshold
@@ -340,6 +512,29 @@ export class WaveDirector {
 
   getDebugMaxWaveIndex(): number {
     return this.totalWaveCount;
+  }
+
+  getDifficultyTelemetryRecords(): ReturnType<DifficultyTelemetry["getRecords"]> {
+    return this.telemetry.getRecords();
+  }
+
+  debugDescribePlannedWaves(): string[] {
+    const lines: string[] = [];
+    for (let waveIndex = 1; waveIndex <= this.totalWaveCount; waveIndex += 1) {
+      const plan = this.plannedWavePlansByIndex.get(waveIndex);
+      const tuning = this.waveBudgetByIndex.get(waveIndex);
+      if (!plan || !tuning) {
+        continue;
+      }
+      const mixSummary = Object.entries(tuning.archetypeMix)
+        .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
+        .map(([id, count]) => `${id}:${count}`)
+        .join(", ");
+      lines.push(
+        `W${waveIndex} DB=${tuning.difficultyBudget.toFixed(2)} units=${tuning.totalUnits} elite=${tuning.eliteChance.toFixed(2)} cooldown=${tuning.cooldownSec.toFixed(2)} mix=[${mixSummary}]`,
+      );
+    }
+    return lines;
   }
 
   setBalanceDiagnosticsEnabled(enabled: boolean): void {
@@ -378,9 +573,17 @@ export class WaveDirector {
     this.currentWavePressureScore = 0;
   }
 
+  private preparePlannedWaves(): void {
+    this.missionArchetypesSeen.clear();
+    for (let waveIndex = 1; waveIndex <= this.totalWaveCount; waveIndex += 1) {
+      const plan = this.generateWavePlan(waveIndex);
+      this.plannedWavePlansByIndex.set(waveIndex, plan);
+    }
+  }
+
   private preparePreviews(): void {
     for (let waveIndex = 1; waveIndex <= this.totalWaveCount; waveIndex += 1) {
-      const plan = this.waveGenerator.generate(this.getWaveGeneratorInputs(waveIndex));
+      const plan = this.plannedWavePlansByIndex.get(waveIndex) ?? this.waveGenerator.generate(this.getWaveGeneratorInputs(waveIndex));
       this.previewsByWave.set(waveIndex, summarizeWavePreview(plan, this.enemyFactory));
     }
   }
@@ -394,7 +597,9 @@ export class WaveDirector {
       this.cooldownUntilNextWaveSec = Math.max(0, this.cooldownUntilNextWaveSec - dtSec);
       if (this.cooldownUntilNextWaveSec <= 0 && this.currentWaveIndex < this.totalWaveCount) {
         this.currentWaveIndex += 1;
-        const plan = this.waveGenerator.generate(this.getWaveGeneratorInputs(this.currentWaveIndex));
+        const plan =
+          this.plannedWavePlansByIndex.get(this.currentWaveIndex) ??
+          this.waveGenerator.generate(this.getWaveGeneratorInputs(this.currentWaveIndex));
         const modifierEffects = this.aggregateModifierEffects(plan.modifiers);
         const pressureScore = this.computePressureScore(plan, modifierEffects);
         this.runtimeWave = {
@@ -405,7 +610,20 @@ export class WaveDirector {
           pressureScore,
           startedAtSec: this.simulationTimeSec,
         };
+        const tuning = this.waveBudgetByIndex.get(this.currentWaveIndex);
+        if (tuning) {
+          this.telemetry.startWave({
+            waveIndex: this.currentWaveIndex,
+            difficultyBudget: tuning.difficultyBudget,
+            unitCount: tuning.totalUnits,
+            archetypeMix: { ...tuning.archetypeMix },
+            eliteChance: tuning.eliteChance,
+            enemyRegenMultiplier: this.difficultyBudget.enemyRegenMultiplier,
+            cooldownSec: tuning.cooldownSec,
+          });
+        }
         this.currentWavePressureScore = pressureScore;
+        this.playerTowersAtWaveStart = countOwnedTowers(this.world.towers, "player");
         this.validateWaveStart(this.runtimeWave);
       }
       return;
@@ -418,12 +636,22 @@ export class WaveDirector {
         break;
       }
 
-      this.spawnEntry(entry, this.currentWaveIndex, this.runtimeWave.activeModifierEffects);
+      this.spawnEntry(
+        entry,
+        this.currentWaveIndex,
+        this.runtimeWave.activeModifierEffects,
+        this.waveBudgetByIndex.get(this.currentWaveIndex)?.bossModifiers,
+      );
       this.runtimeWave.nextSpawnIndex += 1;
     }
   }
 
-  private spawnEntry(entry: WaveSpawnEntry, waveIndex: number, effects: AggregatedEffects): void {
+  private spawnEntry(
+    entry: WaveSpawnEntry,
+    waveIndex: number,
+    effects: AggregatedEffects,
+    bossModifiers?: BossDifficultyModifiers | null,
+  ): void {
     const lane = this.getLane(entry.laneIndex);
     const targetTower = pickPlayerTarget(this.world.towers, lane.start);
     if (!targetTower) {
@@ -461,6 +689,7 @@ export class WaveDirector {
         missionDifficultyScalar: this.options.missionDifficultyScalar,
         isElite,
         isBoss: entry.enemyId === this.content.balance.boss.id,
+        bossModifiers: mapBossSpawnModifiers(bossModifiers),
       });
 
       packet.baseCount = packet.count;
@@ -481,12 +710,27 @@ export class WaveDirector {
       this.world.packets.push(this.world.acquirePacket(packet));
 
       if (packet.isBoss) {
+        const effectiveBossModifiers = bossModifiers ?? this.waveBudgetByIndex.get(waveIndex)?.bossModifiers ?? null;
+        const abilityCooldownMultiplier = effectiveBossModifiers?.abilityCooldownMultiplier ?? 1;
         this.activeBossPacketId = packet.id;
         this.bossAbilitySchedule = {
-          nextSlamAtSec: this.simulationTimeSec + this.content.balance.boss.slam.cooldownSec * this.bossCooldownFactor,
+          nextSlamAtSec:
+            this.simulationTimeSec +
+            this.content.balance.boss.slam.cooldownSec *
+              this.bossCooldownFactor *
+              abilityCooldownMultiplier,
           nextSummonAtSec:
-            this.simulationTimeSec + this.content.balance.boss.summon.cooldownSec * this.bossCooldownFactor,
+            this.simulationTimeSec +
+            this.content.balance.boss.summon.cooldownSec *
+              this.bossCooldownFactor *
+              abilityCooldownMultiplier,
         };
+        this.runtimeBossState = createRuntimeBossState(
+          this.difficultyBudget.stageProfile,
+          this.difficultyBudget.ascension,
+          effectiveBossModifiers,
+          this.simulationTimeSec,
+        );
       }
     }
   }
@@ -531,6 +775,7 @@ export class WaveDirector {
       if (this.activeBossPacketId === packetId) {
         this.activeBossPacketId = null;
         this.bossAbilitySchedule = null;
+        this.runtimeBossState = null;
       }
     }
 
@@ -594,14 +839,32 @@ export class WaveDirector {
 
   private updateBossState(dtSec: number): void {
     void dtSec;
-
     const bossPacket = this.getActiveBossPacket();
     if (!bossPacket || !this.bossAbilitySchedule) {
       return;
     }
 
     const healthRatio = bossPacket.count / Math.max(1, bossPacket.baseCount);
-    if (!bossPacket.bossEnraged && healthRatio <= this.content.balance.boss.enrageThreshold) {
+    if (this.runtimeBossState) {
+      for (let i = 0; i < this.runtimeBossState.phaseThresholds.length; i += 1) {
+        if (this.runtimeBossState.triggeredPhases.has(i)) {
+          continue;
+        }
+        if (healthRatio > this.runtimeBossState.phaseThresholds[i]) {
+          continue;
+        }
+        this.runtimeBossState.triggeredPhases.add(i);
+        this.triggerBossPhase(i);
+      }
+    }
+
+    const enrageThreshold = this.difficultyBudget.stageProfile?.bossModel.enrage.hpBelow ?? this.content.balance.boss.enrageThreshold;
+    const enrageAtTimeSec = this.difficultyBudget.stageProfile?.bossModel.enrage.timeSec;
+    const timedEnrage = Number.isFinite(enrageAtTimeSec)
+      ? this.simulationTimeSec - (this.runtimeBossState?.spawnedAtSec ?? this.simulationTimeSec) >= (enrageAtTimeSec as number)
+      : false;
+
+    if (!bossPacket.bossEnraged && (healthRatio <= enrageThreshold || timedEnrage)) {
       bossPacket.bossEnraged = true;
       bossPacket.baseSpeedMultiplier *= this.content.balance.boss.enrageSpeedMultiplier;
       bossPacket.dpsPerUnit *= this.content.balance.boss.enrageDamageMultiplier;
@@ -611,6 +874,8 @@ export class WaveDirector {
     if (!bossPosition) {
       return;
     }
+
+    const abilityCooldownMultiplier = this.runtimeBossState?.modifiers?.abilityCooldownMultiplier ?? 1;
 
     if (this.simulationTimeSec >= this.bossAbilitySchedule.nextSlamAtSec) {
       const target = pickPlayerTarget(this.world.towers, bossPosition);
@@ -626,7 +891,10 @@ export class WaveDirector {
         });
       }
       this.bossAbilitySchedule.nextSlamAtSec =
-        this.simulationTimeSec + this.content.balance.boss.slam.cooldownSec * this.bossCooldownFactor;
+        this.simulationTimeSec +
+        this.content.balance.boss.slam.cooldownSec *
+          this.bossCooldownFactor *
+          abilityCooldownMultiplier;
     }
 
     if (this.simulationTimeSec >= this.bossAbilitySchedule.nextSummonAtSec) {
@@ -640,7 +908,61 @@ export class WaveDirector {
         triggerAtSec: this.simulationTimeSec + this.content.balance.boss.summon.windupSec,
       });
       this.bossAbilitySchedule.nextSummonAtSec =
-        this.simulationTimeSec + this.content.balance.boss.summon.cooldownSec * this.bossCooldownFactor;
+        this.simulationTimeSec +
+        this.content.balance.boss.summon.cooldownSec *
+          this.bossCooldownFactor *
+          abilityCooldownMultiplier;
+    }
+  }
+
+  private triggerBossPhase(phaseIndex: number): void {
+    const stageProfile = this.difficultyBudget.stageProfile;
+    if (!stageProfile) {
+      return;
+    }
+    const phase = stageProfile.bossModel.phases[phaseIndex];
+    if (!phase) {
+      return;
+    }
+
+    if (phase.addReinforcementWave) {
+      const lane = this.lanes[Math.max(0, this.lanes.length - 1)] ?? this.getLane(0);
+      const reinforcementCount =
+        2 + Math.max(0, Math.round((this.runtimeBossState?.modifiers?.reinforcementCountBonus ?? 0)));
+      this.spawnEntry(
+        {
+          timeOffsetSec: 0,
+          enemyId: stageProfile.bossModel.enabled ? this.content.balance.boss.summon.enemyId : "swarm",
+          count: reinforcementCount,
+          eliteChance: clamp(0.15 + this.difficultyBudget.normalizedEliteBudget * 0.2, 0, 0.35),
+          laneIndex: lane.index,
+        },
+        Math.max(1, this.currentWaveIndex),
+        {
+          speedMultiplier: 1,
+          armorMultiplier: 1,
+          spawnRateMultiplier: 1,
+        },
+      );
+    }
+
+    if (phase.regenSpike) {
+      const context = this.world.getDifficultyContext();
+      this.world.setDifficultyContext({
+        enemyRegenMultiplier: clamp(
+          context.enemyRegenMultiplier * (1 + phase.regenSpike),
+          1,
+          1.9,
+        ),
+      });
+    }
+
+    if (phase.tempoSpike && this.bossAbilitySchedule) {
+      const tempoFactor = clamp(1 - phase.tempoSpike, 0.7, 1);
+      const slamDelta = Math.max(0, this.bossAbilitySchedule.nextSlamAtSec - this.simulationTimeSec);
+      const summonDelta = Math.max(0, this.bossAbilitySchedule.nextSummonAtSec - this.simulationTimeSec);
+      this.bossAbilitySchedule.nextSlamAtSec = this.simulationTimeSec + slamDelta * tempoFactor;
+      this.bossAbilitySchedule.nextSummonAtSec = this.simulationTimeSec + summonDelta * tempoFactor;
     }
   }
 
@@ -720,10 +1042,11 @@ export class WaveDirector {
 
   private resolveBossSummon(marker: TelegraphMarker): void {
     const lane = pickNearestLane(this.lanes, { x: marker.x, y: marker.y });
+    const countBonus = this.runtimeBossState?.modifiers?.reinforcementCountBonus ?? 0;
     const entry: WaveSpawnEntry = {
       timeOffsetSec: 0,
       enemyId: this.content.balance.boss.summon.enemyId,
-      count: this.content.balance.boss.summon.count,
+      count: Math.max(1, Math.round(this.content.balance.boss.summon.count + countBonus)),
       eliteChance: 0.2,
       laneIndex: lane.index,
     };
@@ -749,6 +1072,319 @@ export class WaveDirector {
       }
     }
     return false;
+  }
+
+  private generateWavePlan(waveIndex: number): WavePlan {
+    const basePlan = this.waveGenerator.generate(this.getWaveGeneratorInputs(waveIndex));
+    if (!this.difficultyBudget.enabled || !this.difficultyBudget.stageProfile) {
+      const normalizedBasePlan =
+        this.options.bossEnabledOverride === false
+          ? {
+              ...basePlan,
+              spawnEntries: basePlan.spawnEntries.filter((entry) => entry.enemyId !== this.content.balance.boss.id),
+              isBossWave: false,
+            }
+          : basePlan;
+      this.waveBudgetByIndex.set(waveIndex, {
+        difficultyBudget: this.options.missionDifficultyScalar,
+        cooldownSec: 3,
+        eliteChance: averageEliteChance(normalizedBasePlan.spawnEntries),
+        bossModifiers: null,
+        archetypeMix: countArchetypes(normalizedBasePlan.spawnEntries),
+        totalUnits: normalizedBasePlan.spawnEntries.reduce((sum, entry) => sum + entry.count, 0),
+      });
+      return normalizedBasePlan;
+    }
+
+    const stageProfile = this.difficultyBudget.stageProfile;
+    const waveProgress01 = clamp((waveIndex - 1) / Math.max(1, this.totalWaveCount - 1), 0, 1);
+    const waveDifficultyBudget = this.difficultyBudget.budgetValue * (0.82 + waveProgress01 * 0.36);
+    const unitBudgetPoints = Math.max(
+      5,
+      Math.round(waveDifficultyBudget * stageProfile.budgetAllocation.unitCount * this.options.missionDifficultyScalar),
+    );
+    const complexityAxis = clamp(
+      this.difficultyBudget.axes.complexity + waveProgress01 * 0.1 + this.difficultyBudget.complexityBudget / Math.max(1, waveDifficultyBudget) * 0.15,
+      0,
+      2,
+    );
+    const tier = resolveComplexityTier(stageProfile, complexityAxis);
+    const eliteChance = clamp(
+      tier.eliteChance +
+        this.difficultyBudget.normalizedEliteBudget * 0.18 +
+        (this.difficultyBudget.ascension.eliteEarlier ? 0.05 : 0),
+      0,
+      0.35,
+    );
+    const rng = createRng(mixSeed(this.options.runSeed, waveIndex, 0x5f3759df));
+
+    const allowedArchetypes = this.resolveAllowedArchetypes(tier.allowedArchetypes);
+    const weightedPool = buildWeightedArchetypePool(allowedArchetypes, tier.weights);
+    const archetypeCounts = this.allocateArchetypeCounts(
+      basePlan.spawnEntries.length,
+      unitBudgetPoints,
+      weightedPool,
+      stageProfile.archetypeProgression.maxNewArchetypesPerMission,
+      rng,
+    );
+
+    const spawnEntries: WaveSpawnEntry[] = [];
+    const laneCount = Math.max(1, this.lanes.length);
+    const totalBudgetUnits = Object.values(archetypeCounts).reduce((sum, value) => sum + value, 0);
+    const entryCount = Math.max(1, basePlan.spawnEntries.length);
+    const tempoSpacingMul = clamp(1 - this.difficultyBudget.axes.tempo * 0.25, 0.55, 1);
+    const defaultSpacing =
+      this.content.balanceBaselines.calibration.waveGeneration.spawnIntervalSec * tempoSpacingMul;
+
+    const archetypeQueue = expandArchetypeCounts(archetypeCounts);
+    let queueIndex = 0;
+
+    for (let i = 0; i < entryCount; i += 1) {
+      const baseEntry = basePlan.spawnEntries[i] ?? {
+        timeOffsetSec: i * defaultSpacing,
+        enemyId: archetypeQueue[queueIndex] ?? "swarm",
+        count: 1,
+        eliteChance,
+        laneIndex: i % laneCount,
+      };
+      const archetypeId = archetypeQueue[queueIndex] ?? baseEntry.enemyId;
+      queueIndex = Math.min(archetypeQueue.length, queueIndex + 1);
+
+      const remainingEntries = Math.max(1, entryCount - i);
+      const remainingUnits = Math.max(1, totalBudgetUnits - spawnEntries.reduce((sum, entry) => sum + entry.count, 0));
+      const count = Math.max(1, Math.round(remainingUnits / remainingEntries));
+
+      spawnEntries.push({
+        timeOffsetSec: round2(i * defaultSpacing),
+        enemyId: archetypeId,
+        count,
+        eliteChance,
+        laneIndex: normalizeLane(baseEntry.laneIndex, laneCount),
+      });
+    }
+
+    const minibossChance = clamp(
+      tier.minibossChance + this.difficultyBudget.axes.complexity * 0.08 + (this.difficultyBudget.ascension.eliteEarlier ? 0.05 : 0),
+      0,
+      0.8,
+    );
+    const supportsExtraMiniboss =
+      waveIndex >= 3 &&
+      !isBossWaveIndex(this.content, waveIndex, this.totalWaveCount) &&
+      this.isEnemyAllowed(this.content.balance.boss.minibossArchetypeId);
+    if (supportsExtraMiniboss && rng() < minibossChance) {
+      spawnEntries.push({
+        timeOffsetSec: round2(entryCount * defaultSpacing + 0.45),
+        enemyId: this.content.balance.boss.minibossArchetypeId,
+        count: 1,
+        eliteChance: 0,
+        laneIndex: Math.floor(rng() * laneCount),
+      });
+    }
+
+    const bossWave = this.isBossEnabledForMission() && isBossWaveIndex(this.content, waveIndex, this.totalWaveCount);
+    let bossModifiers: BossDifficultyModifiers | null = null;
+    if (bossWave && stageProfile.bossModel.enabled && this.isEnemyAllowed(this.content.balance.boss.id)) {
+      bossModifiers = computeBossDifficultyModifiers(
+        stageProfile,
+        waveDifficultyBudget,
+        this.difficultyBudget.ascension,
+      );
+      spawnEntries.unshift({
+        timeOffsetSec: 0,
+        enemyId: this.content.balance.boss.id,
+        count: 1,
+        eliteChance: 0,
+        laneIndex: Math.floor(laneCount / 2),
+      });
+      if (bossModifiers.reinforcementCountBonus > 0) {
+        spawnEntries.push({
+          timeOffsetSec: round2(entryCount * defaultSpacing + 0.95),
+          enemyId: this.content.balance.boss.summon.enemyId,
+          count: Math.max(1, bossModifiers.reinforcementCountBonus),
+          eliteChance: clamp(eliteChance * 0.8, 0, 0.35),
+          laneIndex: Math.floor(laneCount / 2),
+        });
+      }
+    }
+
+    spawnEntries.sort((left, right) => left.timeOffsetSec - right.timeOffsetSec);
+
+    const plan: WavePlan = {
+      ...basePlan,
+      waveIndex,
+      spawnEntries,
+      hasMiniBossEscort: supportsExtraMiniboss,
+      isBossWave: bossWave,
+    };
+
+    for (const entry of spawnEntries) {
+      if (entry.enemyId === this.content.balance.boss.id) {
+        continue;
+      }
+      this.missionArchetypesSeen.add(entry.enemyId);
+    }
+
+    const cooldownSec = this.computeWaveCooldownSec(waveIndex, waveDifficultyBudget);
+    const archetypeMix = countArchetypes(plan.spawnEntries);
+    this.waveBudgetByIndex.set(waveIndex, {
+      difficultyBudget: round2(waveDifficultyBudget),
+      cooldownSec,
+      eliteChance,
+      bossModifiers,
+      archetypeMix,
+      totalUnits: plan.spawnEntries.reduce((sum, entry) => sum + entry.count, 0),
+    });
+
+    return plan;
+  }
+
+  private resolveAllowedArchetypes(archetypeIds: string[]): EnemyArchetypeDefinition[] {
+    const spawnable = this.enemyFactory
+      .listSpawnableArchetypes()
+      .filter((archetype) => !archetype.tags.includes("boss") && !archetype.tags.includes("miniboss"));
+    if (archetypeIds.length === 0) {
+      return spawnable;
+    }
+
+    const byId = new Map<string, EnemyArchetypeDefinition>();
+    for (const archetype of spawnable) {
+      byId.set(archetype.id, archetype);
+    }
+
+    const selected: EnemyArchetypeDefinition[] = [];
+    for (const id of archetypeIds) {
+      const found = byId.get(id);
+      if (found) {
+        selected.push(found);
+      }
+    }
+    return selected.length > 0 ? selected : spawnable;
+  }
+
+  private isEnemyAllowed(enemyId: string): boolean {
+    if (!this.allowedEnemyIds || this.allowedEnemyIds.size === 0) {
+      return true;
+    }
+    return this.allowedEnemyIds.has(enemyId);
+  }
+
+  private isBossEnabledForMission(): boolean {
+    if (this.options.bossEnabledOverride !== undefined) {
+      return this.options.bossEnabledOverride;
+    }
+    return true;
+  }
+
+  private allocateArchetypeCounts(
+    targetEntries: number,
+    unitBudgetPoints: number,
+    weightedPool: Array<{ archetype: EnemyArchetypeDefinition; weight: number }>,
+    maxNewArchetypesPerMission: number,
+    rng: () => number,
+  ): Record<string, number> {
+    const counts: Record<string, number> = {};
+    if (weightedPool.length === 0) {
+      counts.swarm = Math.max(1, unitBudgetPoints);
+      return counts;
+    }
+
+    let remainingBudget = unitBudgetPoints;
+    let entriesRemaining = Math.max(1, targetEntries);
+    let newlyIntroduced = 0;
+    const allowMoreIntroductions =
+      (this.difficultyBudget.stageProfile?.stageIndex ?? 1) >= 5 || this.difficultyBudget.ascension.level >= 3;
+
+    while (remainingBudget > 0 && entriesRemaining > 0) {
+      const pool = weightedPool.filter((entry) => {
+        if (allowMoreIntroductions) {
+          return true;
+        }
+        const alreadySeen = this.missionArchetypesSeen.has(entry.archetype.id) || counts[entry.archetype.id] > 0;
+        if (alreadySeen) {
+          return true;
+        }
+        return newlyIntroduced < maxNewArchetypesPerMission;
+      });
+
+      const picked = pickWeightedPoolEntry(pool.length > 0 ? pool : weightedPool, rng);
+      if (!picked) {
+        break;
+      }
+
+      const cost = Math.max(1, resolveSpawnCost(picked.archetype));
+      const maxByBudget = Math.max(1, Math.floor(remainingBudget / cost));
+      const count = Math.max(1, Math.min(maxByBudget, Math.round(remainingBudget / Math.max(1, entriesRemaining))));
+      counts[picked.archetype.id] = (counts[picked.archetype.id] ?? 0) + count;
+      remainingBudget -= count * cost;
+      entriesRemaining -= 1;
+
+      if (!this.missionArchetypesSeen.has(picked.archetype.id)) {
+        newlyIntroduced += 1;
+      }
+    }
+
+    if (Object.keys(counts).length === 0) {
+      counts.swarm = Math.max(1, unitBudgetPoints);
+    }
+
+    return counts;
+  }
+
+  private computeWaveCooldownSec(waveIndex: number, waveDifficultyBudget: number): number {
+    const profile = this.difficultyBudget.stageProfile;
+    if (!profile) {
+      return 3;
+    }
+
+    const waveProgress01 = clamp((waveIndex - 1) / Math.max(1, this.totalWaveCount - 1), 0, 1);
+    const tempoBudgetNorm = this.difficultyBudget.tempoBudget / Math.max(1, waveDifficultyBudget);
+    const compression = clamp(
+      this.difficultyBudget.axes.tempo * 0.25 + tempoBudgetNorm * 0.1,
+      0,
+      profile.tempoModel.maxCompression,
+    );
+    const progressionMul = 1 - waveProgress01 * 0.08;
+    const base = profile.tempoModel.baseCooldownSec * (1 - compression) * progressionMul;
+    return clamp(base, 3, 30);
+  }
+
+  private computeNextWaveCooldown(): number {
+    if (this.currentWaveIndex >= this.totalWaveCount) {
+      return 0;
+    }
+
+    const upcomingWaveIndex = this.currentWaveIndex + 1;
+    const baseCooldown = this.waveBudgetByIndex.get(upcomingWaveIndex)?.cooldownSec ?? 3;
+    const profile = this.difficultyBudget.stageProfile;
+    if (!profile || !profile.tempoModel.wpi.enabled) {
+      return clamp(baseCooldown, 3, 30);
+    }
+
+    let adjustment = 1;
+    if (this.wpiEma < profile.tempoModel.wpi.targetLow) {
+      adjustment *= profile.tempoModel.wpi.earlySpawnFactor;
+    } else if (this.wpiEma > profile.tempoModel.wpi.targetHigh) {
+      adjustment *= profile.tempoModel.wpi.lateSpawnFactor;
+    }
+
+    adjustment = clamp(adjustment, 0.85, 1.15);
+    return clamp(baseCooldown * adjustment, 3, 30);
+  }
+
+  private sampleWavePressureIndex(): void {
+    const profile = this.difficultyBudget.stageProfile;
+    const instantWpi = computeWavePressureIndex(this.world);
+    if (profile?.tempoModel.wpi.enabled) {
+      const smoothing = clamp(profile.tempoModel.wpi.smoothing, 0.01, 1);
+      this.wpiEma = lerp(this.wpiEma, instantWpi, smoothing);
+    } else {
+      this.wpiEma = instantWpi;
+    }
+
+    if (this.runtimeWave) {
+      this.telemetry.sampleWpi(this.wpiEma);
+    }
   }
 
   private getWaveGeneratorInputs(waveIndex: number): WaveGeneratorInputs {
@@ -1158,6 +1794,267 @@ function getWorldBounds(towers: Tower[]): { minX: number; maxX: number; minY: nu
   }
 
   return { minX, maxX, minY, maxY };
+}
+
+function normalizeStageId(stageId?: string): string {
+  if (!stageId) {
+    return "stage01";
+  }
+  const trimmed = stageId.trim().toLowerCase();
+  if (/^stage\d+$/.test(trimmed)) {
+    const numeric = Number.parseInt(trimmed.slice(5), 10);
+    return `stage${numeric.toString().padStart(2, "0")}`;
+  }
+  return trimmed.length > 0 ? trimmed : "stage01";
+}
+
+function deriveStageIndex(stageId: string): number {
+  const match = stageId.match(/(\d+)/);
+  if (!match) {
+    return 1;
+  }
+  const parsed = Number.parseInt(match[1], 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 1;
+}
+
+function resolveAxesForMission(profile: StageDifficultyProfile | null, missionIndex: number): DifficultyAxes {
+  if (!profile || profile.axesByMission.length === 0) {
+    return {
+      economy: 0,
+      spatial: 0,
+      complexity: 0,
+      tempo: 0,
+      interference: 0,
+    };
+  }
+  const index = Math.max(0, Math.min(profile.axesByMission.length - 1, missionIndex));
+  return profile.axesByMission[index];
+}
+
+function computeBaseCooldown(
+  profile: StageDifficultyProfile,
+  axes: DifficultyAxes,
+  normalizedTempoBudget: number,
+): number {
+  const compression = clamp(
+    axes.tempo * 0.25 + normalizedTempoBudget * 0.1,
+    0,
+    profile.tempoModel.maxCompression,
+  );
+  return clamp(profile.tempoModel.baseCooldownSec * (1 - compression), 3, 30);
+}
+
+function resolveTerritoryPenalty(profile: StageDifficultyProfile | null, ascensionPenalty: number): number {
+  const clampedAscensionPenalty = clamp(ascensionPenalty, 0, 1);
+  if (clampedAscensionPenalty <= 0) {
+    return 0;
+  }
+  if (profile?.territoryScaling.penaltyMultiplier !== undefined) {
+    return clamp(1 - profile.territoryScaling.penaltyMultiplier, 0, 1);
+  }
+  return clampedAscensionPenalty;
+}
+
+function resolveComplexityTier(
+  profile: StageDifficultyProfile,
+  complexityAxis: number,
+): StageDifficultyProfile["archetypeProgression"]["tiers"][number] {
+  const sorted = [...profile.archetypeProgression.tiers].sort(
+    (left, right) => left.minComplexity - right.minComplexity,
+  );
+  let best = sorted[0];
+  for (const tier of sorted) {
+    if (complexityAxis >= tier.minComplexity) {
+      best = tier;
+    }
+  }
+  return best;
+}
+
+function buildWeightedArchetypePool(
+  archetypes: EnemyArchetypeDefinition[],
+  weights: Record<string, number>,
+): Array<{ archetype: EnemyArchetypeDefinition; weight: number }> {
+  const pool: Array<{ archetype: EnemyArchetypeDefinition; weight: number }> = [];
+  for (const archetype of archetypes) {
+    const weight = weights[archetype.id] ?? archetype.spawnWeight;
+    if (!Number.isFinite(weight) || weight <= 0) {
+      continue;
+    }
+    pool.push({ archetype, weight });
+  }
+  return pool;
+}
+
+function pickWeightedPoolEntry<T extends { weight: number }>(pool: T[], rng: () => number): T | null {
+  let total = 0;
+  for (const entry of pool) {
+    total += Math.max(0, entry.weight);
+  }
+  if (total <= 0) {
+    return null;
+  }
+
+  let roll = rng() * total;
+  for (const entry of pool) {
+    roll -= Math.max(0, entry.weight);
+    if (roll <= 0) {
+      return entry;
+    }
+  }
+  return pool[pool.length - 1] ?? null;
+}
+
+function resolveSpawnCost(archetype: EnemyArchetypeDefinition): number {
+  if (Number.isFinite(archetype.spawnCost) && archetype.spawnCost > 0) {
+    return archetype.spawnCost;
+  }
+  const heuristic: Record<string, number> = {
+    swarm: 1,
+    tank: 2,
+    shield: 2,
+    support: 2,
+    disruptor: 3,
+    splitter: 2,
+    miniboss: 6,
+  };
+  for (const tag of archetype.tags) {
+    if (heuristic[tag] !== undefined) {
+      return heuristic[tag];
+    }
+  }
+  return 2;
+}
+
+function countArchetypes(entries: WaveSpawnEntry[]): Record<string, number> {
+  const result: Record<string, number> = {};
+  for (const entry of entries) {
+    result[entry.enemyId] = (result[entry.enemyId] ?? 0) + entry.count;
+  }
+  return result;
+}
+
+function averageEliteChance(entries: WaveSpawnEntry[]): number {
+  if (entries.length === 0) {
+    return 0;
+  }
+  let total = 0;
+  for (const entry of entries) {
+    total += clamp(entry.eliteChance, 0, 1);
+  }
+  return total / entries.length;
+}
+
+function expandArchetypeCounts(counts: Record<string, number>): string[] {
+  const entries: Array<{ id: string; count: number }> = Object.entries(counts).map(([id, count]) => ({
+    id,
+    count: Math.max(0, Math.floor(count)),
+  }));
+  entries.sort((left, right) => right.count - left.count || left.id.localeCompare(right.id));
+  const queue: string[] = [];
+  for (const entry of entries) {
+    for (let i = 0; i < entry.count; i += 1) {
+      queue.push(entry.id);
+    }
+  }
+  return queue;
+}
+
+function isBossWaveIndex(content: LoadedWaveContent, waveIndex: number, totalWaveCount: number): boolean {
+  const configuredBossWave = clamp(content.balance.boss.finalWaveIndex, 1, totalWaveCount);
+  return waveIndex >= configuredBossWave;
+}
+
+function computeBossDifficultyModifiers(
+  profile: StageDifficultyProfile,
+  waveDifficultyBudget: number,
+  ascension: AscensionDifficultyModifiers,
+): BossDifficultyModifiers {
+  const bossPower = waveDifficultyBudget * profile.bossModel.powerMultiplier;
+  const extraPhaseCount =
+    (ascension.bossExtraPhase ? 1 : 0) +
+    (profile.bossModel.enrage.addPhaseOnHighAscension && ascension.level >= 3 ? 1 : 0);
+  return {
+    hpMultiplier: clamp(1 + bossPower / 120, 1, 3),
+    damageMultiplier: clamp(1 + bossPower / 200, 1, 2.2),
+    abilityCooldownMultiplier: clamp(1 - bossPower / 280, 0.65, 1),
+    reinforcementCountBonus: clamp(Math.round(bossPower / 35), 0, 8),
+    extraPhaseCount: Math.max(0, extraPhaseCount),
+  };
+}
+
+function createRuntimeBossState(
+  stageProfile: StageDifficultyProfile | null,
+  ascension: AscensionDifficultyModifiers,
+  modifiers: BossDifficultyModifiers | null,
+  spawnedAtSec: number,
+): RuntimeBossState | null {
+  if (!stageProfile || !stageProfile.bossModel.enabled) {
+    return null;
+  }
+
+  const thresholds: number[] = [];
+  for (const phase of stageProfile.bossModel.phases) {
+    if (phase.hpThreshold === undefined) {
+      continue;
+    }
+    thresholds.push(clamp(phase.hpThreshold, 0.05, 0.95));
+  }
+
+  const bonusPhases =
+    modifiers?.extraPhaseCount ??
+    ((stageProfile.bossModel.enrage.addPhaseOnHighAscension && ascension.level >= 3) ? 1 : 0);
+  for (let i = 0; i < bonusPhases; i += 1) {
+    thresholds.push(clamp(0.25 - i * 0.08, 0.08, 0.95));
+  }
+
+  thresholds.sort((left, right) => right - left);
+  return {
+    modifiers,
+    phaseThresholds: thresholds,
+    triggeredPhases: new Set<number>(),
+    spawnedAtSec,
+  };
+}
+
+function mapBossSpawnModifiers(modifiers?: BossDifficultyModifiers | null): EnemyBossSpawnModifiers | undefined {
+  if (!modifiers) {
+    return undefined;
+  }
+  return {
+    hpMultiplier: modifiers.hpMultiplier,
+    damageMultiplier: modifiers.damageMultiplier,
+  };
+}
+
+function computeWavePressureIndex(world: World): number {
+  const activeEnemyCount = world.packets.filter((packet) => packet.owner === "enemy").length + countOwnedTowers(world.towers, "enemy");
+  const playerTowerCount = countOwnedTowers(world.towers, "player");
+  return activeEnemyCount / Math.max(1, playerTowerCount);
+}
+
+function countOwnedTowers(towers: Tower[], owner: Tower["owner"]): number {
+  let count = 0;
+  for (const tower of towers) {
+    if (tower.owner === owner) {
+      count += 1;
+    }
+  }
+  return count;
+}
+
+function normalizeLane(laneIndex: number, laneCount: number): number {
+  const limit = Math.max(1, laneCount);
+  const normalized = Math.floor(Math.abs(laneIndex)) % limit;
+  return normalized;
+}
+
+function round2(value: number): number {
+  return Math.round(value * 100) / 100;
+}
+
+function lerp(from: number, to: number, alpha: number): number {
+  return from + (to - from) * alpha;
 }
 
 function mixSeed(seed: number, wave: number, salt: number): number {

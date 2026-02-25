@@ -1,3 +1,8 @@
+/*
+ * Patch Notes (2026-02-24):
+ * - Added boss spawn modifier hooks for budget-driven boss scaling.
+ */
+
 import type { Owner, UnitPacket } from "../sim/World";
 import { armorFromMultiplier } from "../sim/TerritoryControl";
 import type { DifficultyTierId } from "../config/Difficulty";
@@ -14,11 +19,17 @@ export interface EnemySpawnRequest {
   missionDifficultyScalar: number;
   isElite: boolean;
   isBoss: boolean;
+  bossModifiers?: EnemyBossSpawnModifiers;
 }
 
 export interface EnemyFactoryOptions {
   allowedEnemyIds?: Set<string>;
   bossHpMul?: number;
+}
+
+export interface EnemyBossSpawnModifiers {
+  hpMultiplier?: number;
+  damageMultiplier?: number;
 }
 
 export class EnemyFactory {
@@ -80,9 +91,14 @@ export class EnemyFactory {
     const eliteScale = request.isElite ? this.content.balance.elite.hpMultiplier : 1;
     const eliteDamageScale = request.isElite ? this.content.balance.elite.damageMultiplier : 1;
     const bossHpScale = request.isBoss
-      ? this.content.balance.boss.hpMultiplier * tierConfig.wave.bossHpMul * Math.max(0.5, this.options.bossHpMul ?? 1)
+      ? this.content.balance.boss.hpMultiplier *
+        tierConfig.wave.bossHpMul *
+        Math.max(0.5, this.options.bossHpMul ?? 1) *
+        Math.max(0.5, request.bossModifiers?.hpMultiplier ?? 1)
       : 1;
-    const bossDamageScale = request.isBoss ? this.content.balance.boss.damageMultiplier : 1;
+    const bossDamageScale = request.isBoss
+      ? this.content.balance.boss.damageMultiplier * Math.max(0.5, request.bossModifiers?.damageMultiplier ?? 1)
+      : 1;
 
     const hpPerUnit = clamp(
       archetype.baseStats.hp * hpScale * tierConfig.enemy.hpMul * eliteScale * bossHpScale,

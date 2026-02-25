@@ -1,3 +1,9 @@
+/*
+ * Patch Notes (2026-02-24):
+ * - Added campaign v2 mission metadata wiring (difficulty mapping, wave presets, archetype allowlists).
+ * - Added tutorial hint runner integration with HUD toast delivery.
+ */
+
 import { Game, type MatchResult } from "./game/Game";
 import {
   DIFFICULTY_TIER_IDS,
@@ -10,6 +16,7 @@ import { buildRuntimeLevelFromLevel } from "./levels/adapter";
 import { createRandomSeed, generateLevel, saveGeneratedLevel } from "./levels/generator";
 import { findLevelById, findStageById, loadLevelRegistry } from "./levels/registry";
 import type { LevelSizePreset, LevelSourceEntry, StageRegistryEntry } from "./levels/types";
+import type { CampaignMissionRuntimeMeta } from "./campaign/CampaignTypes";
 import { BALANCE_CONFIG } from "./meta/BalanceConfig";
 import {
   computeBaseMetaModifiers,
@@ -87,6 +94,7 @@ import { WorldTooltipOverlay } from "./ui/WorldTooltipOverlay";
 import { GameplayHUD } from "./ui/hud/GameplayHUD";
 import { buildHudViewModel } from "./ui/hud/buildHudViewModel";
 import type { HudToastInput } from "./ui/hud/types";
+import { TutorialHintRunner } from "./tutorial/TutorialHintRunner";
 
 type Screen =
   | "title"
@@ -139,6 +147,7 @@ interface AppState {
   runState: RunState | null;
   runSummary: RunSummary | null;
   campaignStages: StageRegistryEntry[];
+  campaignMissionMetaByKey: Record<string, CampaignMissionRuntimeMeta>;
   campaignProgress: CampaignProgress;
   campaignUnlocks: CampaignUnlocks;
   selectedStageId: string | null;
@@ -162,6 +171,7 @@ interface AppState {
   missionEvents: MissionEventEntry[];
   missionEventSeq: number;
   missionHudSignals: MissionHudSignals;
+  tutorialHintRunner: TutorialHintRunner | null;
 }
 
 const DEBUG_TOOLS_ENABLED = true;
@@ -212,6 +222,7 @@ async function bootstrap(): Promise<void> {
     runState: loadRunState(),
     runSummary: null,
     campaignStages: levelRegistry.stages,
+    campaignMissionMetaByKey: levelRegistry.missionMetaByKey,
     campaignProgress,
     campaignUnlocks: computeUnlocks(levelRegistry.stages, campaignProgress),
     selectedStageId: null,
@@ -235,6 +246,7 @@ async function bootstrap(): Promise<void> {
     missionEvents: [],
     missionEventSeq: 0,
     missionHudSignals: createDefaultMissionHudSignals(),
+    tutorialHintRunner: null,
   };
 
   const initialUnlockEvaluation = evaluateUnlocks(
@@ -366,6 +378,7 @@ async function bootstrap(): Promise<void> {
     try {
       const registry = await loadLevelRegistry();
       app.campaignStages = registry.stages;
+      app.campaignMissionMetaByKey = registry.missionMetaByKey;
       app.campaignUnlocks = computeUnlocks(app.campaignStages, app.campaignProgress);
     } catch (error) {
       console.error("Failed to refresh level registry", error);
@@ -515,6 +528,7 @@ async function bootstrap(): Promise<void> {
       showToast(screenRoot, "Mission is locked.");
       return;
     }
+    const missionMeta = app.campaignMissionMetaByKey[missionKey] ?? null;
 
     try {
       stopMission();
@@ -539,6 +553,10 @@ async function bootstrap(): Promise<void> {
         levelPath: levelEntry.path,
         difficulty: mission.difficulty ?? 1,
       };
+      const missionIndex = Math.max(
+        0,
+        levelEntry.level.missions.findIndex((entry) => entry.missionId === mission.missionId),
+      );
       const tunedLevel = createMissionLevel(
         baseLevel,
         runMission,
@@ -560,7 +578,14 @@ async function bootstrap(): Promise<void> {
         runSeed: mission.seed,
         missionDifficultyScalar,
         difficultyTier: DEFAULT_DIFFICULTY_TIER,
+        stageId: missionMeta?.difficulty.stageId ?? app.selectedStageId,
+        stageIndex: deriveStageIndexFromValue(missionMeta?.difficulty.stageId ?? app.selectedStageId),
+        missionIndex: missionMeta?.difficulty.missionIndex ?? missionIndex,
+        ascensionLevel: 0,
+        waveCountOverride: missionMeta?.wavePlan.waves,
+        bossEnabledOverride: missionMeta?.wavePlan.bossEnabled,
         balanceDiagnosticsEnabled: app.balanceDiagnosticsEnabled,
+        allowedEnemyIds: missionMeta?.archetypeAllowlist,
         rewardGoldMultiplier: missionModifiers.rewardGoldMul,
         bossHpMultiplier: missionModifiers.bossHpMul,
         bossExtraPhases: missionModifiers.bossExtraPhases,
@@ -586,6 +611,7 @@ async function bootstrap(): Promise<void> {
         missionName: mission.name,
         objectiveText: mission.objectiveText,
       };
+      app.tutorialHintRunner = missionMeta ? new TutorialHintRunner(missionMeta.hints) : null;
       resetMissionHudUiState(app);
       gameplayHud.reset();
       pushMissionEvent(
@@ -644,6 +670,10 @@ async function bootstrap(): Promise<void> {
       runSeed: app.runState.seed + app.runState.currentMissionIndex * 911,
       missionDifficultyScalar,
       difficultyTier: app.runState.runModifiers.tier,
+      stageId: deriveStageIdFromLevelPath(mission.levelPath),
+      stageIndex: deriveStageIndexFromValue(deriveStageIdFromLevelPath(mission.levelPath)),
+      missionIndex: app.runState.currentMissionIndex,
+      ascensionLevel: app.runState.runAscensionIds.length,
       balanceDiagnosticsEnabled: app.balanceDiagnosticsEnabled,
       allowedEnemyIds:
         app.runState.runUnlockSnapshot.enemyTypes.length > 0
@@ -1066,6 +1096,10 @@ async function bootstrap(): Promise<void> {
         runSeed: fixedSeedBase + runIndex * 101,
         missionDifficultyScalar,
         difficultyTier: tierId,
+        stageId: deriveStageIdFromLevelPath(mission.levelPath),
+        stageIndex: deriveStageIndexFromValue(deriveStageIdFromLevelPath(mission.levelPath)),
+        missionIndex: app.runState.currentMissionIndex,
+        ascensionLevel: app.runState.runAscensionIds.length,
         balanceDiagnosticsEnabled: false,
         allowedEnemyIds:
           app.runState.runUnlockSnapshot.enemyTypes.length > 0
@@ -1145,6 +1179,7 @@ async function bootstrap(): Promise<void> {
     app.missionReward = null;
     app.missionPaused = false;
     app.missionSpeedMul = 1;
+    app.tutorialHintRunner = null;
     resetMissionHudUiState(app);
     gameplayHud.reset();
     renderer.setMapRenderData(null);
@@ -2156,6 +2191,9 @@ function syncMissionHud(app: AppState, debugState: DebugUiState, gameplayHud: Ga
   updateMissionEventFeed(app, telemetry, world, (toast) => {
     gameplayHud.pushToast(toast);
   });
+  runTutorialHintFeed(app, telemetry, world, (toast) => {
+    gameplayHud.pushToast(toast);
+  });
 
   const vm = buildHudViewModel({
     game: app.game,
@@ -2169,6 +2207,26 @@ function syncMissionHud(app: AppState, debugState: DebugUiState, gameplayHud: Ga
     overlayClusterEnabled: debugState.showOverlayClusterHighlight,
   });
   gameplayHud.update(vm);
+}
+
+function runTutorialHintFeed(
+  app: AppState,
+  telemetry: MissionWaveTelemetry | null,
+  world: World,
+  notifyToast: (toast: HudToastInput) => void,
+): void {
+  if (!app.tutorialHintRunner || !app.tutorialHintRunner.hasHints()) {
+    return;
+  }
+  const hints = app.tutorialHintRunner.update({ telemetry, world });
+  for (const hint of hints) {
+    notifyToast({
+      type: "info",
+      title: "Hint",
+      body: hint,
+      ttl: 3200,
+    });
+  }
 }
 
 function renderDebugPanel(
@@ -2713,6 +2771,30 @@ function difficultyTierRank(value: DifficultyTierId): number {
     return 2;
   }
   return 1;
+}
+
+function deriveStageIdFromLevelPath(path: string): string {
+  const match = path.match(/stage\d+/i);
+  if (!match) {
+    return "stage01";
+  }
+  const numeric = Number.parseInt(match[0].replace(/[^0-9]/g, ""), 10);
+  if (!Number.isFinite(numeric) || numeric <= 0) {
+    return "stage01";
+  }
+  return `stage${numeric.toString().padStart(2, "0")}`;
+}
+
+function deriveStageIndexFromValue(stageValue?: string): number {
+  if (!stageValue) {
+    return 1;
+  }
+  const match = stageValue.match(/(\d+)/);
+  if (!match) {
+    return 1;
+  }
+  const parsed = Number.parseInt(match[1], 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 1;
 }
 
 function countPlayerTowers(world: World): number {

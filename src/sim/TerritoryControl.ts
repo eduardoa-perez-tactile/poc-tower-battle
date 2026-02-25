@@ -1,3 +1,8 @@
+/*
+ * Patch Notes (2026-02-24):
+ * - Added runtime territory scaling support for stage-driven difficulty context.
+ */
+
 import type { Link, Owner, Tower, UnitPacket } from "./World";
 
 export interface ConnectedCluster {
@@ -12,6 +17,12 @@ export interface TerritoryBonusConfig {
   regenBonus: number;
   armorBonus: number;
   visionBonus: number;
+}
+
+export interface TerritoryScalingRuntime {
+  regenPerCluster: number;
+  armorPerCluster: number;
+  visionPerCluster: number;
 }
 
 export const TERRITORY_BONUSES: TerritoryBonusConfig = {
@@ -111,6 +122,7 @@ export function applyTerritoryControlBonuses(
   world: TerritoryWorldView,
   playerId: Owner,
   config: TerritoryBonusConfig = TERRITORY_BONUSES,
+  scaling?: TerritoryScalingRuntime,
 ): ConnectedCluster[] {
   const clusterSizeByTower = new Map<string, number>();
 
@@ -139,9 +151,24 @@ export function applyTerritoryControlBonuses(
   const clusters = computeConnectedClusters(world, playerId);
 
   for (const cluster of clusters) {
-    const regenBonusPct = cluster.size >= config.regenThreshold ? config.regenBonus : 0;
-    const armorBonusPct = cluster.size >= config.armorThreshold ? config.armorBonus : 0;
-    const visionBonusPct = cluster.size >= config.visionThreshold ? config.visionBonus : 0;
+    const regenBonusPct = resolveClusterBonusPct(
+      cluster.size,
+      config.regenThreshold,
+      config.regenBonus,
+      scaling?.regenPerCluster,
+    );
+    const armorBonusPct = resolveClusterBonusPct(
+      cluster.size,
+      config.armorThreshold,
+      config.armorBonus,
+      scaling?.armorPerCluster,
+    );
+    const visionBonusPct = resolveClusterBonusPct(
+      cluster.size,
+      config.visionThreshold,
+      config.visionBonus,
+      scaling?.visionPerCluster,
+    );
 
     for (const tower of cluster.towers) {
       tower.territoryClusterSize = cluster.size;
@@ -207,4 +234,22 @@ function clampArmor(armor: number): number {
     return 0;
   }
   return Math.max(MIN_EFFECTIVE_ARMOR, Math.min(MAX_EFFECTIVE_ARMOR, armor));
+}
+
+function resolveClusterBonusPct(
+  clusterSize: number,
+  threshold: number,
+  fallbackBonus: number,
+  perClusterBonus?: number,
+): number {
+  if (clusterSize < threshold) {
+    return 0;
+  }
+
+  if (perClusterBonus === undefined || !Number.isFinite(perClusterBonus)) {
+    return Math.max(0, fallbackBonus);
+  }
+
+  const clusterSteps = clusterSize - threshold + 1;
+  return Math.max(0, perClusterBonus * clusterSteps);
 }

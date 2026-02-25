@@ -1,0 +1,219 @@
+{
+  "id": "map_t11",
+  "size": {
+    "w": 32,
+    "h": 20
+  },
+  "nodes": [
+    {
+      "id": "p_start",
+      "x": 2,
+      "y": 10,
+      "owner": "player",
+      "tier": 2,
+      "cap": 120,
+      "regen": 3.1
+    },
+    {
+      "id": "e_start",
+      "x": 29,
+      "y": 10,
+      "owner": "enemy",
+      "tier": 2,
+      "cap": 120,
+      "regen": 3
+    },
+    {
+      "id": "choke_a",
+      "x": 9,
+      "y": 10,
+      "owner": "neutral",
+      "tier": 1,
+      "cap": 78,
+      "regen": 1.2
+    },
+    {
+      "id": "l1_1",
+      "x": 8,
+      "y": 8,
+      "owner": "neutral",
+      "tier": 1,
+      "cap": 70,
+      "regen": 1.1199999999999999
+    },
+    {
+      "id": "l1_2",
+      "x": 12,
+      "y": 8,
+      "owner": "neutral",
+      "tier": 1,
+      "cap": 75,
+      "regen": 1.0999999999999999
+    },
+    {
+      "id": "l1_3",
+      "x": 14,
+      "y": 7,
+      "owner": "neutral",
+      "tier": 1,
+      "cap": 81,
+      "regen": 1.05
+    },
+    {
+      "id": "l1_4",
+      "x": 18,
+      "y": 8,
+      "owner": "neutral",
+      "tier": 1,
+      "cap": 70,
+      "regen": 1.0699999999999998
+    },
+    {
+      "id": "l1_5",
+      "x": 22,
+      "y": 6,
+      "owner": "neutral",
+      "tier": 1,
+      "cap": 84,
+      "regen": 1.24
+    },
+    {
+      "id": "l1_6",
+      "x": 25,
+      "y": 6,
+      "owner": "neutral",
+      "tier": 1,
+      "cap": 79,
+      "regen": 0.96
+    },
+    {
+      "id": "l2_1",
+      "x": 7,
+      "y": 12,
+      "owner": "neutral",
+      "tier": 1,
+      "cap": 81,
+      "regen": 1.14
+    },
+    {
+      "id": "l2_2",
+      "x": 11,
+      "y": 13,
+      "owner": "neutral",
+      "tier": 1,
+      "cap": 72,
+      "regen": 1.0699999999999998
+    },
+    {
+      "id": "l2_3",
+      "x": 15,
+      "y": 13,
+      "owner": "neutral",
+      "tier": 1,
+      "cap": 77,
+      "regen": 1.1199999999999999
+    },
+    {
+      "id": "l2_4",
+      "x": 17,
+      "y": 12,
+      "owner": "neutral",
+      "tier": 1,
+      "cap": 77,
+      "regen": 1.14
+    },
+    {
+      "id": "l2_5",
+      "x": 20,
+      "y": 13,
+      "owner": "neutral",
+      "tier": 1,
+      "cap": 82,
+      "regen": 1.21
+    },
+    {
+      "id": "l2_6",
+      "x": 25,
+      "y": 12,
+      "owner": "neutral",
+      "tier": 1,
+      "cap": 83,
+      "regen": 0.98
+    }
+  ],
+  "links": [
+    {
+      "a": "choke_a",
+      "b": "l1_1"
+    },
+    {
+      "a": "l1_1",
+      "b": "l1_2"
+    },
+    {
+      "a": "l1_2",
+      "b": "l1_3"
+    },
+    {
+      "a": "l1_3",
+      "b": "l1_4"
+    },
+    {
+      "a": "l1_4",
+      "b": "l1_5"
+    },
+    {
+      "a": "l1_5",
+      "b": "l1_6"
+    },
+    {
+      "a": "l1_6",
+      "b": "e_start"
+    },
+    {
+      "a": "choke_a",
+      "b": "l2_1"
+    },
+    {
+      "a": "l2_1",
+      "b": "l2_2"
+    },
+    {
+      "a": "l2_2",
+      "b": "l2_3"
+    },
+    {
+      "a": "l2_3",
+      "b": "l2_4"
+    },
+    {
+      "a": "l2_4",
+      "b": "l2_5"
+    },
+    {
+      "a": "l2_5",
+      "b": "l2_6"
+    },
+    {
+      "a": "l2_6",
+      "b": "e_start"
+    },
+    {
+      "a": "p_start",
+      "b": "choke_a"
+    },
+    {
+      "a": "l1_3",
+      "b": "l2_3"
+    },
+    {
+      "a": "l2_5",
+      "b": "l1_5"
+    }
+  ],
+  "tags": {
+    "chokepoints": 0.5,
+    "linkDensity": 0.98,
+    "lanes": 2
+  }
+}
