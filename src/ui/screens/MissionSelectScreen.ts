@@ -17,7 +17,7 @@ export function renderMissionSelectScreen(props: MissionSelectScreenProps): HTML
   const panel = document.createElement("div");
   panel.className = "panel ui-panel menu-panel menu-panel-wide campaign-shell";
 
-  panel.appendChild(createScreenHeader(level.name, "Mission Select"));
+  panel.appendChild(createScreenHeader(formatLevelTitle(level.name), "Mission Select"));
   const totalMissions = level.missions.length;
   const unlockedMissions = level.missions.filter((mission) => {
     const missionKey = toMissionKey(props.stageId, level.levelId, mission.missionId);
@@ -32,7 +32,7 @@ export function renderMissionSelectScreen(props: MissionSelectScreenProps): HTML
   panel.appendChild(
     createProgressCard({
       title: "Objective Progress",
-      subtitle: `${level.levelId.toUpperCase()} • ${level.size.toUpperCase()} • ${unlockedMissions}/${totalMissions} unlocked`,
+      subtitle: `${level.size.toUpperCase()} • ${unlockedMissions}/${totalMissions} unlocked`,
       value: `${completedMissions}/${totalMissions}`,
       label: "Missions Cleared",
       percent: progressPercent,
@@ -75,7 +75,7 @@ export function renderMissionSelectScreen(props: MissionSelectScreenProps): HTML
 
     const missionTitle = document.createElement("h3");
     missionTitle.className = "campaign-mission-preview-title";
-    missionTitle.textContent = `${index + 1}. ${mission.name}`;
+    missionTitle.textContent = `${index + 1}. ${formatLevelTitle(mission.name)}`;
     preview.appendChild(missionTitle);
 
     const missionSubtitle = document.createElement("p");
@@ -200,4 +200,8 @@ function missionPreviewGradient(index: number, difficulty: number): string {
   const pair = palettes[index % palettes.length];
   const intensity = Math.max(0, Math.min(0.3, (difficulty - 1) * 0.25));
   return `linear-gradient(150deg, ${pair[0]}, ${pair[1]}), radial-gradient(220px 120px at 100% 0%, rgba(255,255,255,${0.12 + intensity}), transparent)`;
+}
+
+function formatLevelTitle(title: string): string {
+  return title.replace(/^T\d+\s*-\s*/i, "").trim();
 }

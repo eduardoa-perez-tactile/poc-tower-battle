@@ -2190,14 +2190,6 @@ function renderCurrentScreen(
       hero.append(emblem, heroCopy);
       pausePanel.appendChild(hero);
 
-      const summary = document.createElement("section");
-      summary.className = "mission-pause-summary";
-      summary.appendChild(createMissionHudLabel("Control Summary"));
-      summary.appendChild(createParagraph("Continue: resume simulation and restore controls."));
-      summary.appendChild(createParagraph("Restart Mission: reset this mission from the start."));
-      summary.appendChild(createParagraph("Main Menu: leave mission and return to command menu."));
-      pausePanel.appendChild(summary);
-
       const actions = document.createElement("div");
       actions.className = "mission-pause-actions";
       const continueBtn = createButton("Continue", () => {
