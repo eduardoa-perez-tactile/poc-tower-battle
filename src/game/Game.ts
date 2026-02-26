@@ -1,10 +1,11 @@
 import { InputController } from "../input/InputController";
 import { Renderer2D } from "../render/Renderer2D";
-import { updateWorld, type SimulationRules } from "../sim/Simulation";
+import { updateWorld, type SimulationRules, type SimulationTemporaryModifiers } from "../sim/Simulation";
 import { World } from "../sim/World";
 import {
   WaveDirector,
   type BossTooltipTelemetry,
+  type DifficultyDebugSnapshot,
   type MissionWaveTelemetry,
 } from "../waves/WaveDirector";
 import { SkillManager, type SkillHudState } from "./SkillManager";
@@ -105,6 +106,13 @@ export class Game {
     return this.waveDirector?.getDebugMaxWaveIndex() ?? 0;
   }
 
+  getDifficultyDebugSnapshot(maxWaves?: number): DifficultyDebugSnapshot | null {
+    if (!this.waveDirector) {
+      return null;
+    }
+    return this.waveDirector.getDifficultyDebugSnapshot(maxWaves);
+  }
+
   getSkillHudState(): SkillHudState[] {
     return this.skillManager?.getHudState() ?? [];
   }
@@ -143,7 +151,14 @@ export class Game {
       this.accumulatorSec -= FIXED_STEP_SEC;
       this.waveDirector?.updatePreStep(FIXED_STEP_SEC);
       this.skillManager?.update(FIXED_STEP_SEC, this.world);
-      updateWorld(this.world, FIXED_STEP_SEC, this.rules, this.skillManager?.getTemporaryModifiers());
+      const skillModifiers = this.skillManager?.getTemporaryModifiers();
+      const temporaryModifiers: SimulationTemporaryModifiers = {
+        playerPacketSpeedMul: skillModifiers?.playerPacketSpeedMul ?? 1,
+        playerPacketDamageMul:
+          (skillModifiers?.playerPacketDamageMul ?? 1) *
+          (this.waveDirector?.getTemporaryPlayerPacketDamageMultiplier() ?? 1),
+      };
+      updateWorld(this.world, FIXED_STEP_SEC, this.rules, temporaryModifiers);
       this.waveDirector?.updatePostStep(FIXED_STEP_SEC);
       if (!this.waveDirector) {
         this.world.drainTowerCapturedEvents();

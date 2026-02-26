@@ -52,6 +52,7 @@ export interface SimulationRules {
 
 export interface SimulationTemporaryModifiers {
   playerPacketSpeedMul: number;
+  playerPacketDamageMul: number;
 }
 
 const PACKET_MERGE_PROGRESS_THRESHOLD = 0.15;
@@ -59,6 +60,7 @@ let packetSequence = 0;
 
 const DEFAULT_TEMPORARY_MODIFIERS: SimulationTemporaryModifiers = {
   playerPacketSpeedMul: 1,
+  playerPacketDamageMul: 1,
 };
 
 export function updateWorld(
@@ -208,7 +210,8 @@ function preparePacketRuntime(
     if (!Number.isFinite(packet.baseArmor)) {
       packet.baseArmor = armorFromMultiplier(packet.baseArmorMultiplier);
     }
-    packet.dpsPerUnit = packet.baseDpsPerUnit;
+    packet.dpsPerUnit =
+      packet.baseDpsPerUnit * (packet.owner === "player" ? temporaryModifiers.playerPacketDamageMul : 1);
 
     if (packet.shieldCycleSec > 0 && packet.shieldUptimeSec > 0) {
       const timeInCycle = packet.ageSec % packet.shieldCycleSec;
