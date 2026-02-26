@@ -74,13 +74,6 @@ export function canCreateLink(
     };
   }
 
-  if (outgoingLinks.length >= maxOutgoing) {
-    return {
-      ok: false,
-      reason: `Link capacity reached (${outgoingLinks.length}/${maxOutgoing}).`,
-    };
-  }
-
   return {
     ok: true,
   };

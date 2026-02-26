@@ -292,11 +292,9 @@ export class Game {
       }
     }
 
-    if (enemyTowerCount === 0) {
-      if (!this.waveDirector) {
-        this.matchResult = "win";
-        return;
-      }
+    if (enemyTowerCount === 0 && playerTowerCount > 0) {
+      this.matchResult = "win";
+      return;
     }
 
     if (this.waveDirector && this.waveDirector.isFinished()) {

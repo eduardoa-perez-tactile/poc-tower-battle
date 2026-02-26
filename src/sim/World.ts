@@ -288,6 +288,26 @@ export class World {
       return;
     }
 
+    const maxOutgoing = this.getMaxOutgoingLinksForTower(fromTowerId);
+    let territoryChanged = false;
+    while (this.getOutgoingLinks(fromTowerId).length >= maxOutgoing) {
+      let removed = false;
+      for (let i = 0; i < this.links.length; i += 1) {
+        const link = this.links[i];
+        if (!link.isScripted && link.fromTowerId === fromTowerId) {
+          if (this.linkAffectsPlayerTerritory(link.fromTowerId, link.toTowerId)) {
+            territoryChanged = true;
+          }
+          this.links.splice(i, 1);
+          removed = true;
+          break;
+        }
+      }
+      if (!removed) {
+        break;
+      }
+    }
+
     const affectsPlayerTerritory = this.linkAffectsPlayerTerritory(fromTowerId, toTowerId);
     this.links.push(
       this.createRuntimeLink({
@@ -309,7 +329,7 @@ export class World {
         `[LinkRules] Non-adjacent runtime link created: ${fromTowerId} -> ${toTowerId}`,
       );
     }
-    if (affectsPlayerTerritory) {
+    if (affectsPlayerTerritory || territoryChanged) {
       this.refreshTerritoryBonuses();
     }
   }

@@ -3108,10 +3108,23 @@ function countPlayerTowers(world: World): number {
   return count;
 }
 
+function countEnemyTowers(world: World): number {
+  let count = 0;
+  for (const tower of world.towers) {
+    if (tower.owner === "enemy") {
+      count += 1;
+    }
+  }
+  return count;
+}
+
 function evaluateQuickSimResult(world: World, waveDirector: WaveDirector): MatchResult {
   const playerTowers = countPlayerTowers(world);
   if (playerTowers === 0) {
     return "lose";
+  }
+  if (countEnemyTowers(world) === 0) {
+    return "win";
   }
   if (waveDirector.isFinished()) {
     return "win";
