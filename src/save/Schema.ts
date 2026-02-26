@@ -27,7 +27,6 @@ export interface MetaModifiers {
   rewardGoldMul: number;
   startingGold: number;
   goldEarnedMultiplier: number;
-  heroDamageMultiplier: number;
   towerHpMultiplier: number;
   strongholdStartLevel: number;
 }
@@ -199,7 +198,6 @@ export function createDefaultMetaModifiers(): MetaModifiers {
     rewardGoldMul: 1,
     startingGold: 0,
     goldEarnedMultiplier: 1,
-    heroDamageMultiplier: 1,
     towerHpMultiplier: 1,
     strongholdStartLevel: 1,
   };
