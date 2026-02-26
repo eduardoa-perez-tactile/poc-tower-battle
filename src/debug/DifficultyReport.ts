@@ -56,7 +56,7 @@ export function generateDifficultyReport(args: GenerateDifficultyReportArgs): st
   lines.push(formatExplained("player.packetDamageMul", context.finalMultipliers.player.packetDamageMul));
   lines.push(formatExplained("player.captureEfficiencyMul", context.finalMultipliers.player.captureEfficiencyMul));
   lines.push(formatExplained("economy.goldMul", context.finalMultipliers.economy.goldMul));
-  lines.push(formatExplained("economy.gloryMul", context.finalMultipliers.economy.gloryMul));
+  lines.push(formatExplained("economy.metaGoldMul", context.finalMultipliers.economy.gloryMul));
   lines.push(formatExplained("boss.bossHpMul", context.finalMultipliers.boss.bossHpMul));
   lines.push(`boss.extraPhases=${context.finalMultipliers.boss.extraPhases}`);
   lines.push(
@@ -160,8 +160,8 @@ function listNonDefaultMetaModifiers(context: DifficultyContext): string[] {
     ["linkDecayCanBreak", modifiers.linkDecayCanBreak],
     ["bossHpMul", modifiers.bossHpMul],
     ["bossExtraPhases", modifiers.bossExtraPhases],
-    ["rewardGloryMul", modifiers.rewardGloryMul],
-    ["rewardGoldMul", modifiers.rewardGoldMul],
+    ["rewardMetaGoldMul", modifiers.rewardGloryMul],
+    ["rewardRunGoldMul", modifiers.rewardGoldMul],
     ["startingGold", modifiers.startingGold],
     ["goldEarnedMultiplier", modifiers.goldEarnedMultiplier],
     ["towerHpMultiplier", modifiers.towerHpMultiplier],

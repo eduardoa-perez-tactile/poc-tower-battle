@@ -156,7 +156,7 @@
         {
           "id": "ECO_GLORY",
           "name": "War Treasury",
-          "desc": "+5% Glory gains per rank",
+          "desc": "+5% Gold gains per rank",
           "costGlory": 110,
           "costGrowth": 1.45,
           "maxRank": 3,

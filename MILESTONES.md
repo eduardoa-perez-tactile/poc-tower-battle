@@ -24,7 +24,7 @@
 
 ## M6 Meta progression layer
 - Run-based structure across multiple missions
-- Persistent Glory currency + upgrade tree
+- Persistent Gold currency + upgrade tree
 - Continue run after reload + summary screens
 
 ## M7 Enemy & wave variety

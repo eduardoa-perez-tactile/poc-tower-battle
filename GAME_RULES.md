@@ -116,7 +116,7 @@
 - Gold is awarded on enemy defeats by base value plus tag bonuses.
 - Elite kills grant extra gold bonus.
 - Wave clear grants additional gold.
-- Glory rewards still apply from mission/run progression systems.
+- Gold rewards still apply from mission/run progression systems.
 
 ## Mission end conditions
 - Win when wave progression is fully completed and player still owns at least one tower.

@@ -1681,7 +1681,7 @@ function renderCurrentScreen(
     const quickStats = document.createElement("div");
     quickStats.className = "campaign-main-stats";
     quickStats.append(
-      createInfoPill("Glory", `${app.metaProfile.glory}`),
+      createInfoPill("Gold", `${app.metaProfile.glory}`),
       createInfoPill("Meta Lv", `${computeMetaAccountLevel(app.metaProfile)}`),
       createInfoPill("Stages", `${app.campaignStages.length}`),
     );
@@ -1717,11 +1717,11 @@ function renderCurrentScreen(
     const accountCard = document.createElement("section");
     accountCard.className = "campaign-profile-card";
     accountCard.append(
-      createInfoPill("Current Glory", `${app.metaProfile.glory}`),
+      createInfoPill("Current Gold", `${app.metaProfile.glory}`),
       createInfoPill("Meta Level", `${computeMetaAccountLevel(app.metaProfile)}`),
       createInfoPill("Runs Completed", `${app.metaProfile.metaProgress.runsCompleted}`),
       createInfoPill("Runs Won", `${app.metaProfile.metaProgress.runsWon}`),
-      createInfoPill("Glory Spent", `${Math.round(app.metaProfile.metaProgress.glorySpentTotal)}`),
+      createInfoPill("Gold Spent", `${Math.round(app.metaProfile.metaProgress.glorySpentTotal)}`),
       createInfoPill("Stages Unlocked", `${unlockedStages}/${app.campaignStages.length}`),
       createInfoPill("Stages Completed", `${completedStages}/${app.campaignStages.length}`),
       createInfoPill("Templates Loaded", `${missionTemplates.length}`),
@@ -1848,7 +1848,7 @@ function renderCurrentScreen(
     panel.appendChild(
       createCampaignProgressCard({
         title: "Account Overview",
-        subtitle: `Glory available: ${app.metaProfile.glory} • Runs won: ${app.metaProfile.metaProgress.runsWon}`,
+        subtitle: `Gold available: ${app.metaProfile.glory} • Runs won: ${app.metaProfile.metaProgress.runsWon}`,
         value: `Lv ${computeMetaAccountLevel(app.metaProfile)}`,
         label: "Meta Level",
         percent: investmentPercent,
@@ -1997,7 +1997,7 @@ function renderCurrentScreen(
     const noteText = document.createElement("p");
     noteText.className = "campaign-progress-subtitle";
     noteText.textContent =
-      "Meta upgrades only affect future runs. Spend Glory before launching new operations for maximum impact.";
+      "Meta upgrades only affect future runs. Spend Gold before launching new operations for maximum impact.";
     progressionCard.append(noteTitle, noteText);
     panel.appendChild(progressionCard);
 
@@ -2083,7 +2083,7 @@ function renderCurrentScreen(
       const details = document.createElement("div");
       details.style.fontSize = "12px";
       details.style.opacity = "0.8";
-      details.textContent = `${ascension.desc} • Glory x${ascension.reward.gloryMul.toFixed(2)} • Gold x${ascension.reward.goldMul.toFixed(2)}`;
+      details.textContent = `${ascension.desc} • Meta Gold x${ascension.reward.gloryMul.toFixed(2)} • Run Gold x${ascension.reward.goldMul.toFixed(2)}`;
       left.appendChild(details);
 
       const checkbox = document.createElement("input");
@@ -2110,7 +2110,9 @@ function renderCurrentScreen(
 
     const rewardMul = getAscensionRewardMultipliers(app.runState.runAscensionIds, ascensionCatalog);
     scroll.appendChild(
-      createParagraph(`Expected Ascension Rewards: Glory x${rewardMul.gloryMul.toFixed(2)} | Gold x${rewardMul.goldMul.toFixed(2)}`),
+      createParagraph(
+        `Expected Ascension Rewards: Meta Gold x${rewardMul.gloryMul.toFixed(2)} | Run Gold x${rewardMul.goldMul.toFixed(2)}`,
+      ),
     );
 
     const missionCard = createCard("Section 3: Mission Route");
@@ -2262,7 +2264,7 @@ function renderCurrentScreen(
         createMissionResultStat("Outcome", isVictory ? "Victory" : "Defeat"),
         createMissionResultStat("Wave Progress", totalWaves > 0 ? `${completedWaves}/${totalWaves}` : "--"),
         createMissionResultStat(
-          "Glory Reward",
+          "Gold Reward",
           app.activeMissionContext?.mode === "campaign" ? "Progress Unlocks" : `${rewardValue}`,
         ),
       );
@@ -2351,9 +2353,9 @@ function renderCurrentScreen(
     report.className = "list";
     report.appendChild(createParagraph(app.runSummary.won ? "Run Result: Victory" : "Run Result: Defeat"));
     report.appendChild(createParagraph(`Missions completed: ${app.runSummary.missionsCompleted}`));
-    report.appendChild(createParagraph(`Mission Glory: ${app.runSummary.missionGlory}`));
-    report.appendChild(createParagraph(`Run Bonus Glory: ${app.runSummary.runBonusGlory}`));
-    report.appendChild(createParagraph(`Total Glory Earned: ${app.runSummary.totalGloryEarned}`));
+    report.appendChild(createParagraph(`Mission Gold: ${app.runSummary.missionGlory}`));
+    report.appendChild(createParagraph(`Run Bonus Gold: ${app.runSummary.runBonusGlory}`));
+    report.appendChild(createParagraph(`Total Gold Earned: ${app.runSummary.totalGloryEarned}`));
     report.appendChild(createParagraph(`Difficulty Tier: ${app.runSummary.difficultyTier}`));
     report.appendChild(
       createParagraph(
@@ -2362,12 +2364,12 @@ function renderCurrentScreen(
     );
     report.appendChild(
       createParagraph(
-        `Ascension Rewards: Glory x${app.runSummary.rewardMultipliers.gloryMul.toFixed(2)} | Gold x${app.runSummary.rewardMultipliers.goldMul.toFixed(2)}`,
+        `Ascension Rewards: Meta Gold x${app.runSummary.rewardMultipliers.gloryMul.toFixed(2)} | Run Gold x${app.runSummary.rewardMultipliers.goldMul.toFixed(2)}`,
       ),
     );
     report.appendChild(
       createParagraph(
-        `Applied Multipliers: enemy HP x${app.runSummary.appliedDifficultyMultipliers.enemyHpMul.toFixed(2)}, enemy DMG x${app.runSummary.appliedDifficultyMultipliers.enemyDmgMul.toFixed(2)}, economy Glory x${app.runSummary.appliedDifficultyMultipliers.economyGloryMul.toFixed(2)}`,
+        `Applied Multipliers: enemy HP x${app.runSummary.appliedDifficultyMultipliers.enemyHpMul.toFixed(2)}, enemy DMG x${app.runSummary.appliedDifficultyMultipliers.enemyDmgMul.toFixed(2)}, economy Meta Gold x${app.runSummary.appliedDifficultyMultipliers.economyGloryMul.toFixed(2)}`,
       ),
     );
     if (app.runSummary.unlockNotifications.length > 0) {
@@ -2611,7 +2613,7 @@ function renderDebugPanel(
 
           const dangerContent = document.createElement("div");
           dangerContent.className = "list";
-          dangerContent.appendChild(createButton("Debug: +250 Glory", addDebugGlory, { variant: "secondary" }));
+          dangerContent.appendChild(createButton("Debug: +250 Gold", addDebugGlory, { variant: "secondary" }));
           dangerContent.appendChild(createButton("Debug: Reset Meta", resetMeta, { variant: "danger" }));
           dangerContent.appendChild(createButton("Debug: Reset Campaign Progress", resetCampaign, { variant: "danger" }));
 

@@ -322,7 +322,7 @@ export function purchaseUpgrade(
     return { ok: false, reason: "Upgrade is already maxed" };
   }
   if (profile.glory < cost) {
-    return { ok: false, reason: "Not enough Glory" };
+    return { ok: false, reason: "Not enough Gold" };
   }
 
   profile.glory -= cost;
