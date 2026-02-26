@@ -1651,38 +1651,23 @@ function renderCurrentScreen(
   }
 
   if (app.screen === "main-menu") {
-    const panel = document.createElement("div");
-    panel.className = "panel ui-panel menu-panel campaign-main-menu";
+    const wrapper = document.createElement("div");
+    wrapper.className = "centered campaign-main-centered";
 
-    const topBar = document.createElement("div");
-    topBar.className = "campaign-topbar";
-    const badge = document.createElement("div");
-    badge.className = "campaign-topbar-badge";
-    badge.textContent = "TB";
-    const title = document.createElement("p");
-    title.className = "campaign-topbar-title";
-    title.textContent = "Command Interface";
-    topBar.append(badge, title);
-    panel.appendChild(topBar);
+    const layout = document.createElement("div");
+    layout.className = "campaign-main-layout";
 
-    const hero = document.createElement("div");
-    hero.className = "campaign-main-hero";
-    const overline = document.createElement("p");
-    overline.className = "campaign-overline";
-    overline.textContent = "Main Menu";
     const heading = document.createElement("h2");
-    heading.className = "campaign-main-heading";
+    heading.className = "campaign-main-heading campaign-main-title";
     heading.innerHTML = `GRID <span>DEFENDER</span>`;
-    const subtitle = document.createElement("p");
-    subtitle.className = "campaign-main-subtitle";
-    subtitle.textContent =
-      "Launch campaign operations, review profile progress, or generate new battlefields.";
-    hero.append(overline, heading, subtitle);
-    panel.appendChild(hero);
+    layout.appendChild(heading);
+
+    const panel = document.createElement("div");
+    panel.className = "panel ui-panel campaign-main-menu";
 
     const actionCard = document.createElement("div");
     actionCard.className = "campaign-main-actions";
-    const campaignBtn = createButton("Play Campaign", openStageSelect, {
+    const campaignBtn = createButton("Play", openStageSelect, {
       variant: "primary",
       primaryAction: true,
       hotkey: "Enter",
@@ -1694,25 +1679,18 @@ function renderCurrentScreen(
     profileBtn.classList.add("campaign-main-action");
     actionCard.appendChild(profileBtn);
 
-    const generatorBtn = createButton("Level Generator", openLevelGenerator, { variant: "secondary" });
-    generatorBtn.classList.add("campaign-main-action");
-    actionCard.appendChild(generatorBtn);
-
     const metaBtn = createButton("Meta Progression", openMetaScreen, { variant: "secondary" });
     metaBtn.classList.add("campaign-main-action");
     actionCard.appendChild(metaBtn);
+
+    const generatorBtn = createButton("Level Generator", openLevelGenerator, { variant: "secondary" });
+    generatorBtn.classList.add("campaign-main-action");
+    actionCard.appendChild(generatorBtn);
     panel.appendChild(actionCard);
 
-    const quickStats = document.createElement("div");
-    quickStats.className = "campaign-main-stats";
-    quickStats.append(
-      createInfoPill("Gold", `${app.metaProfile.glory}`),
-      createInfoPill("Meta Lv", `${computeMetaAccountLevel(app.metaProfile)}`),
-      createInfoPill("Stages", `${app.campaignStages.length}`),
-    );
-    panel.appendChild(quickStats);
-
-    screenRoot.appendChild(wrapCentered(panel));
+    layout.appendChild(panel);
+    wrapper.appendChild(layout);
+    screenRoot.appendChild(wrapper);
     return;
   }
 
