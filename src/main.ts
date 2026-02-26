@@ -1658,8 +1658,8 @@ function renderCurrentScreen(
     layout.className = "campaign-main-layout";
 
     const heading = document.createElement("h2");
-    heading.className = "campaign-main-heading campaign-main-title";
-    heading.innerHTML = `GRID <span>DEFENDER</span>`;
+    heading.className = "splash-title campaign-main-title";
+    heading.innerHTML = "<span>Grid</span>Defense";
     layout.appendChild(heading);
 
     const panel = document.createElement("div");
@@ -1675,11 +1675,11 @@ function renderCurrentScreen(
     campaignBtn.classList.add("campaign-main-action");
     actionCard.appendChild(campaignBtn);
 
-    const profileBtn = createButton("Profile Snapshot", openProfileSnapshot, { variant: "secondary" });
+    const profileBtn = createButton("Commander Record", openProfileSnapshot, { variant: "secondary" });
     profileBtn.classList.add("campaign-main-action");
     actionCard.appendChild(profileBtn);
 
-    const metaBtn = createButton("Meta Progression", openMetaScreen, { variant: "secondary" });
+    const metaBtn = createButton("Upgrades Shop", openMetaScreen, { variant: "secondary" });
     metaBtn.classList.add("campaign-main-action");
     actionCard.appendChild(metaBtn);
 
@@ -1766,7 +1766,6 @@ function renderCurrentScreen(
       unlocks: app.campaignUnlocks,
       onSelectStage: openLevelSelect,
       onBack: openMainMenu,
-      onOpenGenerator: openLevelGenerator,
     });
     screenRoot.appendChild(wrapCentered(panel));
     return;
