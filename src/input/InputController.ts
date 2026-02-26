@@ -1,3 +1,4 @@
+import { areNeighbors, canCreateLink, getNeighbors } from "../sim/LinkRules";
 import type { Owner, Vec2, World } from "../sim/World";
 
 export interface DragPreview {
@@ -6,11 +7,31 @@ export interface DragPreview {
   owner: Owner;
 }
 
+export type LinkCandidateState = "valid" | "invalid";
+
+export interface DragCandidateOverlay {
+  sourceTowerId: string;
+  candidateStateByTowerId: Record<string, LinkCandidateState>;
+}
+
+export interface PointerHint {
+  text: string;
+  position: Vec2;
+}
+
 interface DragState {
   sourceTowerId: string;
   owner: Owner;
   from: Vec2;
   cursor: Vec2;
+  neighborIds: Set<string>;
+}
+
+interface ActivePointerHint {
+  text: string;
+  position: Vec2;
+  mode: "drag" | "transient";
+  expiresAtSec: number | null;
 }
 
 export class InputController {
@@ -19,6 +40,8 @@ export class InputController {
   private dragState: DragState | null;
   private selectedTowerId: string | null;
   private enabled: boolean;
+  private pointerHint: ActivePointerHint | null;
+  private readonly feedbackQueue: string[];
 
   constructor(canvas: HTMLCanvasElement, world: World) {
     this.canvas = canvas;
@@ -26,6 +49,8 @@ export class InputController {
     this.dragState = null;
     this.selectedTowerId = null;
     this.enabled = true;
+    this.pointerHint = null;
+    this.feedbackQueue = [];
 
     this.canvas.addEventListener("mousedown", this.onMouseDown);
     window.addEventListener("mousemove", this.onMouseMove);
@@ -60,6 +85,56 @@ export class InputController {
       to: this.dragState.cursor,
       owner: this.dragState.owner,
     };
+  }
+
+  getDragCandidateOverlay(): DragCandidateOverlay | null {
+    if (!this.enabled || !this.dragState) {
+      return null;
+    }
+
+    const candidateStateByTowerId: Record<string, LinkCandidateState> = {};
+    for (const neighborId of this.dragState.neighborIds) {
+      const validation = canCreateLink(
+        this.world,
+        this.dragState.sourceTowerId,
+        neighborId,
+        this.dragState.owner,
+      );
+      candidateStateByTowerId[neighborId] = validation.ok ? "valid" : "invalid";
+    }
+
+    return {
+      sourceTowerId: this.dragState.sourceTowerId,
+      candidateStateByTowerId,
+    };
+  }
+
+  getPointerHint(): PointerHint | null {
+    if (!this.enabled || !this.pointerHint) {
+      return null;
+    }
+
+    if (this.pointerHint.mode === "transient" && this.pointerHint.expiresAtSec !== null) {
+      if (nowSec() >= this.pointerHint.expiresAtSec) {
+        this.pointerHint = null;
+        return null;
+      }
+    }
+
+    return {
+      text: this.pointerHint.text,
+      position: this.pointerHint.position,
+    };
+  }
+
+  drainLinkFeedback(): string[] {
+    if (this.feedbackQueue.length === 0) {
+      return [];
+    }
+
+    const drained = this.feedbackQueue.slice();
+    this.feedbackQueue.length = 0;
+    return drained;
   }
 
   isDragging(): boolean {
@@ -102,7 +177,9 @@ export class InputController {
       owner: tower.owner,
       from: { x: tower.x, y: tower.y },
       cursor: pointer,
+      neighborIds: new Set(getNeighbors(this.world, tower.id)),
     };
+    this.clearDragHint();
   };
 
   private readonly onMouseMove = (event: MouseEvent): void => {
@@ -114,7 +191,25 @@ export class InputController {
       return;
     }
 
-    this.dragState.cursor = this.toCanvasPoint(event);
+    const pointer = this.toCanvasPoint(event);
+    this.dragState.cursor = pointer;
+
+    const targetTower = this.world.getTowerAtPoint(pointer.x, pointer.y);
+    if (
+      targetTower &&
+      targetTower.id !== this.dragState.sourceTowerId &&
+      !areNeighbors(this.world, this.dragState.sourceTowerId, targetTower.id)
+    ) {
+      this.pointerHint = {
+        text: "Too far — adjacent towers only.",
+        position: pointer,
+        mode: "drag",
+        expiresAtSec: null,
+      };
+      return;
+    }
+
+    this.clearDragHint();
   };
 
   private readonly onMouseUp = (event: MouseEvent): void => {
@@ -137,8 +232,27 @@ export class InputController {
     const targetTower = this.world.getTowerAtPoint(pointer.x, pointer.y);
 
     this.dragState = null;
+    this.clearDragHint();
 
     if (!targetTower || targetTower.id === dragState.sourceTowerId) {
+      return;
+    }
+
+    const validation = canCreateLink(
+      this.world,
+      dragState.sourceTowerId,
+      targetTower.id,
+      dragState.owner,
+    );
+    if (!validation.ok) {
+      const reason = validation.reason ?? "Link rejected.";
+      this.feedbackQueue.push(reason);
+      this.pointerHint = {
+        text: reason,
+        position: pointer,
+        mode: "transient",
+        expiresAtSec: nowSec() + 1.2,
+      };
       return;
     }
 
@@ -162,8 +276,15 @@ export class InputController {
     event.preventDefault();
   };
 
+  private clearDragHint(): void {
+    if (this.pointerHint?.mode === "drag") {
+      this.pointerHint = null;
+    }
+  }
+
   private cancelDrag(): void {
     this.dragState = null;
+    this.clearDragHint();
   }
 
   private toCanvasPoint(event: MouseEvent): Vec2 {
@@ -173,4 +294,8 @@ export class InputController {
       y: event.clientY - rect.top,
     };
   }
+}
+
+function nowSec(): number {
+  return performance.now() / 1000;
 }

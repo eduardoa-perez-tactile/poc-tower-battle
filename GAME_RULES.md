@@ -7,8 +7,9 @@
 - Troops are clamped to `maxTroops`.
 
 ## Links
-- Each tower has at most one player/AI outgoing link.
-- Creating a new outgoing link replaces the previous outgoing link from the same source tower.
+- Player/AI links are restricted to direct neighbors in the map graph (1 hop).
+- Each tower has `maxOutgoingLinks` capacity (base + tower modifiers).
+- A new link is rejected when capacity is full or when the same link already exists.
 - Scripted wave links are separate and hidden from normal rendering.
 
 ## Territory control clusters

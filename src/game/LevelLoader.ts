@@ -46,9 +46,10 @@ function parseLegacyLevel(data: unknown): LoadedLevel {
   }
 
   const parsedTowers = towers.map((tower, index) => parseTower(tower, index));
+  const initialLinks = parseInitialLinks(data.initialLinks, parsedTowers);
   return {
     towers: parsedTowers,
-    initialLinks: parseInitialLinks(data.initialLinks, parsedTowers),
+    initialLinks,
     rules: parseRules(data.rules),
     ai: parseAi(data.ai),
   };

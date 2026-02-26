@@ -6,6 +6,7 @@
 
 import type { LinkLevelDefinition } from "./DepthTypes";
 import { TowerArchetype } from "./DepthTypes";
+import { canCreateLink } from "./LinkRules";
 import {
   applyTerritoryControlBonuses,
   computeConnectedClusters as computeTerritoryConnectedClusters,
@@ -67,6 +68,11 @@ export interface LinkSeed {
   overchargeDrain?: number;
   isScripted?: boolean;
   hideInRender?: boolean;
+}
+
+export interface TowerAdjacencyEdge {
+  fromTowerId: string;
+  toTowerId: string;
 }
 
 export interface Link {
@@ -190,6 +196,8 @@ export class World {
   readonly towers: Tower[];
   readonly links: Link[];
   readonly packets: UnitPacket[];
+  private readonly adjacencyByTowerId: Map<string, Set<string>>;
+  private readonly hasAdjacencyConstraints: boolean;
   private readonly maxOutgoingLinksPerTower: number;
   private readonly linkIntegrityMultiplier: number;
   private readonly packetPool: UnitPacket[];
@@ -205,10 +213,30 @@ export class World {
     linkLevels: Map<number, LinkLevelDefinition>,
     initialLinks: LinkSeed[] = [],
     linkIntegrityMultiplier = 1,
+    adjacencyEdges: TowerAdjacencyEdge[] = [],
   ) {
     this.towers = towers.map((tower) => ({ ...tower }));
     this.links = [];
     this.packets = [];
+    this.adjacencyByTowerId = new Map<string, Set<string>>();
+    for (const tower of this.towers) {
+      this.adjacencyByTowerId.set(tower.id, new Set<string>());
+    }
+    let validAdjacencyEdgeCount = 0;
+    for (const edge of adjacencyEdges) {
+      if (edge.fromTowerId === edge.toTowerId) {
+        continue;
+      }
+      const from = this.adjacencyByTowerId.get(edge.fromTowerId);
+      const to = this.adjacencyByTowerId.get(edge.toTowerId);
+      if (!from || !to) {
+        continue;
+      }
+      from.add(edge.toTowerId);
+      to.add(edge.fromTowerId);
+      validAdjacencyEdgeCount += 1;
+    }
+    this.hasAdjacencyConstraints = validAdjacencyEdgeCount > 0;
     this.maxOutgoingLinksPerTower = Math.max(0, Math.floor(maxOutgoingLinksPerTower));
     this.linkIntegrityMultiplier = Math.max(0.1, linkIntegrityMultiplier);
     this.packetPool = [];
@@ -249,45 +277,15 @@ export class World {
   }
 
   setOutgoingLink(fromTowerId: string, toTowerId: string, level = 1): void {
-    if (fromTowerId === toTowerId) {
-      return;
-    }
-
     const fromTower = this.getTowerById(fromTowerId);
     const toTower = this.getTowerById(toTowerId);
     if (!fromTower || !toTower) {
       return;
     }
 
-    const maxOutgoing = this.getMaxOutgoingLinksForTower(fromTowerId);
-    if (maxOutgoing < 1) {
+    const validation = canCreateLink(this, fromTowerId, toTowerId, fromTower.owner);
+    if (!validation.ok) {
       return;
-    }
-
-    const existing = this.links.find(
-      (link) => !link.isScripted && link.fromTowerId === fromTowerId && link.toTowerId === toTowerId,
-    );
-    if (existing) {
-      return;
-    }
-
-    let territoryChanged = false;
-    while (this.getOutgoingLinks(fromTowerId).length >= maxOutgoing) {
-      let removed = false;
-      for (let i = 0; i < this.links.length; i += 1) {
-        const link = this.links[i];
-        if (!link.isScripted && link.fromTowerId === fromTowerId) {
-          if (this.linkAffectsPlayerTerritory(link.fromTowerId, link.toTowerId)) {
-            territoryChanged = true;
-          }
-          this.links.splice(i, 1);
-          removed = true;
-          break;
-        }
-      }
-      if (!removed) {
-        break;
-      }
     }
 
     const affectsPlayerTerritory = this.linkAffectsPlayerTerritory(fromTowerId, toTowerId);
@@ -306,7 +304,12 @@ export class World {
         hideInRender: false,
       }),
     );
-    if (affectsPlayerTerritory || territoryChanged) {
+    if (import.meta.env.DEV && !this.areNeighbors(fromTowerId, toTowerId)) {
+      console.error(
+        `[LinkRules] Non-adjacent runtime link created: ${fromTowerId} -> ${toTowerId}`,
+      );
+    }
+    if (affectsPlayerTerritory) {
       this.refreshTerritoryBonuses();
     }
   }
@@ -365,6 +368,42 @@ export class World {
 
   computeConnectedClusters(playerId: Owner): ConnectedCluster[] {
     return computeTerritoryConnectedClusters(this, playerId);
+  }
+
+  getNeighbors(towerId: string): string[] {
+    if (!this.getTowerById(towerId)) {
+      return [];
+    }
+
+    if (!this.hasAdjacencyConstraints) {
+      return this.towers
+        .map((tower) => tower.id)
+        .filter((id) => id !== towerId)
+        .sort((a, b) => a.localeCompare(b));
+    }
+
+    const neighbors = this.adjacencyByTowerId.get(towerId);
+    if (!neighbors || neighbors.size === 0) {
+      return [];
+    }
+
+    return Array.from(neighbors).sort((a, b) => a.localeCompare(b));
+  }
+
+  areNeighbors(fromTowerId: string, toTowerId: string): boolean {
+    if (fromTowerId === toTowerId) {
+      return false;
+    }
+
+    if (!this.getTowerById(fromTowerId) || !this.getTowerById(toTowerId)) {
+      return false;
+    }
+
+    if (!this.hasAdjacencyConstraints) {
+      return true;
+    }
+
+    return this.adjacencyByTowerId.get(fromTowerId)?.has(toTowerId) ?? false;
   }
 
   upsertScriptedLink(link: LinkSeed): void {
