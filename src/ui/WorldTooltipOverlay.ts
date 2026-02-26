@@ -25,6 +25,8 @@ interface HoverTowerData {
   incomingPlayerUnits: number;
   incomingEnemyUnits: number;
   incomingNeutralUnits: number;
+  outgoingLinkCount: number;
+  maxOutgoingLinks: number;
   outgoingTargets: string[];
   statusChips: string[];
 }
@@ -254,6 +256,8 @@ export class WorldTooltipOverlay {
       .getOutgoingLinks(tower.id)
       .map((link) => link.toTowerId)
       .sort((a, b) => a.localeCompare(b));
+    const outgoingLinkCount = outgoingTargets.length;
+    const maxOutgoingLinks = world.getMaxOutgoingLinksForTower(tower.id);
 
     const statusChips: string[] = [];
     if (tower.defenseMultiplier > 1.05) {
@@ -273,6 +277,8 @@ export class WorldTooltipOverlay {
       incomingPlayerUnits,
       incomingEnemyUnits,
       incomingNeutralUnits,
+      outgoingLinkCount,
+      maxOutgoingLinks,
       outgoingTargets,
       statusChips,
     };
@@ -334,6 +340,8 @@ export class WorldTooltipOverlay {
       data.incomingFriendlyCount,
       data.incomingEnemyCount,
       Math.round(data.tower.hp),
+      data.outgoingLinkCount,
+      data.maxOutgoingLinks,
       outgoingVisible.join(","),
       outgoingOverflow,
       data.statusChips.join(","),
@@ -363,6 +371,11 @@ export class WorldTooltipOverlay {
             ? `F ${data.incomingFriendlyCount} / E ${data.incomingEnemyCount}`
             : "?";
         this.tooltip.appendChild(createTooltipRow("Incoming", incomingText));
+        this.tooltip.appendChild(createTooltipRow("Links", `${data.outgoingLinkCount}/${data.maxOutgoingLinks}`));
+        this.tooltip.appendChild(createTooltipRow("Linking", "Can link to adjacent towers only."));
+        if (data.maxOutgoingLinks > 1) {
+          this.tooltip.appendChild(createTooltipRow("Capacity", "Supports multiple links"));
+        }
         this.tooltip.appendChild(createTooltipRow("Control", controlState.statusLabel));
         if (controlState.ruleHint) {
           this.tooltip.appendChild(createTooltipRow("Capture", controlState.ruleHint));

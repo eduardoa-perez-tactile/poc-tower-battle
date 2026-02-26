@@ -7,8 +7,10 @@
 - Troops are clamped to `maxTroops`.
 
 ## Links
-- Each tower has at most one player/AI outgoing link.
-- Creating a new outgoing link replaces the previous outgoing link from the same source tower.
+- Player/AI links are restricted to direct neighbors in the map graph (1 hop).
+- Each tower has `maxOutgoingLinks` capacity (base + tower modifiers).
+- Creating a new link to a different target rewires outgoing links from that tower as needed to stay within capacity.
+- A new link is rejected when the same link already exists.
 - Scripted wave links are separate and hidden from normal rendering.
 
 ## Territory control clusters
@@ -119,5 +121,5 @@
 - Gold rewards still apply from mission/run progression systems.
 
 ## Mission end conditions
-- Win when wave progression is fully completed and player still owns at least one tower.
+- Win when player captures all enemy towers (immediate victory), or when wave progression is fully completed while the player still owns at least one tower.
 - Lose when player owns zero towers.

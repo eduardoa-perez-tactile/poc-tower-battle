@@ -21,9 +21,13 @@ export function createTowerInspectorPanel(): TowerInspectorPanelController {
   const troop = createRow("Troops");
   const regen = createRow("Regen");
   const incoming = createRow("Incoming Packets");
-  const outgoing = createRow("Outgoing Links");
+  const outgoing = createRow("Links");
   const pressure = createRow("Local Pressure");
   const cluster = createRow("Cluster");
+  const linkHint = document.createElement("p");
+  linkHint.className = "hud-inspector-hint";
+  const multiLinkHint = document.createElement("p");
+  multiLinkHint.className = "hud-inspector-hint";
 
   rows.append(
     troop.row,
@@ -33,6 +37,7 @@ export function createTowerInspectorPanel(): TowerInspectorPanelController {
     pressure.row,
     cluster.row,
   );
+  root.append(linkHint, multiLinkHint);
 
   return {
     element: root,
@@ -47,9 +52,12 @@ export function createTowerInspectorPanel(): TowerInspectorPanelController {
       troop.value.textContent = vm.troopCountLabel;
       regen.value.textContent = vm.regenLabel;
       incoming.value.textContent = `${vm.incomingPackets}`;
-      outgoing.value.textContent = `${vm.outgoingLinks}`;
+      outgoing.value.textContent = vm.outgoingLinksLabel;
       pressure.value.textContent = vm.localPressureLabel;
       cluster.value.textContent = vm.clusterStatusLabel;
+      linkHint.textContent = vm.linkRuleHint;
+      multiLinkHint.textContent = vm.multiLinkHint ?? "";
+      multiLinkHint.classList.toggle("hidden", !vm.multiLinkHint);
     },
     reset(): void {
       root.classList.add("hidden");
@@ -60,6 +68,9 @@ export function createTowerInspectorPanel(): TowerInspectorPanelController {
       outgoing.value.textContent = "--";
       pressure.value.textContent = "--";
       cluster.value.textContent = "--";
+      linkHint.textContent = "";
+      multiLinkHint.textContent = "";
+      multiLinkHint.classList.add("hidden");
     },
   };
 }

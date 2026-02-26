@@ -160,10 +160,24 @@ export function buildRuntimeLevelFromLevel(
   };
 
   const renderNodes = towers.map((tower) => ({ id: tower.id, x: tower.x, y: tower.y }));
-  const renderEdges = level.edges
+  const graphEdges = level.edges
     .map((edge) => {
       const from = towersById.get(edge.from);
       const to = towersById.get(edge.to);
+      if (!from || !to) {
+        return null;
+      }
+      return {
+        fromTowerId: from.id,
+        toTowerId: to.id,
+      };
+    })
+    .filter((edge): edge is { fromTowerId: string; toTowerId: string } => edge !== null);
+
+  const renderEdges = graphEdges
+    .map((edge) => {
+      const from = towersById.get(edge.fromTowerId);
+      const to = towersById.get(edge.toTowerId);
       if (!from || !to) {
         return null;
       }
@@ -181,6 +195,7 @@ export function buildRuntimeLevelFromLevel(
     initialLinks,
     rules: mergedRules,
     ai: mergedAi,
+    graphEdges,
     mapRenderData: {
       gridWidth: level.grid.width,
       gridHeight: level.grid.height,

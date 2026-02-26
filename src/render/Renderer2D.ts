@@ -1,4 +1,9 @@
-import type { DragPreview } from "../input/InputController";
+import type {
+  DragCandidateOverlay,
+  DragPreview,
+  LinkCandidateState,
+  PointerHint,
+} from "../input/InputController";
 import type { GridRenderData } from "../levels/runtime";
 import {
   TOWER_RADIUS_PX,
@@ -58,6 +63,8 @@ export class Renderer2D {
   render(
     world: World,
     preview: DragPreview | null,
+    dragOverlay: DragCandidateOverlay | null,
+    pointerHint: PointerHint | null,
     overlayText: string | null,
     waveRenderState: WaveRenderState | null,
     bossBar: { name: string; hp01: number } | null,
@@ -95,11 +102,17 @@ export class Renderer2D {
     }
 
     for (const tower of world.towers) {
-      this.drawTower(tower);
+      const candidateState = dragOverlay?.candidateStateByTowerId[tower.id] ?? null;
+      const isDragSource = dragOverlay?.sourceTowerId === tower.id;
+      this.drawTower(tower, candidateState, isDragSource);
     }
 
     if (preview) {
       this.drawPreviewLink(preview);
+    }
+
+    if (pointerHint) {
+      this.drawPointerHint(pointerHint);
     }
 
     if (overlayText) {
@@ -176,7 +189,11 @@ export class Renderer2D {
     this.ctx.restore();
   }
 
-  private drawTower(tower: Tower): void {
+  private drawTower(
+    tower: Tower,
+    linkCandidateState: LinkCandidateState | null,
+    isDragSource: boolean,
+  ): void {
     const x = tower.x;
     const y = tower.y;
     const owner = tower.owner;
@@ -212,6 +229,44 @@ export class Renderer2D {
       this.ctx.textAlign = "center";
       this.ctx.textBaseline = "middle";
       this.ctx.fillText(archetypeIcon, x + 16, y - 16.5);
+    }
+
+    if (isDragSource) {
+      this.ctx.save();
+      this.ctx.strokeStyle = "rgba(124, 227, 214, 0.96)";
+      this.ctx.lineWidth = 3;
+      this.ctx.beginPath();
+      this.ctx.arc(x, y, TOWER_RADIUS_PX + 7, 0, Math.PI * 2);
+      this.ctx.stroke();
+      this.ctx.restore();
+    }
+
+    if (linkCandidateState === "valid") {
+      this.ctx.save();
+      this.ctx.strokeStyle = "rgba(111, 255, 201, 0.95)";
+      this.ctx.lineWidth = 3;
+      this.ctx.beginPath();
+      this.ctx.arc(x, y, TOWER_RADIUS_PX + 5, 0, Math.PI * 2);
+      this.ctx.stroke();
+      this.ctx.restore();
+    } else if (linkCandidateState === "invalid") {
+      this.ctx.save();
+      this.ctx.strokeStyle = "rgba(255, 186, 138, 0.9)";
+      this.ctx.lineWidth = 2.5;
+      this.ctx.setLineDash([6, 4]);
+      this.ctx.beginPath();
+      this.ctx.arc(x, y, TOWER_RADIUS_PX + 4, 0, Math.PI * 2);
+      this.ctx.stroke();
+      this.ctx.setLineDash([]);
+      this.ctx.strokeStyle = "rgba(255, 132, 132, 0.9)";
+      this.ctx.lineWidth = 2;
+      this.ctx.beginPath();
+      this.ctx.moveTo(x - 8, y - 8);
+      this.ctx.lineTo(x + 8, y + 8);
+      this.ctx.moveTo(x + 8, y - 8);
+      this.ctx.lineTo(x - 8, y + 8);
+      this.ctx.stroke();
+      this.ctx.restore();
     }
   }
 
@@ -271,6 +326,34 @@ export class Renderer2D {
     this.ctx.moveTo(preview.from.x, preview.from.y);
     this.ctx.lineTo(preview.to.x, preview.to.y);
     this.ctx.stroke();
+    this.ctx.restore();
+  }
+
+  private drawPointerHint(hint: PointerHint): void {
+    const textPaddingX = 8;
+    const textPaddingY = 5;
+    const offsetX = 12;
+    const offsetY = -24;
+    const x = hint.position.x + offsetX;
+    const y = hint.position.y + offsetY;
+
+    this.ctx.save();
+    this.ctx.font = "12px Arial";
+    this.ctx.textAlign = "left";
+    this.ctx.textBaseline = "top";
+    const textWidth = this.ctx.measureText(hint.text).width;
+    const width = textWidth + textPaddingX * 2;
+    const height = 22;
+    const left = x;
+    const top = y;
+    this.ctx.fillStyle = "rgba(7, 12, 20, 0.9)";
+    this.ctx.strokeStyle = "rgba(255, 198, 160, 0.85)";
+    this.ctx.lineWidth = 1;
+    this.drawRoundedRect(left, top, width, height, 6);
+    this.ctx.fill();
+    this.ctx.stroke();
+    this.ctx.fillStyle = "#ffe8d6";
+    this.ctx.fillText(hint.text, left + textPaddingX, top + textPaddingY);
     this.ctx.restore();
   }
 
@@ -402,6 +485,21 @@ export class Renderer2D {
     this.ctx.lineTo(baseX - perpX * width, baseY - perpY * width);
     this.ctx.closePath();
     this.ctx.fill();
+  }
+
+  private drawRoundedRect(x: number, y: number, width: number, height: number, radius: number): void {
+    const r = Math.max(0, Math.min(radius, width / 2, height / 2));
+    this.ctx.beginPath();
+    this.ctx.moveTo(x + r, y);
+    this.ctx.lineTo(x + width - r, y);
+    this.ctx.quadraticCurveTo(x + width, y, x + width, y + r);
+    this.ctx.lineTo(x + width, y + height - r);
+    this.ctx.quadraticCurveTo(x + width, y + height, x + width - r, y + height);
+    this.ctx.lineTo(x + r, y + height);
+    this.ctx.quadraticCurveTo(x, y + height, x, y + height - r);
+    this.ctx.lineTo(x, y + r);
+    this.ctx.quadraticCurveTo(x, y, x + r, y);
+    this.ctx.closePath();
   }
 
   private drawOverlay(title: string): void {

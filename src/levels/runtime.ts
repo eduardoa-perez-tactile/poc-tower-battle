@@ -43,10 +43,16 @@ export interface GridRenderData {
   edges: GridRenderEdge[];
 }
 
+export interface TowerGraphEdge {
+  fromTowerId: string;
+  toTowerId: string;
+}
+
 export interface LoadedLevel {
   towers: Tower[];
   initialLinks: LinkSeed[];
   rules: LevelRules;
   ai: AiRules;
+  graphEdges?: TowerGraphEdge[];
   mapRenderData?: GridRenderData;
 }

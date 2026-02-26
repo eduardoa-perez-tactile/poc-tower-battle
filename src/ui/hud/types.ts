@@ -47,7 +47,9 @@ export interface TowerInspectVM {
   troopCountLabel: string;
   regenLabel: string;
   incomingPackets: number;
-  outgoingLinks: number;
+  outgoingLinksLabel: string;
+  linkRuleHint: string;
+  multiLinkHint: string | null;
   localPressureLabel: string;
   clusterStatusLabel: string;
   owner: Owner;

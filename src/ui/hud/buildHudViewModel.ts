@@ -1,5 +1,5 @@
 import type { Game } from "../../game/Game";
-import type { Link, Owner, Tower } from "../../sim/World";
+import type { Link, Owner, Tower, World } from "../../sim/World";
 import type { MissionWaveTelemetry } from "../../waves/WaveDirector";
 import type { HudVM, TowerCaptureVM } from "./types";
 
@@ -41,6 +41,9 @@ export function buildHudViewModel(input: BuildHudViewModelInput): HudVM {
   const outgoingLinkCountByTower = new Map<string, number>();
 
   for (const link of world.links) {
+    if (link.isScripted) {
+      continue;
+    }
     outgoingLinkCountByTower.set(link.fromTowerId, (outgoingLinkCountByTower.get(link.fromTowerId) ?? 0) + 1);
   }
 
@@ -131,7 +134,7 @@ export function buildHudViewModel(input: BuildHudViewModelInput): HudVM {
     },
     context: {
       towerInspect: selectedTower
-        ? buildTowerInspect(selectedTower, incomingByTower, outgoingLinkCountByTower, outgoingPacketCountByTower)
+        ? buildTowerInspect(world, selectedTower, incomingByTower, outgoingLinkCountByTower, outgoingPacketCountByTower)
         : null,
     },
     overlays: {
@@ -153,6 +156,7 @@ export function buildHudViewModel(input: BuildHudViewModelInput): HudVM {
 }
 
 function buildTowerInspect(
+  world: World,
   tower: Tower,
   incomingByTower: ReadonlyMap<string, TowerPacketTraffic>,
   outgoingLinkCountByTower: ReadonlyMap<string, number>,
@@ -161,6 +165,7 @@ function buildTowerInspect(
   const traffic = incomingByTower.get(tower.id);
   const incomingPackets = traffic?.incomingHostilePackets ?? 0;
   const outgoingLinks = outgoingLinkCountByTower.get(tower.id) ?? 0;
+  const maxOutgoingLinks = world.getMaxOutgoingLinksForTower(tower.id);
   const outgoingPackets = outgoingPacketCountByTower.get(tower.id) ?? 0;
   const clusterSize = tower.owner === "player" ? tower.territoryClusterSize ?? 0 : 0;
 
@@ -169,7 +174,9 @@ function buildTowerInspect(
     troopCountLabel: `${Math.round(tower.troops)}/${Math.round(tower.maxTroops)}`,
     regenLabel: tower.owner === "neutral" ? "0.0/s" : `+${sanitizeNumber(tower.effectiveRegen).toFixed(2)}/s`,
     incomingPackets,
-    outgoingLinks,
+    outgoingLinksLabel: `${outgoingLinks}/${maxOutgoingLinks}`,
+    linkRuleHint: "Can link to adjacent towers only.",
+    multiLinkHint: maxOutgoingLinks > 1 ? "This tower supports multiple links." : null,
     localPressureLabel: getPressureLabel(incomingPackets, outgoingPackets),
     clusterStatusLabel: getClusterStatusLabel(tower, clusterSize),
     owner: tower.owner,

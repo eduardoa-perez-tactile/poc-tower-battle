@@ -58,6 +58,7 @@ import {
   saveRunState,
 } from "./save/Storage";
 import { applyTowerArchetypeModifiers, loadDepthContent } from "./sim/DepthConfig";
+import { canCreateLink, getNeighbors, validateNonScriptedLinksAdjacency } from "./sim/LinkRules";
 import { updateWorld as updateQuickSimWorld } from "./sim/Simulation";
 import { World, type Owner } from "./sim/World";
 import { TowerArchetype, type TowerArchetypeCatalog } from "./sim/DepthTypes";
@@ -380,6 +381,7 @@ async function bootstrap(): Promise<void> {
       debugSpawnEnemy,
       debugStartWave,
       toggleBalanceDiagnostics,
+      validateLinksDebug,
       runQuickSimDebug,
       () => {
         void copyDifficultyReportDebug();
@@ -635,6 +637,7 @@ async function bootstrap(): Promise<void> {
         depthContent.linkLevels,
         tunedLevel.initialLinks,
         missionModifiers.linkIntegrityMul,
+        tunedLevel.graphEdges,
       );
       const waveDirector = new WaveDirector(world, waveContent, {
         runSeed: mission.seed,
@@ -742,6 +745,7 @@ async function bootstrap(): Promise<void> {
       depthContent.linkLevels,
       tunedLevel.initialLinks,
       missionModifiers.linkIntegrityMul,
+      tunedLevel.graphEdges,
     );
     const waveDirector = new WaveDirector(world, waveContent, {
       runSeed,
@@ -1062,6 +1066,35 @@ async function bootstrap(): Promise<void> {
     render();
   };
 
+  const validateLinksDebug = (): void => {
+    if (!app.game) {
+      return;
+    }
+
+    const result = validateNonScriptedLinksAdjacency(app.game.getWorld());
+    if (result.ok) {
+      gameplayHud.pushToast({
+        type: "success",
+        title: "Link Validation",
+        body: "All active links connect adjacent towers.",
+        ttl: 1800,
+      });
+      return;
+    }
+
+    const sample = result.invalidLinkIds.slice(0, 3).join(", ");
+    gameplayHud.pushToast({
+      type: "danger",
+      title: "Link Validation Failed",
+      body:
+        result.invalidLinkIds.length > 0
+          ? `${result.invalidLinkIds.length} non-adjacent link(s): ${sample}`
+          : "Found non-adjacent links.",
+      ttl: 3200,
+    });
+    console.error("[LinkRules] Invalid runtime links", result.invalidLinkIds);
+  };
+
   const runQuickSimDebug = (): void => {
     void runQuickSim(24);
   };
@@ -1140,6 +1173,7 @@ async function bootstrap(): Promise<void> {
           depthContent.linkLevels,
           level.initialLinks,
           missionModifiers.linkIntegrityMul,
+          level.graphEdges,
         );
         const waveDirector = new WaveDirector(world, waveContent, {
           runSeed,
@@ -1299,6 +1333,7 @@ async function bootstrap(): Promise<void> {
         depthContent.linkLevels,
         level.initialLinks,
         quickSimModifiers.linkIntegrityMul,
+        level.graphEdges,
       );
       const waveDirector = new WaveDirector(world, waveContent, {
         runSeed,
@@ -1498,6 +1533,7 @@ async function bootstrap(): Promise<void> {
           debugSpawnEnemy,
           debugStartWave,
           toggleBalanceDiagnostics,
+          validateLinksDebug,
           runQuickSimDebug,
           () => {
             void copyDifficultyReportDebug();
@@ -2414,6 +2450,16 @@ function syncMissionHud(app: AppState, debugState: DebugUiState, gameplayHud: Ga
     overlayClusterEnabled: debugState.showOverlayClusterHighlight,
   });
 
+  const linkFeedback = app.inputController?.drainLinkFeedback() ?? [];
+  for (const message of linkFeedback) {
+    gameplayHud.pushToast({
+      type: "warning",
+      title: "Link Rejected",
+      body: message,
+      ttl: 1600,
+    });
+  }
+
   updateMissionEventFeed(app, telemetry, world, (toast) => {
     gameplayHud.pushToast(toast);
   }, vm.overlays.towers);
@@ -2455,6 +2501,7 @@ function renderDebugPanel(
   debugSpawnEnemy: (enemyId: string, elite: boolean) => void,
   debugStartWave: (waveIndex: number) => void,
   toggleBalanceDiagnostics: () => void,
+  validateLinksDebug: () => void,
   runQuickSimDebug: () => void,
   copyDifficultyReportDebug: () => void,
   setDifficultyReportMissionIndex: (value: number | null) => void,
@@ -2632,6 +2679,12 @@ function renderDebugPanel(
             { variant: "ghost" },
           );
           dangerContent.appendChild(balanceBtn);
+
+          const validateLinksBtn = createButton("Debug: Validate Links", validateLinksDebug, {
+            variant: "secondary",
+          });
+          validateLinksBtn.disabled = app.game === null;
+          dangerContent.appendChild(validateLinksBtn);
 
           const quickSimBtn = createButton("Debug: Quick Sim x24", runQuickSimDebug, { variant: "secondary" });
           quickSimBtn.disabled = app.runState === null;
@@ -2830,6 +2883,7 @@ function cloneLoadedLevel(level: LoadedLevel): LoadedLevel {
       fightModel: { ...level.rules.fightModel },
     },
     ai: { ...level.ai },
+    graphEdges: level.graphEdges?.map((edge) => ({ ...edge })),
     mapRenderData: level.mapRenderData
       ? {
           ...level.mapRenderData,
@@ -3054,10 +3108,23 @@ function countPlayerTowers(world: World): number {
   return count;
 }
 
+function countEnemyTowers(world: World): number {
+  let count = 0;
+  for (const tower of world.towers) {
+    if (tower.owner === "enemy") {
+      count += 1;
+    }
+  }
+  return count;
+}
+
 function evaluateQuickSimResult(world: World, waveDirector: WaveDirector): MatchResult {
   const playerTowers = countPlayerTowers(world);
   if (playerTowers === 0) {
     return "lose";
+  }
+  if (countEnemyTowers(world) === 0) {
+    return "win";
   }
   if (waveDirector.isFinished()) {
     return "win";
@@ -3066,11 +3133,6 @@ function evaluateQuickSimResult(world: World, waveDirector: WaveDirector): Match
 }
 
 function runQuickSimAiDecision(world: World, minTroopsToAttack: number): void {
-  const playerTowers = world.towers.filter((tower) => tower.owner === "player");
-  if (playerTowers.length === 0) {
-    return;
-  }
-
   const candidateSources = world.towers.filter(
     (tower) => tower.owner === "enemy" && tower.troops >= minTroopsToAttack,
   );
@@ -3084,8 +3146,17 @@ function runQuickSimAiDecision(world: World, minTroopsToAttack: number): void {
   let bestKey = "";
 
   for (const source of candidateSources) {
-    for (const target of playerTowers) {
-      if (target.id === source.id) {
+    for (const neighborId of getNeighbors(world, source.id)) {
+      const target = world.getTowerById(neighborId);
+      if (!target) {
+        continue;
+      }
+      if (target.owner === source.owner) {
+        continue;
+      }
+
+      const validation = canCreateLink(world, source.id, target.id, source.owner);
+      if (!validation.ok) {
         continue;
       }
 

@@ -1,5 +1,6 @@
 import { InputController } from "../input/InputController";
 import { Renderer2D } from "../render/Renderer2D";
+import { canCreateLink, getNeighbors } from "../sim/LinkRules";
 import { updateWorld, type SimulationRules, type SimulationTemporaryModifiers } from "../sim/Simulation";
 import { World } from "../sim/World";
 import {
@@ -188,6 +189,8 @@ export class Game {
     this.renderer.render(
       this.world,
       this.inputController.getPreviewLine(),
+      this.inputController.getDragCandidateOverlay(),
+      this.inputController.getPointerHint(),
       null,
       this.waveDirector?.getRenderState() ?? null,
       bossBar,
@@ -231,11 +234,6 @@ export class Game {
   }
 
   private runSingleAiDecision(): void {
-    const playerTowers = this.world.towers.filter((tower) => tower.owner === "player");
-    if (playerTowers.length === 0) {
-      return;
-    }
-
     const candidateSources = this.world.towers.filter(
       (tower) =>
         tower.owner === "enemy" && tower.troops >= this.aiRules.aiMinTroopsToAttack,
@@ -250,8 +248,17 @@ export class Game {
     let bestKey = "";
 
     for (const source of candidateSources) {
-      for (const target of playerTowers) {
-        if (target.id === source.id) {
+      for (const neighborId of getNeighbors(this.world, source.id)) {
+        const target = this.world.getTowerById(neighborId);
+        if (!target) {
+          continue;
+        }
+        if (target.owner === source.owner) {
+          continue;
+        }
+
+        const validation = canCreateLink(this.world, source.id, target.id, source.owner);
+        if (!validation.ok) {
           continue;
         }
 
@@ -285,11 +292,9 @@ export class Game {
       }
     }
 
-    if (enemyTowerCount === 0) {
-      if (!this.waveDirector) {
-        this.matchResult = "win";
-        return;
-      }
+    if (enemyTowerCount === 0 && playerTowerCount > 0) {
+      this.matchResult = "win";
+      return;
     }
 
     if (this.waveDirector && this.waveDirector.isFinished()) {
