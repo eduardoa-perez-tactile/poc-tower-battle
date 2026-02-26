@@ -199,7 +199,7 @@
       .splash-title-wrap {
         text-align: center;
         display: grid;
-        gap: 9px;
+        gap: 10px;
       }
 
       .splash-title {
@@ -223,18 +223,10 @@
         color: rgba(186, 206, 239, 0.68);
       }
 
-      .splash-summary {
-        margin: 0;
-        font-size: 0.9rem;
-        line-height: 1.45;
-        color: rgba(213, 228, 251, 0.78);
-        max-width: 34ch;
-      }
-
       .splash-footer {
         width: min(390px, 100%);
         display: grid;
-        gap: 12px;
+        gap: 0;
         justify-items: center;
         z-index: 1;
       }
@@ -242,6 +234,7 @@
       .splash-cta {
         display: grid;
         gap: 8px;
+        margin-top: 64px;
         justify-items: center;
       }
 
@@ -261,29 +254,6 @@
         height: 8px;
         border-radius: 999px;
         background: var(--campaign-accent);
-      }
-
-      .splash-start-btn {
-        width: auto;
-        min-height: 0;
-        padding: 5px 12px;
-        border-radius: 999px;
-        font-size: 0.68rem;
-        letter-spacing: 0.14em;
-        text-transform: uppercase;
-        font-weight: 700;
-        color: rgba(197, 215, 246, 0.84);
-        border-color: rgba(151, 188, 250, 0.26);
-        background: rgba(39, 68, 120, 0.24);
-      }
-
-      .splash-start-btn:hover {
-        background: rgba(46, 79, 138, 0.36);
-      }
-
-      .splash-start-btn .ui-hotkey-hint {
-        margin-left: 6px;
-        font-size: 0.66rem;
       }
 
       .splash-home-indicator {
@@ -2782,11 +2752,6 @@
         .splash-emblem-wrap {
           width: 132px;
           height: 132px;
-        }
-
-        .splash-summary {
-          max-width: 30ch;
-          font-size: 0.82rem;
         }
 
         .hud-top-bar {

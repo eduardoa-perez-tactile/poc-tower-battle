@@ -1625,36 +1625,25 @@ function renderCurrentScreen(
     const subtitle = document.createElement("p");
     subtitle.className = "splash-subtitle";
     subtitle.textContent = "Strategic Tactical Response";
-    const summary = document.createElement("p");
-    summary.className = "splash-summary";
-    summary.textContent = "Command linked towers. Hold lanes. Break the siege.";
-    titleWrap.append(title, subtitle, summary);
+    const cta = document.createElement("div");
+    cta.className = "splash-cta";
+    const ctaText = document.createElement("p");
+    ctaText.className = "splash-cta-text";
+    ctaText.textContent = "Tap Screen to Begin";
+    const ctaDot = document.createElement("div");
+    ctaDot.className = "splash-cta-dot";
+    cta.append(ctaText, ctaDot);
+    titleWrap.append(title, subtitle, cta);
 
     hero.append(emblemWrap, titleWrap);
 
     const footer = document.createElement("div");
     footer.className = "splash-footer";
 
-    const cta = document.createElement("div");
-    cta.className = "splash-cta";
-    const ctaText = document.createElement("p");
-    ctaText.className = "splash-cta-text";
-    ctaText.textContent = "Tap screen to begin";
-    const ctaDot = document.createElement("div");
-    ctaDot.className = "splash-cta-dot";
-    cta.append(ctaText, ctaDot);
-
-    const startBtn = createButton("Press Enter", openMainMenu, { variant: "ghost", hotkey: "Enter" });
-    startBtn.classList.add("splash-start-btn");
-    startBtn.onclick = (event) => {
-      event.stopPropagation();
-      openMainMenu();
-    };
-
     const homeIndicator = document.createElement("div");
     homeIndicator.className = "splash-home-indicator";
 
-    footer.append(cta, startBtn, homeIndicator);
+    footer.append(homeIndicator);
     shell.append(hero, footer);
     wrapper.appendChild(shell);
     screenRoot.appendChild(wrapper);

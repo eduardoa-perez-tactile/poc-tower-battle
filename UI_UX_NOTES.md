@@ -51,7 +51,7 @@
 ## Splash screen
 - Splash screen is rendered in `renderCurrentScreen()` (`src/main.ts`, `title` branch).
 - The mock device status strip and loading bar were removed.
-- Primary CTA is the enlarged `Tap screen to begin` prompt plus optional `Press Enter` button.
+- Primary CTA is the enlarged `Tap Screen to Begin` prompt.
 
 ## Mission pause modal style
 - Pause overlay uses `wrapCenteredModal()` in `src/main.ts` to vertically center the popup in gameplay.
