@@ -1,4 +1,6 @@
 import { difficultyTierToSeedSalt } from "../config/Difficulty";
+import type { DifficultyContext } from "../difficulty/DifficultyContext";
+import { resolveWaveRamp } from "../difficulty/DifficultyContext";
 import type {
   DifficultyTierConfig,
   EnemyArchetypeDefinition,
@@ -18,16 +20,16 @@ interface AggregatedModifierEffects {
   tagWeightMultipliers: Record<string, number>;
 }
 
-type WavePhase = "early" | "mid" | "late";
-
 export class WaveGenerator {
   private readonly content: LoadedWaveContent;
+  private readonly difficultyContext: DifficultyContext;
   private readonly handcraftedByWave: Map<number, WavePlan>;
   private readonly modifiersById: Map<string, WaveModifierDefinition>;
   private readonly allowedEnemyIds: Set<string> | null;
 
-  constructor(content: LoadedWaveContent, allowedEnemyIds: Set<string> | null = null) {
+  constructor(content: LoadedWaveContent, difficultyContext: DifficultyContext, allowedEnemyIds: Set<string> | null = null) {
     this.content = content;
+    this.difficultyContext = difficultyContext;
     this.handcraftedByWave = new Map<number, WavePlan>();
     this.modifiersById = new Map<string, WaveModifierDefinition>();
     this.allowedEnemyIds = allowedEnemyIds;
@@ -54,12 +56,11 @@ export class WaveGenerator {
   generate(inputs: WaveGeneratorInputs): WavePlan {
     const handcrafted = this.handcraftedByWave.get(inputs.waveIndex);
     if (handcrafted) {
-      const tier = this.content.difficultyTiers.difficultyTiers[inputs.difficultyTier];
-      const phase = getWavePhase(inputs.waveIndex, this.content.balance.totalWaveCount);
-      const waveRamp = getWaveRamp(tier, phase, inputs.waveIndex, this.content.balance.totalWaveCount);
+      const tier = this.difficultyContext.tierConfig;
+      const waveRamp = resolveWaveRamp(this.difficultyContext, inputs.waveIndex, this.content.balance.totalWaveCount);
       const missionDifficultyScale =
         1 +
-        Math.max(0, inputs.missionDifficultyScalar - 1) *
+        Math.max(0, this.difficultyContext.missionDifficultyScalar - 1) *
           this.content.balanceBaselines.calibration.waveGeneration.budgetPerMissionDifficultyMul;
       const spawnCountMul = tier.enemy.spawnCountMul * tier.wave.intensityMul * waveRamp * missionDifficultyScale;
       const fallbackEnemyId = this.getFallbackEnemyId();
@@ -76,7 +77,7 @@ export class WaveGenerator {
         waveIndex: handcrafted.waveIndex,
         modifiers: [...handcrafted.modifiers],
         spawnEntries,
-        hasMiniBossEscort: handcrafted.hasMiniBossEscort,
+        hasMiniBossEscort: handcrafted.hasMiniBossEscort && !this.isBeforeFirstAppearance(inputs.waveIndex),
         isBossWave: handcrafted.isBossWave,
       };
     }
@@ -90,19 +91,21 @@ export class WaveGenerator {
 
   private createProceduralWavePlan(inputs: WaveGeneratorInputs): WavePlan {
     const calibration = this.content.balanceBaselines.calibration.waveGeneration;
-    const tier = this.content.difficultyTiers.difficultyTiers[inputs.difficultyTier];
-    const phase = getWavePhase(inputs.waveIndex, this.content.balance.totalWaveCount);
-    const waveRamp = getWaveRamp(tier, phase, inputs.waveIndex, this.content.balance.totalWaveCount);
+    const tier = this.difficultyContext.tierConfig;
+    const waveRamp = resolveWaveRamp(this.difficultyContext, inputs.waveIndex, this.content.balance.totalWaveCount);
     const intensityMul = tier.wave.intensityMul * waveRamp;
     const missionDifficultyScale =
-      1 + Math.max(0, inputs.missionDifficultyScalar - 1) * calibration.budgetPerMissionDifficultyMul;
+      1 + Math.max(0, this.difficultyContext.missionDifficultyScalar - 1) * calibration.budgetPerMissionDifficultyMul;
     const spawnCountMul = tier.enemy.spawnCountMul * intensityMul * missionDifficultyScale;
 
-    const rng = createRng(mixSeed(inputs.runSeed, inputs.waveIndex, inputs.difficultyTier));
+    const rng = createRng(mixSeed(inputs.runSeed, inputs.waveIndex, this.difficultyContext.labels.tier));
     const modifiers = this.pickModifiers(inputs.waveIndex, rng, tier);
     const effects = this.aggregateEffects(modifiers);
 
-    const weightedArchetypes = this.getSpawnableArchetypes(effects.tagWeightMultipliers);
+    const weightedArchetypes = this.getSpawnableArchetypes(
+      effects.tagWeightMultipliers,
+      this.isBeforeFirstAppearance(inputs.waveIndex),
+    );
     const budgetBase = calibration.budgetBase + inputs.waveIndex * calibration.budgetPerWave;
     let budget = Math.round(budgetBase * missionDifficultyScale * intensityMul);
     budget = clampNumber(budget, calibration.budgetMin, calibration.budgetMax);
@@ -192,7 +195,7 @@ export class WaveGenerator {
     const laneCount = Math.max(1, inputs.laneCount);
     const centerLane = Math.floor(laneCount / 2);
     const summonLane = Math.max(0, Math.min(laneCount - 1, centerLane + 1));
-    const tier = this.content.difficultyTiers.difficultyTiers[inputs.difficultyTier];
+    const tier = this.difficultyContext.tierConfig;
     const intensityMul = tier.wave.intensityMul;
     const spawnMul = Math.max(1, Math.round(tier.enemy.spawnCountMul * intensityMul));
 
@@ -250,6 +253,21 @@ export class WaveGenerator {
       return true;
     }
 
+    const firstAppearanceWave = this.difficultyContext.wavePlan.firstAppearanceWave;
+    if (firstAppearanceWave !== null && inputs.waveIndex < firstAppearanceWave) {
+      return false;
+    }
+
+    const minibossWaveOverride = this.difficultyContext.wavePlan.minibossWave;
+    if (minibossWaveOverride !== null) {
+      if (inputs.waveIndex < minibossWaveOverride) {
+        return false;
+      }
+      if (inputs.waveIndex === minibossWaveOverride) {
+        return true;
+      }
+    }
+
     const minWave = this.content.balance.boss.minibossStartWave;
     if (inputs.waveIndex < minWave) {
       return false;
@@ -266,6 +284,11 @@ export class WaveGenerator {
   private pickModifiers(waveIndex: number, rng: () => number, tier: DifficultyTierConfig): WaveModifierDefinition[] {
     const available = this.content.modifierCatalog.modifiers;
     if (available.length === 0) {
+      return [];
+    }
+
+    const firstAppearanceWave = this.difficultyContext.wavePlan.firstAppearanceWave;
+    if (firstAppearanceWave !== null && waveIndex < firstAppearanceWave) {
       return [];
     }
 
@@ -319,7 +342,10 @@ export class WaveGenerator {
     return aggregate;
   }
 
-  private getSpawnableArchetypes(tagWeightMultipliers: Record<string, number>): EnemyArchetypeDefinition[] {
+  private getSpawnableArchetypes(
+    tagWeightMultipliers: Record<string, number>,
+    restrictToStarterArchetypes: boolean,
+  ): EnemyArchetypeDefinition[] {
     return this.content.enemyCatalog.archetypes.filter((archetype) => {
       if (archetype.spawnWeight <= 0) {
         return false;
@@ -331,6 +357,9 @@ export class WaveGenerator {
         return false;
       }
       if (archetype.id === "splitling") {
+        return false;
+      }
+      if (restrictToStarterArchetypes && archetype.id !== "swarm") {
         return false;
       }
       const multiplier = getTagMultiplier(archetype.tags, tagWeightMultipliers);
@@ -357,40 +386,14 @@ export class WaveGenerator {
     });
     return fallback?.id ?? "swarm";
   }
-}
 
-function getWavePhase(waveIndex: number, totalWaveCount: number): WavePhase {
-  const normalizedWave = clampNumber(waveIndex, 1, totalWaveCount);
-  const firstCut = Math.ceil(totalWaveCount / 3);
-  const secondCut = Math.ceil((totalWaveCount * 2) / 3);
-  if (normalizedWave <= firstCut) {
-    return "early";
+  private isBeforeFirstAppearance(waveIndex: number): boolean {
+    const firstAppearanceWave = this.difficultyContext.wavePlan.firstAppearanceWave;
+    if (firstAppearanceWave === null) {
+      return false;
+    }
+    return waveIndex < firstAppearanceWave;
   }
-  if (normalizedWave <= secondCut) {
-    return "mid";
-  }
-  return "late";
-}
-
-function getWaveRamp(
-  tier: DifficultyTierConfig,
-  phase: WavePhase,
-  waveIndex: number,
-  totalWaveCount: number,
-): number {
-  const firstCut = Math.ceil(totalWaveCount / 3);
-  const secondCut = Math.ceil((totalWaveCount * 2) / 3);
-  const phaseOffset =
-    phase === "early" ? waveIndex - 1 : phase === "mid" ? waveIndex - firstCut - 1 : waveIndex - secondCut - 1;
-  const safeOffset = Math.max(0, phaseOffset);
-
-  const perWaveRamp =
-    phase === "early"
-      ? tier.wave.earlyIntensityRampPerWave
-      : phase === "mid"
-        ? tier.wave.midIntensityRampPerWave
-        : tier.wave.lateIntensityRampPerWave;
-  return Math.max(0.5, 1 + safeOffset * perWaveRamp);
 }
 
 function getTagMultiplier(tags: string[], multipliers: Record<string, number>): number {
@@ -434,7 +437,7 @@ function normalizeLane(laneIndex: number, laneCount: number): number {
   return normalized;
 }
 
-function mixSeed(runSeed: number, waveIndex: number, difficultyTier: WaveGeneratorInputs["difficultyTier"]): number {
+function mixSeed(runSeed: number, waveIndex: number, difficultyTier: DifficultyContext["labels"]["tier"]): number {
   return (runSeed ^ (waveIndex * 0x9e3779b9) ^ (difficultyTierToSeedSalt(difficultyTier) * 0x85ebca6b)) >>> 0;
 }
 

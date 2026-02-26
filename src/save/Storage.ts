@@ -200,7 +200,6 @@ function migrateRunState(raw: unknown): RunState | null {
   if (schemaVersion === 1) {
     mergedBonuses.startingGold = asNumber(startingBonusesRaw.startingGold, 0);
     mergedBonuses.goldEarnedMultiplier = asNumber(startingBonusesRaw.goldEarnedMultiplier, 1);
-    mergedBonuses.heroDamageMultiplier = asNumber(startingBonusesRaw.heroDamageMultiplier, 1);
     mergedBonuses.towerHpMultiplier = asNumber(startingBonusesRaw.towerHpMultiplier, 1);
     mergedBonuses.strongholdStartLevel = Math.max(1, asNumber(startingBonusesRaw.strongholdStartLevel, 1));
   }

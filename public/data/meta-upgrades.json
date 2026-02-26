@@ -12,7 +12,7 @@
     {
       "id": "war-bonds",
       "name": "War Bonds",
-      "description": "Increase Glory income from missions and run summaries.",
+      "description": "Increase Gold income from missions and run summaries.",
       "maxLevel": 4,
       "baseCost": 45,
       "costGrowth": 1.5,

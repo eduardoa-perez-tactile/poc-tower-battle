@@ -341,8 +341,6 @@ export interface WavePlan {
 }
 
 export interface WaveGeneratorInputs {
-  difficultyTier: DifficultyTierId;
-  missionDifficultyScalar: number;
   waveIndex: number;
   runSeed: number;
   laneCount: number;

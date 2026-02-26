@@ -5,7 +5,7 @@
 
 import type { Owner, UnitPacket } from "../sim/World";
 import { armorFromMultiplier } from "../sim/TerritoryControl";
-import type { DifficultyTierId } from "../config/Difficulty";
+import type { DifficultyContext } from "../difficulty/DifficultyContext";
 import type { EnemyArchetypeDefinition, LoadedWaveContent } from "./Definitions";
 
 export interface EnemySpawnRequest {
@@ -15,8 +15,6 @@ export interface EnemySpawnRequest {
   archetypeId: string;
   count: number;
   waveIndex: number;
-  difficultyTier: DifficultyTierId;
-  missionDifficultyScalar: number;
   isElite: boolean;
   isBoss: boolean;
   bossModifiers?: EnemyBossSpawnModifiers;
@@ -24,7 +22,6 @@ export interface EnemySpawnRequest {
 
 export interface EnemyFactoryOptions {
   allowedEnemyIds?: Set<string>;
-  bossHpMul?: number;
 }
 
 export interface EnemyBossSpawnModifiers {
@@ -35,10 +32,12 @@ export interface EnemyBossSpawnModifiers {
 export class EnemyFactory {
   private readonly archetypesById: Map<string, EnemyArchetypeDefinition>;
   private readonly content: LoadedWaveContent;
+  private readonly difficultyContext: DifficultyContext;
   private readonly options: EnemyFactoryOptions;
 
-  constructor(content: LoadedWaveContent, options: EnemyFactoryOptions = {}) {
+  constructor(content: LoadedWaveContent, difficultyContext: DifficultyContext, options: EnemyFactoryOptions = {}) {
     this.content = content;
+    this.difficultyContext = difficultyContext;
     this.options = options;
     this.archetypesById = new Map<string, EnemyArchetypeDefinition>();
     for (const archetype of content.enemyCatalog.archetypes) {
@@ -78,11 +77,11 @@ export class EnemyFactory {
   createEnemyPacket(request: EnemySpawnRequest): UnitPacket {
     const archetype = this.getArchetype(request.archetypeId);
     const scaling = this.content.balance.scaling;
-    const tierConfig = this.content.difficultyTiers.difficultyTiers[request.difficultyTier];
+    const tierConfig = this.difficultyContext.tierConfig;
     const caps = this.content.balanceBaselines.packets.globalCaps;
 
     const waveFactor = Math.max(0, request.waveIndex - 1);
-    const difficultyFactor = Math.max(0, request.missionDifficultyScalar - 1);
+    const difficultyFactor = Math.max(0, this.difficultyContext.missionDifficultyScalar - 1);
     const hpScale = 1 + waveFactor * scaling.hpPerWave + difficultyFactor * scaling.hpPerDifficultyTier;
     const damageScale =
       1 + waveFactor * scaling.damagePerWave + difficultyFactor * scaling.damagePerDifficultyTier;
@@ -93,7 +92,7 @@ export class EnemyFactory {
     const bossHpScale = request.isBoss
       ? this.content.balance.boss.hpMultiplier *
         tierConfig.wave.bossHpMul *
-        Math.max(0.5, this.options.bossHpMul ?? 1) *
+        this.difficultyContext.finalMultipliers.boss.bossHpMul.postCap *
         Math.max(0.5, request.bossModifiers?.hpMultiplier ?? 1)
       : 1;
     const bossDamageScale = request.isBoss

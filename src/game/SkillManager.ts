@@ -18,6 +18,7 @@ export interface SkillHudState {
 
 export interface TemporaryModifiers {
   playerPacketSpeedMul: number;
+  playerPacketDamageMul: number;
 }
 
 interface ActiveTimedEffect {
@@ -119,6 +120,7 @@ export class SkillManager {
     }
     return {
       playerPacketSpeedMul,
+      playerPacketDamageMul: 1,
     };
   }
 
