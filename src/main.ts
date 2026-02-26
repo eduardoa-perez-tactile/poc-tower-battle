@@ -198,11 +198,18 @@ async function bootstrap(): Promise<void> {
   const debugPanel = getDebugPanel();
   const debugIndicator = getDebugIndicator();
   const levelCache = new Map<string, LoadedLevel>();
+  let debugPanelInteractionUntilSec = 0;
   debugIndicator.onclick = () => {
     if (DEBUG_TOOLS_ENABLED) {
       debugUiStore.toggleDebugOpen();
     }
   };
+  const markDebugPanelInteraction = (): void => {
+    debugPanelInteractionUntilSec = performance.now() / 1000 + 0.8;
+  };
+  debugPanel.addEventListener("pointerdown", markDebugPanelInteraction, true);
+  debugPanel.addEventListener("focusin", markDebugPanelInteraction, true);
+  debugPanel.addEventListener("wheel", markDebugPanelInteraction, { passive: true });
 
   const resize = () => resizeCanvas(canvas, ctx);
   window.addEventListener("resize", resize);
@@ -1475,7 +1482,11 @@ async function bootstrap(): Promise<void> {
     if (uiSyncAccumulatorSec >= 0.1) {
       uiSyncAccumulatorSec = 0;
       syncMissionHud(app, debugUiStore.getState(), gameplayHud);
-      if (debugUiStore.getState().debugOpen && (app.debugTab === "run" || app.debugTab === "sim")) {
+      if (
+        debugUiStore.getState().debugOpen
+        && (app.debugTab === "run" || app.debugTab === "sim")
+        && nowSec >= debugPanelInteractionUntilSec
+      ) {
         renderDebugPanel(
           debugPanel,
           app,
