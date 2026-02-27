@@ -13,9 +13,8 @@ import {
 import { loadLevel, type LoadedLevel } from "./game/LevelLoader";
 import { InputController } from "./input/InputController";
 import { buildRuntimeLevelFromLevel } from "./levels/adapter";
-import { createRandomSeed, generateLevel, saveGeneratedLevel } from "./levels/generator";
 import { findLevelById, findStageById, loadLevelRegistry } from "./levels/registry";
-import type { LevelSizePreset, LevelSourceEntry, StageRegistryEntry } from "./levels/types";
+import type { StageRegistryEntry } from "./levels/types";
 import type { CampaignMissionRuntimeMeta } from "./campaign/CampaignTypes";
 import { BALANCE_CONFIG } from "./meta/BalanceConfig";
 import {
@@ -86,7 +85,6 @@ import {
   createTabs,
 } from "./components/ui/primitives";
 import { debugUiStore, type DebugUiState } from "./ui/debugStore";
-import { renderLevelGeneratorScreen } from "./ui/screens/LevelGeneratorScreen";
 import { renderLevelSelectScreen } from "./ui/screens/LevelSelectScreen";
 import { renderMissionSelectScreen } from "./ui/screens/MissionSelectScreen";
 import { renderStageSelectScreen } from "./ui/screens/StageSelectScreen";
@@ -113,7 +111,6 @@ type Screen =
   | "stage-select"
   | "level-select"
   | "mission-select"
-  | "level-generator"
   | "level-editor"
   | "mission";
 type DebugTab = "run" | "sim" | "ui" | "dev";
@@ -162,9 +159,6 @@ interface AppState {
   campaignUnlocks: CampaignUnlocks;
   selectedStageId: string | null;
   selectedLevelId: string | null;
-  levelGeneratorSizePreset: LevelSizePreset;
-  levelGeneratorSeed: number;
-  levelGeneratorDraft: LevelSourceEntry["level"] | null;
   activeMissionContext: MissionContext;
   game: Game | null;
   inputController: InputController | null;
@@ -251,9 +245,6 @@ async function bootstrap(): Promise<void> {
     campaignUnlocks: computeUnlocks(levelRegistry.stages, campaignProgress),
     selectedStageId: null,
     selectedLevelId: null,
-    levelGeneratorSizePreset: "medium",
-    levelGeneratorSeed: createRandomSeed(),
-    levelGeneratorDraft: null,
     activeMissionContext: null,
     game: null,
     inputController: null,
@@ -365,12 +356,9 @@ async function bootstrap(): Promise<void> {
       openStageSelect,
       openLevelSelect,
       openMissionSelect,
-      openLevelGenerator,
       () => {
         void openLevelEditor();
       },
-      generateDraftLevel,
-      saveDraftLevel,
       startCampaignMissionById,
       gameplayHud,
       debugState,
@@ -412,18 +400,6 @@ async function bootstrap(): Promise<void> {
     app.missionPaused = paused;
     app.inputController.setEnabled(!paused);
     render();
-  };
-
-  const refreshCampaignRegistry = async (): Promise<void> => {
-    try {
-      const registry = await loadLevelRegistry();
-      app.campaignStages = registry.stages;
-      app.campaignMissionMetaByKey = registry.missionMetaByKey;
-      app.campaignUnlocks = computeUnlocks(app.campaignStages, app.campaignProgress);
-    } catch (error) {
-      console.error("Failed to refresh level registry", error);
-      showToast(screenRoot, "Failed to load levels. Check JSON format.");
-    }
   };
 
   const buildDifficultyContextChecked = (inputs: DifficultyInputs): DifficultyContext => {
@@ -497,19 +473,6 @@ async function bootstrap(): Promise<void> {
     render();
   };
 
-  const openLevelGenerator = (): void => {
-    stopMission();
-    if (!app.levelGeneratorDraft) {
-      app.levelGeneratorSeed = createRandomSeed();
-      app.levelGeneratorDraft = generateLevel({
-        sizePreset: app.levelGeneratorSizePreset,
-        seed: app.levelGeneratorSeed,
-      });
-    }
-    app.screen = "level-generator";
-    render();
-  };
-
   const openLevelEditor = async (): Promise<void> => {
     if (!LEVEL_EDITOR_ENABLED) {
       showToast(screenRoot, "Level Editor is only available in DEV mode.");
@@ -521,31 +484,6 @@ async function bootstrap(): Promise<void> {
     }
     stopMission();
     app.screen = "level-editor";
-    render();
-  };
-
-  const generateDraftLevel = (): void => {
-    app.levelGeneratorSeed = createRandomSeed();
-    app.levelGeneratorDraft = generateLevel({
-      sizePreset: app.levelGeneratorSizePreset,
-      seed: app.levelGeneratorSeed,
-    });
-    render();
-  };
-
-  const saveDraftLevel = async (): Promise<void> => {
-    if (!app.levelGeneratorDraft) {
-      return;
-    }
-    try {
-      saveGeneratedLevel(app.levelGeneratorDraft);
-      await refreshCampaignRegistry();
-      showToast(screenRoot, "Level saved to localStorage and downloaded.");
-      app.selectedStageId = "user";
-    } catch (error) {
-      console.error("Failed to save generated level", error);
-      showToast(screenRoot, "Failed to save generated level.");
-    }
     render();
   };
 
@@ -1609,10 +1547,7 @@ function renderCurrentScreen(
   openStageSelect: () => void,
   openLevelSelect: (stageId: string) => void,
   openMissionSelect: (levelId: string) => void,
-  openLevelGenerator: () => void,
   openLevelEditor: () => void,
-  generateDraftLevel: () => void,
-  saveDraftLevel: () => Promise<void>,
   startCampaignMissionById: (missionId: string) => Promise<void>,
   gameplayHud: GameplayHUD,
   debugState: DebugUiState,
@@ -1733,14 +1668,6 @@ function renderCurrentScreen(
       );
       editorBtn.classList.add("campaign-main-action");
       actionCard.appendChild(editorBtn);
-
-      const legacyBtn = createButton("Legacy Generator", openLevelGenerator, { variant: "secondary" });
-      legacyBtn.classList.add("campaign-main-action");
-      actionCard.appendChild(legacyBtn);
-    } else {
-      const generatorBtn = createButton("Level Generator", openLevelGenerator, { variant: "secondary" });
-      generatorBtn.classList.add("campaign-main-action");
-      actionCard.appendChild(generatorBtn);
     }
     panel.appendChild(actionCard);
 
@@ -1865,31 +1792,6 @@ function renderCurrentScreen(
         void startCampaignMissionById(missionId);
       },
       onBack: () => openLevelSelect(app.selectedStageId!),
-    });
-    screenRoot.appendChild(wrapCentered(panel));
-    return;
-  }
-
-  if (app.screen === "level-generator") {
-    if (!app.levelGeneratorDraft) {
-      app.levelGeneratorDraft = generateLevel({
-        sizePreset: app.levelGeneratorSizePreset,
-        seed: app.levelGeneratorSeed,
-      });
-    }
-    const panel = renderLevelGeneratorScreen({
-      level: app.levelGeneratorDraft,
-      seed: app.levelGeneratorSeed,
-      sizePreset: app.levelGeneratorSizePreset,
-      onSizePresetChange: (size) => {
-        app.levelGeneratorSizePreset = size;
-        generateDraftLevel();
-      },
-      onGenerate: generateDraftLevel,
-      onSave: () => {
-        void saveDraftLevel();
-      },
-      onBack: openMainMenu,
     });
     screenRoot.appendChild(wrapCentered(panel));
     return;

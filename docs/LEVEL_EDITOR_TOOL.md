@@ -1,7 +1,7 @@
 # Level Editor Tool (Dev-Only)
 
 ## Overview
-The Level Editor is a DEV-only tooling screen that extends the existing generator workflow with:
+The Level Editor is a DEV-only tooling screen for editing campaign/level data with:
 - Project-wide JSON library browsing (campaign, levels, presets, wave configs, maps).
 - Editable inspectors for missions, presets, and level mission metadata.
 - Read-only **Resolved Mission** view that applies campaign overrides and runtime wave resolution.
@@ -17,18 +17,13 @@ All tooling code is under:
 Business logic (load/resolve/validate/diff/export) is implemented outside UI.
 
 ## Enablement
-The entry point is intentionally hidden unless both are true:
+The entry point is available by default in DEV builds:
 1. `import.meta.env.DEV` is true.
-2. `localStorage.devTools === "1"`.
 
-To enable in browser console:
+Open from:
+- Main Menu -> `Level Editor`
 
-```js
-localStorage.setItem("devTools", "1")
-```
-
-Then reload and open:
-- Main Menu -> `Tools -> Level Editor`
+The legacy Level Generator entry has been removed.
 
 ## Data Sources
 The editor loads and tracks these assets:
@@ -79,3 +74,11 @@ Because browser runtime cannot write into repo paths:
 - `Duplicate` supports:
   - Campaign mission duplication (cloned level entry in campaign file).
   - Level file duplication (new synthetic workspace file path).
+
+## Map Preview Editing
+For mission selections, the preview map is editable:
+- Drag node: move node position (snaps to integer grid coordinates).
+- Drag background: pan camera.
+- Mouse wheel: zoom camera.
+- `Reset View`: reset pan/zoom to fitted framing.
+- Grid overlay: visible cell grid to support precise node placement.
