@@ -19,6 +19,7 @@ import {
   mutateLevel,
   mutateLevelMission,
   mutatePreset,
+  setDocumentData,
   selectionToOwningDocId,
   setDocumentRaw,
 } from "../services/workspaceMutations";
@@ -42,6 +43,22 @@ interface EditorUiState {
   runDifficultyScalar: number;
   issues: LevelEditorIssue[];
   infoMessage: string;
+}
+
+interface EditablePreviewNode {
+  id: string;
+  x: number;
+  y: number;
+  owner: "player" | "enemy" | "neutral";
+}
+
+interface EditablePreviewMap {
+  kind: "campaign-map" | "level-json";
+  docId: string;
+  width: number;
+  height: number;
+  nodes: EditablePreviewNode[];
+  edges: Array<{ fromId: string; toId: string }>;
 }
 
 export function renderLevelEditorScreen(props: LevelEditorScreenProps): HTMLDivElement {
@@ -717,12 +734,24 @@ export function renderLevelEditorScreen(props: LevelEditorScreenProps): HTMLDivE
       return;
     }
 
+    const editableMap = resolveEditableMissionMap(state.workspace, state.selection);
     const mapModel = buildMapPreviewModel(state.workspace, state.selection);
-    if (mapModel) {
+    const source = editableMap ?? mapModel;
+    if (source) {
       const mapTitle = document.createElement("p");
       mapTitle.className = "campaign-progress-title";
-      mapTitle.textContent = `Map (${mapModel.nodes.length} nodes / ${mapModel.edges.length} edges)`;
+      mapTitle.textContent = `Map (${source.nodes.length} nodes / ${source.edges.length} edges)${
+        editableMap ? " • Editable" : ""
+      }`;
       previewPanel.body.appendChild(mapTitle);
+
+      if (editableMap) {
+        const mapHint = document.createElement("p");
+        mapHint.className = "campaign-progress-subtitle";
+        mapHint.textContent = "Drag nodes to edit. Drag background to pan. Wheel to zoom.";
+        mapHint.style.marginBottom = "6px";
+        previewPanel.body.appendChild(mapHint);
+      }
 
       const canvas = document.createElement("canvas");
       canvas.width = 440;
@@ -731,8 +760,19 @@ export function renderLevelEditorScreen(props: LevelEditorScreenProps): HTMLDivE
       canvas.style.border = "1px solid rgba(122, 167, 240, 0.26)";
       canvas.style.borderRadius = "10px";
       canvas.style.background = "rgba(8, 16, 30, 0.92)";
+      canvas.style.touchAction = "none";
       previewPanel.body.appendChild(canvas);
-      drawMapPreview(canvas, mapModel);
+      if (editableMap) {
+        attachInteractiveMapPreview(canvas, editableMap, (editedNodes) => {
+          const nextWorkspace = applyEditedMissionNodes(state.workspace!, state.selection!, editedNodes);
+          if (nextWorkspace !== state.workspace) {
+            state.infoMessage = "Map nodes updated.";
+            setWorkspace(nextWorkspace);
+          }
+        });
+      } else if (mapModel) {
+        drawMapPreview(canvas, mapModel);
+      }
     }
 
     const resolved = resolveMissionForSelection(state.workspace, state.selection, {
@@ -1358,6 +1398,432 @@ function drawMapPreview(canvas: HTMLCanvasElement, map: MapPreviewModel): void {
   }
 }
 
+function resolveEditableMissionMap(
+  workspace: LevelEditorWorkspace,
+  selection: LevelEditorSelection,
+): EditablePreviewMap | null {
+  if (selection.type === "campaign-mission") {
+    const mission = getSelectedCampaignLevel(workspace, selection);
+    if (!mission) {
+      return null;
+    }
+    const mapDocId = `/levels/v2/${mission.mapId}.json`;
+    const mapDoc = workspace.docs[mapDocId];
+    if (!mapDoc || !isCampaignMapData(mapDoc.currentData)) {
+      return null;
+    }
+    return {
+      kind: "campaign-map",
+      docId: mapDoc.id,
+      width: Math.max(1, mapDoc.currentData.size.w),
+      height: Math.max(1, mapDoc.currentData.size.h),
+      nodes: mapDoc.currentData.nodes.map((node) => ({
+        id: node.id,
+        x: node.x,
+        y: node.y,
+        owner: node.owner,
+      })),
+      edges: mapDoc.currentData.links.map((link) => ({ fromId: link.a, toId: link.b })),
+    };
+  }
+
+  if (selection.type === "level-mission") {
+    const level = getSelectedLevel(workspace, selection);
+    if (!level) {
+      return null;
+    }
+    return {
+      kind: "level-json",
+      docId: selection.docId,
+      width: Math.max(1, level.grid.width),
+      height: Math.max(1, level.grid.height),
+      nodes: level.nodes.map((node) => ({
+        id: node.id,
+        x: node.x,
+        y: node.y,
+        owner: node.owner,
+      })),
+      edges: level.edges.map((edge) => ({ fromId: edge.from, toId: edge.to })),
+    };
+  }
+
+  return null;
+}
+
+function applyEditedMissionNodes(
+  workspace: LevelEditorWorkspace,
+  selection: LevelEditorSelection,
+  editedNodes: EditablePreviewNode[],
+): LevelEditorWorkspace {
+  const positionById = new Map(editedNodes.map((node) => [node.id, node] as const));
+
+  if (selection.type === "campaign-mission") {
+    const mission = getSelectedCampaignLevel(workspace, selection);
+    if (!mission) {
+      return workspace;
+    }
+    const mapDocId = `/levels/v2/${mission.mapId}.json`;
+    const mapDoc = workspace.docs[mapDocId];
+    if (!mapDoc || !isCampaignMapData(mapDoc.currentData)) {
+      return workspace;
+    }
+
+    let changed = false;
+    const nextMap = {
+      ...mapDoc.currentData,
+      nodes: mapDoc.currentData.nodes.map((node) => {
+        const edited = positionById.get(node.id);
+        if (!edited || (node.x === edited.x && node.y === edited.y)) {
+          return node;
+        }
+        changed = true;
+        return {
+          ...node,
+          x: edited.x,
+          y: edited.y,
+        };
+      }),
+    };
+
+    return changed ? setDocumentData(workspace, mapDoc.id, nextMap) : workspace;
+  }
+
+  if (selection.type === "level-mission") {
+    const levelDoc = workspace.docs[selection.docId];
+    if (!levelDoc || !isLevelJsonData(levelDoc.currentData)) {
+      return workspace;
+    }
+
+    let changed = false;
+    const nextLevel: LevelJson = {
+      ...levelDoc.currentData,
+      nodes: levelDoc.currentData.nodes.map((node) => {
+        const edited = positionById.get(node.id);
+        if (!edited || (node.x === edited.x && node.y === edited.y)) {
+          return node;
+        }
+        changed = true;
+        return {
+          ...node,
+          x: edited.x,
+          y: edited.y,
+        };
+      }),
+    };
+
+    return changed ? setDocumentData(workspace, levelDoc.id, nextLevel) : workspace;
+  }
+
+  return workspace;
+}
+
+function attachInteractiveMapPreview(
+  canvas: HTMLCanvasElement,
+  editableMap: EditablePreviewMap,
+  onCommit: (editedNodes: EditablePreviewNode[]) => void,
+): void {
+  const ctx = canvas.getContext("2d");
+  if (!ctx) {
+    return;
+  }
+
+  const MIN_ZOOM = 0.45;
+  const MAX_ZOOM = 3.8;
+  const NODE_RADIUS_PX = 8;
+  const camera = {
+    panX: 0,
+    panY: 0,
+    zoom: 1,
+  };
+  const nodes = editableMap.nodes.map((node) => ({ ...node }));
+
+  const interaction: {
+    mode: "idle" | "pan" | "node";
+    pointerId: number | null;
+    nodeId: string | null;
+    lastX: number;
+    lastY: number;
+    changed: boolean;
+  } = {
+    mode: "idle",
+    pointerId: null,
+    nodeId: null,
+    lastX: 0,
+    lastY: 0,
+    changed: false,
+  };
+
+  const metrics = getPreviewMapMetrics(canvas, editableMap);
+
+  const redraw = (): void => {
+    drawEditableMapPreview(ctx, canvas, editableMap, nodes, camera, interaction.nodeId, metrics);
+  };
+
+  const endInteraction = (): void => {
+    interaction.mode = "idle";
+    interaction.pointerId = null;
+    interaction.nodeId = null;
+  };
+
+  canvas.addEventListener("contextmenu", (event) => {
+    event.preventDefault();
+  });
+
+  canvas.addEventListener("pointerdown", (event) => {
+    const point = getCanvasPoint(event, canvas);
+    if (event.button !== 0 && event.button !== 1 && event.button !== 2) {
+      return;
+    }
+
+    const hitNode = findEditableNodeAtPoint(point.x, point.y, canvas, nodes, camera, metrics, NODE_RADIUS_PX + 2);
+    if (event.button === 0 && hitNode) {
+      interaction.mode = "node";
+      interaction.nodeId = hitNode.id;
+      interaction.pointerId = event.pointerId;
+      interaction.changed = false;
+      canvas.setPointerCapture(event.pointerId);
+      event.preventDefault();
+      redraw();
+      return;
+    }
+
+    interaction.mode = "pan";
+    interaction.pointerId = event.pointerId;
+    interaction.lastX = point.x;
+    interaction.lastY = point.y;
+    canvas.setPointerCapture(event.pointerId);
+    event.preventDefault();
+  });
+
+  canvas.addEventListener("pointermove", (event) => {
+    if (interaction.pointerId !== event.pointerId) {
+      return;
+    }
+    const point = getCanvasPoint(event, canvas);
+    if (interaction.mode === "pan") {
+      const dx = point.x - interaction.lastX;
+      const dy = point.y - interaction.lastY;
+      interaction.lastX = point.x;
+      interaction.lastY = point.y;
+      camera.panX += dx;
+      camera.panY += dy;
+      redraw();
+      return;
+    }
+
+    if (interaction.mode !== "node" || !interaction.nodeId) {
+      return;
+    }
+
+    const node = nodes.find((entry) => entry.id === interaction.nodeId);
+    if (!node) {
+      return;
+    }
+
+    const mapPoint = screenToMapPoint(point.x, point.y, canvas, camera, metrics);
+    const maxX = Math.max(0, Math.round(editableMap.width) - 1);
+    const maxY = Math.max(0, Math.round(editableMap.height) - 1);
+    const nextX = clamp(Math.round(mapPoint.x), 0, maxX);
+    const nextY = clamp(Math.round(mapPoint.y), 0, maxY);
+    if (node.x !== nextX || node.y !== nextY) {
+      node.x = nextX;
+      node.y = nextY;
+      interaction.changed = true;
+      redraw();
+    }
+  });
+
+  const pointerRelease = (event: PointerEvent): void => {
+    if (interaction.pointerId !== event.pointerId) {
+      return;
+    }
+    if (canvas.hasPointerCapture(event.pointerId)) {
+      canvas.releasePointerCapture(event.pointerId);
+    }
+    const shouldCommit = interaction.mode === "node" && interaction.changed;
+    endInteraction();
+    if (shouldCommit) {
+      onCommit(nodes.map((node) => ({ ...node })));
+    }
+    redraw();
+  };
+
+  canvas.addEventListener("pointerup", pointerRelease);
+  canvas.addEventListener("pointercancel", pointerRelease);
+
+  canvas.addEventListener(
+    "wheel",
+    (event) => {
+      event.preventDefault();
+      const point = getCanvasPoint(event, canvas);
+      const mapBefore = screenToMapPoint(point.x, point.y, canvas, camera, metrics);
+      const zoomFactor = event.deltaY < 0 ? 1.1 : 0.9;
+      camera.zoom = clamp(camera.zoom * zoomFactor, MIN_ZOOM, MAX_ZOOM);
+
+      const centerX = canvas.width * 0.5;
+      const centerY = canvas.height * 0.5;
+      const baseX = metrics.offsetX + mapBefore.x * metrics.scale;
+      const baseY = metrics.offsetY + mapBefore.y * metrics.scale;
+      camera.panX = point.x - centerX - (baseX - centerX) * camera.zoom;
+      camera.panY = point.y - centerY - (baseY - centerY) * camera.zoom;
+      redraw();
+    },
+    { passive: false },
+  );
+
+  redraw();
+}
+
+function getPreviewMapMetrics(
+  canvas: HTMLCanvasElement,
+  map: { width: number; height: number },
+): { scale: number; offsetX: number; offsetY: number } {
+  const margin = 18;
+  const usableWidth = Math.max(1, canvas.width - margin * 2);
+  const usableHeight = Math.max(1, canvas.height - margin * 2);
+  const scale = Math.max(0.01, Math.min(usableWidth / Math.max(1, map.width), usableHeight / Math.max(1, map.height)));
+  const mapPixelWidth = map.width * scale;
+  const mapPixelHeight = map.height * scale;
+  return {
+    scale,
+    offsetX: (canvas.width - mapPixelWidth) * 0.5,
+    offsetY: (canvas.height - mapPixelHeight) * 0.5,
+  };
+}
+
+function drawEditableMapPreview(
+  ctx: CanvasRenderingContext2D,
+  canvas: HTMLCanvasElement,
+  map: EditablePreviewMap,
+  nodes: EditablePreviewNode[],
+  camera: { panX: number; panY: number; zoom: number },
+  activeNodeId: string | null,
+  metrics: { scale: number; offsetX: number; offsetY: number },
+): void {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = "#0b1629";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  const centerX = canvas.width * 0.5;
+  const centerY = canvas.height * 0.5;
+
+  ctx.save();
+  ctx.translate(centerX + camera.panX, centerY + camera.panY);
+  ctx.scale(camera.zoom, camera.zoom);
+  ctx.translate(-centerX, -centerY);
+
+  const mapPixelWidth = map.width * metrics.scale;
+  const mapPixelHeight = map.height * metrics.scale;
+  ctx.fillStyle = "rgba(58, 109, 179, 0.12)";
+  ctx.fillRect(metrics.offsetX, metrics.offsetY, mapPixelWidth, mapPixelHeight);
+  ctx.strokeStyle = "rgba(110, 168, 255, 0.2)";
+  ctx.lineWidth = 1;
+  ctx.strokeRect(metrics.offsetX, metrics.offsetY, mapPixelWidth, mapPixelHeight);
+
+  const byId = new Map(nodes.map((node) => [node.id, node] as const));
+  const toCanvas = (x: number, y: number): { x: number; y: number } => ({
+    x: metrics.offsetX + x * metrics.scale,
+    y: metrics.offsetY + y * metrics.scale,
+  });
+
+  ctx.strokeStyle = "rgba(110, 168, 255, 0.4)";
+  ctx.lineWidth = 1.8;
+  for (const edge of map.edges) {
+    const from = byId.get(edge.fromId);
+    const to = byId.get(edge.toId);
+    if (!from || !to) {
+      continue;
+    }
+    const fromPoint = toCanvas(from.x, from.y);
+    const toPoint = toCanvas(to.x, to.y);
+    ctx.beginPath();
+    ctx.moveTo(fromPoint.x, fromPoint.y);
+    ctx.lineTo(toPoint.x, toPoint.y);
+    ctx.stroke();
+  }
+
+  for (const node of nodes) {
+    const point = toCanvas(node.x, node.y);
+    ctx.beginPath();
+    ctx.arc(point.x, point.y, 6.8, 0, Math.PI * 2);
+    ctx.fillStyle = node.owner === "player" ? "#6ea8ff" : node.owner === "enemy" ? "#ff7d7d" : "#a1b6d7";
+    ctx.fill();
+    ctx.strokeStyle = node.id === activeNodeId ? "rgba(246, 251, 255, 0.95)" : "rgba(15, 30, 50, 0.92)";
+    ctx.lineWidth = node.id === activeNodeId ? 2.2 : 1.2;
+    ctx.stroke();
+
+    ctx.fillStyle = "#dbe9ff";
+    ctx.font = "10px sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "bottom";
+    ctx.fillText(node.id, point.x, point.y - 9);
+  }
+
+  ctx.restore();
+}
+
+function screenToMapPoint(
+  screenX: number,
+  screenY: number,
+  canvas: HTMLCanvasElement,
+  camera: { panX: number; panY: number; zoom: number },
+  metrics: { scale: number; offsetX: number; offsetY: number },
+): { x: number; y: number } {
+  const centerX = canvas.width * 0.5;
+  const centerY = canvas.height * 0.5;
+  const unzoomedX = (screenX - centerX - camera.panX) / camera.zoom + centerX;
+  const unzoomedY = (screenY - centerY - camera.panY) / camera.zoom + centerY;
+  return {
+    x: (unzoomedX - metrics.offsetX) / metrics.scale,
+    y: (unzoomedY - metrics.offsetY) / metrics.scale,
+  };
+}
+
+function findEditableNodeAtPoint(
+  screenX: number,
+  screenY: number,
+  canvas: HTMLCanvasElement,
+  nodes: EditablePreviewNode[],
+  camera: { panX: number; panY: number; zoom: number },
+  metrics: { scale: number; offsetX: number; offsetY: number },
+  radiusPx: number,
+): EditablePreviewNode | null {
+  const canvasCenterX = canvas.width * 0.5;
+  const canvasCenterY = canvas.height * 0.5;
+  const projected = (x: number, y: number): { x: number; y: number } => {
+    const baseX = metrics.offsetX + x * metrics.scale;
+    const baseY = metrics.offsetY + y * metrics.scale;
+    return {
+      x: canvasCenterX + camera.panX + (baseX - canvasCenterX) * camera.zoom,
+      y: canvasCenterY + camera.panY + (baseY - canvasCenterY) * camera.zoom,
+    };
+  };
+
+  for (let i = nodes.length - 1; i >= 0; i -= 1) {
+    const node = nodes[i];
+    const point = projected(node.x, node.y);
+    const dx = screenX - point.x;
+    const dy = screenY - point.y;
+    if (dx * dx + dy * dy <= radiusPx * radiusPx) {
+      return node;
+    }
+  }
+  return null;
+}
+
+function getCanvasPoint(
+  event: PointerEvent | WheelEvent,
+  canvas: HTMLCanvasElement,
+): { x: number; y: number } {
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = canvas.width / Math.max(1, rect.width);
+  const scaleY = canvas.height / Math.max(1, rect.height);
+  return {
+    x: (event.clientX - rect.left) * scaleX,
+    y: (event.clientY - rect.top) * scaleY,
+  };
+}
+
 function findFirstSelection(workspace: LevelEditorWorkspace): LevelEditorSelection | null {
   const campaignDoc = workspace.docs["/data/campaign/campaign_v2.json"];
   if (campaignDoc && isCampaignSpecData(campaignDoc.currentData) && campaignDoc.currentData.stages.length > 0) {
@@ -1463,6 +1929,26 @@ function isLevelJsonData(value: unknown): value is LevelJson {
     Array.isArray((value as { missions?: unknown[] }).missions) &&
     Array.isArray((value as { nodes?: unknown[] }).nodes)
   );
+}
+
+function isCampaignMapData(value: unknown): value is {
+  size: { w: number; h: number };
+  nodes: Array<{ id: string; x: number; y: number; owner: "player" | "enemy" | "neutral" }>;
+  links: Array<{ a: string; b: string }>;
+} {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    typeof (value as { id?: unknown }).id === "string" &&
+    typeof (value as { size?: { w?: unknown; h?: unknown } }).size?.w === "number" &&
+    typeof (value as { size?: { w?: unknown; h?: unknown } }).size?.h === "number" &&
+    Array.isArray((value as { nodes?: unknown[] }).nodes) &&
+    Array.isArray((value as { links?: unknown[] }).links)
+  );
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, value));
 }
 
 function cssEscape(value: string): string {
