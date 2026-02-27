@@ -547,6 +547,19 @@ async function bootstrap(): Promise<void> {
     render();
   };
 
+  const ensureMissionOverlayDefaults = (): boolean => {
+    const state = debugUiStore.getState();
+    if (state.showOverlayRegenNumbers && state.showOverlayCaptureRings && state.showOverlayClusterHighlight) {
+      return false;
+    }
+    debugUiStore.setState({
+      showOverlayRegenNumbers: true,
+      showOverlayCaptureRings: true,
+      showOverlayClusterHighlight: true,
+    });
+    return true;
+  };
+
   const startCampaignMissionById = async (missionId: string): Promise<void> => {
     if (!app.selectedStageId || !app.selectedLevelId) {
       showToast(screenRoot, "Select a level first.");
@@ -679,7 +692,9 @@ async function bootstrap(): Promise<void> {
       );
       renderer.setMapRenderData(baseLevel.mapRenderData ?? null);
       app.screen = "mission";
-      render();
+      if (!ensureMissionOverlayDefaults()) {
+        render();
+      }
     } catch (error) {
       console.error("Failed to start campaign mission", error);
       showToast(screenRoot, "Failed to start mission. Check console for details.");
@@ -783,7 +798,9 @@ async function bootstrap(): Promise<void> {
     renderer.setMapRenderData(tunedLevel.mapRenderData ?? null);
     app.screen = "mission";
     saveRunState(app.runState);
-    render();
+    if (!ensureMissionOverlayDefaults()) {
+      render();
+    }
   };
 
   const handleMissionResult = (): void => {
