@@ -1,6 +1,7 @@
 import type { DifficultyTierId } from "../../../config/Difficulty";
 import type { CampaignMapDefinition, CampaignSpecV2, CampaignWavePresetCatalog } from "../../../campaign/CampaignTypes";
 import type { LevelJson } from "../../../levels/types";
+import type { TutorialCatalog } from "../../../tutorial/TutorialTypes";
 import type {
   BalanceBaselinesConfig,
   EnemyCatalog,
@@ -29,6 +30,7 @@ export type LevelEditorKnownJson =
   | WavePacingTargetCatalog
   | StageDifficultyCatalog
   | AscensionDifficultyCatalog
+  | TutorialCatalog
   | Record<string, unknown>
   | Array<unknown>;
 
@@ -44,6 +46,7 @@ export type LevelEditorDocKind =
   | "enemy-archetypes"
   | "waves-handcrafted"
   | "wave-pacing-targets"
+  | "tutorial-catalog"
   | "mission-catalog"
   | "level-json"
   | "legacy-level"
@@ -55,7 +58,7 @@ export interface LevelEditorDocument {
   path: string;
   label: string;
   kind: LevelEditorDocKind;
-  group: "campaign" | "levels" | "presets" | "globals" | "maps" | "other";
+  group: "campaign" | "levels" | "presets" | "globals" | "maps" | "tutorials" | "other";
   originalRaw: string;
   currentRaw: string;
   originalData: LevelEditorKnownJson | null;

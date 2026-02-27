@@ -93,6 +93,8 @@ import { GameplayHUD } from "./ui/hud/GameplayHUD";
 import { buildHudViewModel } from "./ui/hud/buildHudViewModel";
 import type { HudToastInput, TowerCapturePhase, TowerOverlayVM } from "./ui/hud/types";
 import { TutorialHintRunner } from "./tutorial/TutorialHintRunner";
+import { TutorialController } from "./tutorial/TutorialController";
+import { createTutorialRegistry, loadTutorialRegistry } from "./tutorial/TutorialRegistry";
 import {
   assertDifficultyContextDeterministic,
   buildDifficultyContext,
@@ -100,6 +102,7 @@ import {
   type DifficultyInputs,
 } from "./difficulty/DifficultyContext";
 import { generateDifficultyReport } from "./debug/DifficultyReport";
+import { createTutorialModal } from "./ui/tutorial/TutorialModal";
 
 type Screen =
   | "title"
@@ -175,6 +178,7 @@ interface AppState {
   missionEvents: MissionEventEntry[];
   missionEventSeq: number;
   missionHudSignals: MissionHudSignals;
+  tutorialController: TutorialController | null;
   tutorialHintRunner: TutorialHintRunner | null;
   activeDifficultyContext: DifficultyContext | null;
   difficultyReportPreviewWaves: number;
@@ -213,7 +217,15 @@ async function bootstrap(): Promise<void> {
   window.addEventListener("resize", resize);
   resize();
 
-  const [missionTemplates, upgradeCatalog, skillCatalog, ascensionCatalog, unlockCatalog, waveContent, depthContent, levelRegistry] = await Promise.all([
+  const tutorialRegistryPromise = loadTutorialRegistry().catch((error) => {
+    console.error("[Tutorial] Failed to load tutorial catalog. Continuing without tutorials.", error);
+    return createTutorialRegistry({
+      version: 1,
+      tutorials: [],
+    });
+  });
+
+  const [missionTemplates, upgradeCatalog, skillCatalog, ascensionCatalog, unlockCatalog, waveContent, depthContent, levelRegistry, tutorialRegistry] = await Promise.all([
     loadMissionCatalog(),
     loadMetaUpgradeCatalog(),
     loadSkillCatalog(),
@@ -222,6 +234,7 @@ async function bootstrap(): Promise<void> {
     loadWaveContent(),
     loadDepthContent(),
     loadLevelRegistry(),
+    tutorialRegistryPromise,
   ]);
 
   const knownNodeIds = new Set(getUpgradeNodes(upgradeCatalog).map((node) => node.id));
@@ -261,6 +274,7 @@ async function bootstrap(): Promise<void> {
     missionEvents: [],
     missionEventSeq: 0,
     missionHudSignals: createDefaultMissionHudSignals(),
+    tutorialController: null,
     tutorialHintRunner: null,
     activeDifficultyContext: null,
     difficultyReportPreviewWaves: 6,
@@ -360,6 +374,8 @@ async function bootstrap(): Promise<void> {
         void openLevelEditor();
       },
       startCampaignMissionById,
+      advanceMissionTutorial,
+      closeMissionTutorial,
       gameplayHud,
       debugState,
       setMissionPaused,
@@ -398,7 +414,53 @@ async function bootstrap(): Promise<void> {
       return;
     }
     app.missionPaused = paused;
-    app.inputController.setEnabled(!paused);
+    syncMissionInputEnabled();
+    render();
+  };
+
+  const isMissionStartBlocked = (): boolean => app.tutorialController?.isBlockingStart() ?? false;
+
+  const syncMissionInputEnabled = (): void => {
+    if (!app.inputController) {
+      return;
+    }
+    const enabled =
+      app.screen === "mission" &&
+      app.missionResult === null &&
+      !app.missionPaused &&
+      !isMissionStartBlocked();
+    app.inputController.setEnabled(enabled);
+  };
+
+  const createMissionTutorialController = (
+    tutorialId: string | undefined,
+    missionKey: string,
+  ): TutorialController | null => {
+    if (!tutorialId) {
+      return null;
+    }
+    const tutorial = tutorialRegistry.getById(tutorialId);
+    if (!tutorial) {
+      console.warn(`[Tutorial] Missing tutorial id \"${tutorialId}\" for mission ${missionKey}.`);
+      return null;
+    }
+    return new TutorialController(tutorial);
+  };
+
+  const advanceMissionTutorial = (): void => {
+    if (!app.tutorialController) {
+      return;
+    }
+    app.tutorialController.nextStep();
+    render();
+  };
+
+  const closeMissionTutorial = (): void => {
+    if (!app.tutorialController) {
+      return;
+    }
+    app.tutorialController.closeTutorial();
+    syncMissionInputEnabled();
     render();
   };
 
@@ -640,6 +702,10 @@ async function bootstrap(): Promise<void> {
         missionName: mission.name,
         objectiveText: mission.objectiveText,
       };
+      app.tutorialController = createMissionTutorialController(
+        mission.tutorialId ?? missionMeta?.tutorialId,
+        missionKey,
+      );
       app.tutorialHintRunner = missionMeta ? new TutorialHintRunner(missionMeta.hints) : null;
       resetMissionHudUiState(app);
       gameplayHud.reset();
@@ -651,7 +717,8 @@ async function bootstrap(): Promise<void> {
       );
       renderer.setMapRenderData(baseLevel.mapRenderData ?? null);
       app.screen = "mission";
-      if (!ensureMissionOverlayDefaults()) {
+      syncMissionInputEnabled();
+      if (!ensureMissionOverlayDefaults() || isMissionStartBlocked()) {
         render();
       }
     } catch (error) {
@@ -746,6 +813,7 @@ async function bootstrap(): Promise<void> {
     app.activeDifficultyContext = difficultyContext;
     app.difficultyReportMissionIndex = app.runState.currentMissionIndex;
     app.activeMissionContext = { mode: "run" };
+    app.tutorialController = null;
     resetMissionHudUiState(app);
     gameplayHud.reset();
     pushMissionEvent(
@@ -756,6 +824,7 @@ async function bootstrap(): Promise<void> {
     );
     renderer.setMapRenderData(tunedLevel.mapRenderData ?? null);
     app.screen = "mission";
+    syncMissionInputEnabled();
     saveRunState(app.runState);
     if (!ensureMissionOverlayDefaults()) {
       render();
@@ -1192,7 +1261,7 @@ async function bootstrap(): Promise<void> {
   };
 
   const castSkillByHotkey = (key: string): boolean => {
-    if (app.screen !== "mission" || !app.game || app.missionResult !== null || app.missionPaused) {
+    if (app.screen !== "mission" || !app.game || app.missionResult !== null || app.missionPaused || isMissionStartBlocked()) {
       return false;
     }
 
@@ -1392,6 +1461,7 @@ async function bootstrap(): Promise<void> {
     app.missionReward = null;
     app.missionPaused = false;
     app.missionSpeedMul = 1;
+    app.tutorialController = null;
     app.tutorialHintRunner = null;
     resetMissionHudUiState(app);
     gameplayHud.reset();
@@ -1420,6 +1490,7 @@ async function bootstrap(): Promise<void> {
         app.screen === "mission" &&
         app.game &&
         app.missionResult === null &&
+        !isMissionStartBlocked() &&
         !(app.inputController?.isDragging() ?? false)
       ) {
         setMissionPaused(!app.missionPaused);
@@ -1432,7 +1503,7 @@ async function bootstrap(): Promise<void> {
       }
     }
 
-    if (!isTyping && app.screen === "mission" && app.game && app.missionResult === null && (key === "p" || key === "P")) {
+    if (!isTyping && app.screen === "mission" && app.game && app.missionResult === null && !isMissionStartBlocked() && (key === "p" || key === "P")) {
       setMissionPaused(!app.missionPaused);
       event.preventDefault();
       return;
@@ -1484,7 +1555,7 @@ async function bootstrap(): Promise<void> {
       ? 1 / clampedDtSec
       : app.fps * 0.85 + (1 / clampedDtSec) * 0.15;
 
-    if (app.game && !app.missionPaused && app.missionResult === null) {
+    if (app.game && !app.missionPaused && !isMissionStartBlocked() && app.missionResult === null) {
       app.game.frame(dtSec * app.missionSpeedMul);
       handleMissionResult();
     }
@@ -1549,6 +1620,8 @@ function renderCurrentScreen(
   openMissionSelect: (levelId: string) => void,
   openLevelEditor: () => void,
   startCampaignMissionById: (missionId: string) => Promise<void>,
+  advanceMissionTutorial: () => void,
+  closeMissionTutorial: () => void,
   gameplayHud: GameplayHUD,
   debugState: DebugUiState,
   setMissionPaused: (paused: boolean) => void,
@@ -2140,7 +2213,19 @@ function renderCurrentScreen(
       screenRoot.appendChild(gameplayHud.getElement());
     }
 
-    if (app.missionPaused && app.missionResult === null) {
+    const tutorialModal = app.tutorialController
+      ? createTutorialModal({
+          controller: app.tutorialController,
+          onNextStep: advanceMissionTutorial,
+          onClose: closeMissionTutorial,
+        })
+      : null;
+    const tutorialBlocking = tutorialModal !== null;
+    if (tutorialModal) {
+      screenRoot.appendChild(wrapCenteredModal(tutorialModal));
+    }
+
+    if (app.missionPaused && app.missionResult === null && !tutorialBlocking) {
       const pausePanel = document.createElement("div");
       pausePanel.className = "panel ui-panel menu-panel pause-panel campaign-shell mission-overlay-panel mission-pause-shell";
       pausePanel.appendChild(createCampaignScreenHeader("Mission Paused", "Tactical Freeze"));
@@ -2405,6 +2490,9 @@ function runTutorialHintFeed(
   world: World,
   notifyToast: (toast: HudToastInput) => void,
 ): void {
+  if (app.tutorialController?.isBlockingStart()) {
+    return;
+  }
   if (!app.tutorialHintRunner || !app.tutorialHintRunner.hasHints()) {
     return;
   }

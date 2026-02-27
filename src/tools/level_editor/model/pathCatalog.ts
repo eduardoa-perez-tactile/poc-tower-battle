@@ -10,6 +10,7 @@ export const CORE_LEVEL_EDITOR_PATHS = [
   "/data/wavePacingTargets.json",
   "/data/difficulty/stages.json",
   "/data/difficulty/ascensions.json",
+  "/data/tutorials/tutorials.json",
   "/data/missions.json",
   "/levels/stage01/level01.json",
   "/levels/stage01/level02.json",

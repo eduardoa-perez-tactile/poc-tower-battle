@@ -101,6 +101,12 @@ export function validateCampaignSpec(
         issues.push({ path: `${path}.objectivesText`, message: "Objective text is required." });
       }
 
+      if (level.tutorialId !== undefined) {
+        if (typeof level.tutorialId !== "string" || level.tutorialId.trim().length === 0) {
+          issues.push({ path: `${path}.tutorialId`, message: "tutorialId must be a non-empty string when provided." });
+        }
+      }
+
       if (!Array.isArray(level.hints)) {
         issues.push({ path: `${path}.hints`, message: "Hints must be an array." });
       } else {

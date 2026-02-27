@@ -6,6 +6,7 @@ import type {
 } from "../../../campaign/CampaignTypes";
 import { parseLevelJson } from "../../../levels/loader";
 import type { LevelJson } from "../../../levels/types";
+import { validateTutorialCatalog, type TutorialCatalog } from "../../../tutorial/TutorialTypes";
 import type { EnemyCatalog, HandcraftedWaveCatalog, WaveBalanceConfig, WaveModifierCatalog } from "../../../waves/Definitions";
 import type { StageDifficultyCatalog } from "../../../waves/DifficultyTypes";
 import { isObject } from "../model/json";
@@ -39,6 +40,7 @@ export function validateWorkspace(workspace: LevelEditorWorkspace): LevelEditorI
   const campaign = getCampaign(workspace);
   const presets = getPresetCatalog(workspace);
   const mapById = getCampaignMapById(workspace);
+  const tutorialCatalog = getTutorialCatalog(workspace);
   if (campaign && presets) {
     const result = validateCampaignSpec(campaign, presets, mapById);
     for (const issue of result.issues) {
@@ -48,6 +50,27 @@ export function validateWorkspace(workspace: LevelEditorWorkspace): LevelEditorI
         message: issue.message,
         fieldPath: issue.path,
       });
+    }
+  }
+
+  if (campaign && tutorialCatalog) {
+    const knownTutorialIds = new Set(tutorialCatalog.tutorials.map((entry) => entry.id));
+    for (let stageIndex = 0; stageIndex < campaign.stages.length; stageIndex += 1) {
+      const stage = campaign.stages[stageIndex];
+      for (let levelIndex = 0; levelIndex < stage.levels.length; levelIndex += 1) {
+        const level = stage.levels[levelIndex];
+        if (!level.tutorialId) {
+          continue;
+        }
+        if (!knownTutorialIds.has(level.tutorialId)) {
+          issues.push({
+            severity: "error",
+            filePath: "/data/campaign/campaign_v2.json",
+            message: `Unknown tutorialId ${level.tutorialId}.`,
+            fieldPath: `stages[${stageIndex}].levels[${levelIndex}].tutorialId`,
+          });
+        }
+      }
     }
   }
 
@@ -255,6 +278,19 @@ export function validateWorkspace(workspace: LevelEditorWorkspace): LevelEditorI
     });
   }
 
+  const tutorialsDoc = workspace.docs["/data/tutorials/tutorials.json"];
+  if (tutorialsDoc && tutorialsDoc.currentData) {
+    const result = validateTutorialCatalog(tutorialsDoc.currentData, tutorialsDoc.path);
+    for (const issue of result.issues) {
+      issues.push({
+        severity: "error",
+        filePath: tutorialsDoc.path,
+        message: issue.message,
+        fieldPath: issue.path.replace(`${tutorialsDoc.path}.`, ""),
+      });
+    }
+  }
+
   for (const docId of workspace.order) {
     const doc = workspace.docs[docId];
     if (!doc || doc.kind !== "level-json" || !doc.currentData) {
@@ -356,6 +392,18 @@ function getStageDifficulty(workspace: LevelEditorWorkspace): StageDifficultyCat
     return null;
   }
   return catalog;
+}
+
+function getTutorialCatalog(workspace: LevelEditorWorkspace): TutorialCatalog | null {
+  const doc = workspace.docs["/data/tutorials/tutorials.json"];
+  if (!doc || !doc.currentData) {
+    return null;
+  }
+  const result = validateTutorialCatalog(doc.currentData, doc.path);
+  if (!result.valid || !result.catalog) {
+    return null;
+  }
+  return result.catalog;
 }
 
 function getCampaignMapById(workspace: LevelEditorWorkspace): Map<string, CampaignMapDefinition> {
