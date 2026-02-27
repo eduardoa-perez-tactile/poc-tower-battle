@@ -1,5 +1,7 @@
 import type { DifficultyTierId } from "../../../config/Difficulty";
 import { createButton } from "../../../components/ui/primitives";
+import type { CampaignSpecV2 } from "../../../campaign/CampaignTypes";
+import type { LevelJson } from "../../../levels/types";
 import { toPrettyJson } from "../model/json";
 import type {
   LevelEditorIssue,
@@ -9,7 +11,6 @@ import type {
 import { exportChangedFiles, copyJsonToClipboard, listChangedFiles } from "../io/exportChanged";
 import { loadLevelEditorWorkspace } from "../io/loadAll";
 import { applyWorkspaceSnapshot, loadWorkspaceSnapshot, saveWorkspaceSnapshot } from "../io/workspaceStore";
-import { buildLibrary } from "../services/library";
 import { buildMapPreviewModel, type MapPreviewModel } from "../services/preview";
 import { resolveMissionForSelection } from "../services/resolver";
 import { getSelectedCampaignLevel, getSelectedDoc, getSelectedLevel, getSelectedLevelMission, getSelectedPreset } from "../services/selection";
@@ -36,6 +37,9 @@ interface EditorUiState {
   loadError: string | null;
   workspace: LevelEditorWorkspace | null;
   selection: LevelEditorSelection | null;
+  libraryScope: "campaign" | "levels" | "presets" | "globals";
+  campaignStageIndex: number;
+  campaignLevelIndex: number;
   search: string;
   showResolved: boolean;
   tierId: DifficultyTierId;
@@ -56,6 +60,9 @@ export function renderLevelEditorScreen(props: LevelEditorScreenProps): HTMLDivE
     loadError: null,
     workspace: null,
     selection: null,
+    libraryScope: "campaign",
+    campaignStageIndex: 0,
+    campaignLevelIndex: 0,
     search: "",
     showResolved: false,
     tierId: "NORMAL",
@@ -185,6 +192,7 @@ export function renderLevelEditorScreen(props: LevelEditorScreenProps): HTMLDivE
       state.workspace = workspace;
       state.loading = false;
       state.selection = findFirstSelection(workspace);
+      syncCampaignCursorFromSelection(state);
       state.infoMessage = "Workspace loaded.";
       renderAll();
     } catch (error) {
@@ -212,53 +220,67 @@ export function renderLevelEditorScreen(props: LevelEditorScreenProps): HTMLDivE
       return;
     }
 
+    const scopeRow = document.createElement("div");
+    scopeRow.style.display = "grid";
+    scopeRow.style.gridTemplateColumns = "repeat(2, minmax(0, 1fr))";
+    scopeRow.style.gap = "6px";
+
+    const scopes: Array<{ id: EditorUiState["libraryScope"]; label: string }> = [
+      { id: "campaign", label: "Campaign" },
+      { id: "levels", label: "Standalone Levels" },
+      { id: "presets", label: "Presets" },
+      { id: "globals", label: "Global Config" },
+    ];
+
+    for (const scope of scopes) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.textContent = scope.label;
+      button.style.padding = "6px 8px";
+      button.style.textAlign = "left";
+      button.style.borderRadius = "8px";
+      button.style.border = "1px solid rgba(125, 154, 207, 0.28)";
+      button.style.cursor = "pointer";
+      const active = state.libraryScope === scope.id;
+      button.style.background = active ? "rgba(37, 62, 98, 0.86)" : "rgba(16, 28, 46, 0.78)";
+      button.style.borderColor = active ? "rgba(115, 170, 255, 0.78)" : "rgba(125, 154, 207, 0.28)";
+      button.onclick = () => {
+        state.libraryScope = scope.id;
+        renderLibrary();
+      };
+      scopeRow.appendChild(button);
+    }
+    libraryPanel.body.appendChild(scopeRow);
+
     const searchInput = document.createElement("input");
     searchInput.type = "search";
-    searchInput.placeholder = "Search levels, missions, presets...";
+    searchInput.placeholder = "Filter current picker...";
     searchInput.value = state.search;
     searchInput.className = "campaign-generator-size-select";
+    searchInput.style.marginTop = "8px";
     searchInput.oninput = () => {
       state.search = searchInput.value;
       renderLibrary();
     };
     libraryPanel.body.appendChild(searchInput);
 
-    const list = document.createElement("div");
-    list.style.marginTop = "8px";
-    list.style.display = "grid";
-    list.style.gap = "4px";
+    const pickerWrap = document.createElement("div");
+    pickerWrap.style.marginTop = "8px";
+    pickerWrap.style.display = "grid";
+    pickerWrap.style.gap = "8px";
+    pickerWrap.style.maxHeight = "52vh";
+    pickerWrap.style.overflowY = "auto";
 
-    const nodes = buildLibrary(state.workspace, state.search);
-    for (const node of nodes) {
-      const row = document.createElement(node.selectable ? "button" : "div");
-      row.style.padding = "6px 8px";
-      row.style.textAlign = "left";
-      row.style.paddingLeft = `${8 + node.depth * 12}px`;
-      row.style.borderRadius = "8px";
-      row.style.border = "1px solid rgba(125, 154, 207, 0.2)";
-      row.style.background = node.kind === "group" ? "rgba(20, 33, 52, 0.65)" : "rgba(14, 24, 39, 0.75)";
-      row.style.color = "#d6e3ff";
-      row.textContent = node.label;
-
-      if (node.selectable && node.selection) {
-        (row as HTMLButtonElement).type = "button";
-        const selected = selectionsEqual(node.selection, state.selection);
-        row.style.cursor = "pointer";
-        if (selected) {
-          row.style.borderColor = "rgba(115, 170, 255, 0.78)";
-          row.style.background = "rgba(32, 54, 86, 0.8)";
-        }
-        row.addEventListener("click", () => {
-          state.selection = node.selection;
-          state.diffText = "";
-          renderAll();
-        });
-      }
-
-      list.appendChild(row);
+    if (state.libraryScope === "campaign") {
+      renderCampaignDrilldown(state.workspace, pickerWrap);
+    } else if (state.libraryScope === "levels") {
+      renderStandaloneLevelPicker(state.workspace, pickerWrap);
+    } else if (state.libraryScope === "presets") {
+      renderPresetPicker(state.workspace, pickerWrap);
+    } else {
+      renderGlobalPicker(state.workspace, pickerWrap);
     }
-
-    libraryPanel.body.appendChild(list);
+    libraryPanel.body.appendChild(pickerWrap);
 
     const changed = listChangedFiles(state.workspace);
     const changedTitle = document.createElement("p");
@@ -279,6 +301,265 @@ export function renderLevelEditorScreen(props: LevelEditorScreenProps): HTMLDivE
       changedList.appendChild(createInfoText("No pending changes."));
     }
     libraryPanel.body.appendChild(changedList);
+  }
+
+  function renderCampaignDrilldown(workspace: LevelEditorWorkspace, container: HTMLElement): void {
+    const campaignDoc = workspace.docs["/data/campaign/campaign_v2.json"];
+    if (!campaignDoc || !isCampaignSpecData(campaignDoc.currentData)) {
+      container.appendChild(createInfoText("campaign_v2.json is unavailable or invalid."));
+      return;
+    }
+    const campaign = campaignDoc.currentData;
+
+    const filteredStageIndexes = campaign.stages
+      .map((_, index) => index)
+      .filter((index) => {
+        if (!state.search.trim()) {
+          return true;
+        }
+        const query = state.search.trim().toLowerCase();
+        const stage = campaign.stages[index];
+        if (`${stage.displayName} ${stage.id}`.toLowerCase().includes(query)) {
+          return true;
+        }
+        return stage.levels.some((level) => `${level.displayName} ${level.id}`.toLowerCase().includes(query));
+      });
+
+    if (filteredStageIndexes.length === 0) {
+      container.appendChild(createInfoText("No campaign stages match the filter."));
+      return;
+    }
+
+    if (!filteredStageIndexes.includes(state.campaignStageIndex)) {
+      state.campaignStageIndex = filteredStageIndexes[0];
+      state.campaignLevelIndex = 0;
+    }
+
+    const selectedStage = campaign.stages[state.campaignStageIndex];
+    const filteredLevelIndexes = selectedStage.levels
+      .map((_, index) => index)
+      .filter((index) => {
+        if (!state.search.trim()) {
+          return true;
+        }
+        const query = state.search.trim().toLowerCase();
+        const level = selectedStage.levels[index];
+        return `${level.displayName} ${level.id} ${level.wavePlan.preset}`.toLowerCase().includes(query);
+      });
+
+    if (filteredLevelIndexes.length === 0) {
+      container.appendChild(createInfoText("No levels match the filter for selected stage."));
+      return;
+    }
+
+    if (!filteredLevelIndexes.includes(state.campaignLevelIndex)) {
+      state.campaignLevelIndex = filteredLevelIndexes[0];
+    }
+
+    const selectedLevel = selectedStage.levels[state.campaignLevelIndex];
+
+    const stagesBlock = createPickerBlock("1) Select Stage");
+    for (const stageIndex of filteredStageIndexes) {
+      const stage = campaign.stages[stageIndex];
+      stagesBlock.list.appendChild(
+        createPickerButton(`${stage.displayName} (${stage.id})`, state.campaignStageIndex === stageIndex, () => {
+          state.campaignStageIndex = stageIndex;
+          state.campaignLevelIndex = 0;
+          state.selection = {
+            type: "campaign-stage",
+            docId: campaignDoc.id,
+            stageIndex,
+          };
+          state.diffText = "";
+          renderAll();
+        }),
+      );
+    }
+    container.appendChild(stagesBlock.root);
+
+    const levelsBlock = createPickerBlock("2) Select Level");
+    for (const levelIndex of filteredLevelIndexes) {
+      const level = selectedStage.levels[levelIndex];
+      levelsBlock.list.appendChild(
+        createPickerButton(`${level.displayName} (${level.id})`, state.campaignLevelIndex === levelIndex, () => {
+          state.campaignLevelIndex = levelIndex;
+          state.selection = {
+            type: "campaign-level",
+            docId: campaignDoc.id,
+            stageIndex: state.campaignStageIndex,
+            levelIndex,
+          };
+          state.diffText = "";
+          renderAll();
+        }),
+      );
+    }
+    container.appendChild(levelsBlock.root);
+
+    const missionBlock = createPickerBlock("3) Select Mission");
+    missionBlock.list.appendChild(
+      createPickerButton(
+        `Mission (${selectedLevel.wavePlan.preset} / ${selectedLevel.wavePlan.waves ?? "preset"} waves)`,
+        state.selection?.type === "campaign-mission" &&
+          state.selection.docId === campaignDoc.id &&
+          state.selection.stageIndex === state.campaignStageIndex &&
+          state.selection.levelIndex === state.campaignLevelIndex,
+        () => {
+          state.selection = {
+            type: "campaign-mission",
+            docId: campaignDoc.id,
+            stageIndex: state.campaignStageIndex,
+            levelIndex: state.campaignLevelIndex,
+          };
+          state.diffText = "";
+          renderAll();
+        },
+      ),
+    );
+    container.appendChild(missionBlock.root);
+  }
+
+  function renderStandaloneLevelPicker(workspace: LevelEditorWorkspace, container: HTMLElement): void {
+    const levelDocs = workspace.order
+      .map((docId) => workspace.docs[docId])
+      .filter((doc) => doc && (doc.kind === "level-json" || doc.kind === "legacy-level"))
+      .filter((doc) => {
+        if (!doc) {
+          return false;
+        }
+        if (!state.search.trim()) {
+          return true;
+        }
+        return `${doc.label} ${doc.path}`.toLowerCase().includes(state.search.trim().toLowerCase());
+      });
+
+    if (levelDocs.length === 0) {
+      container.appendChild(createInfoText("No standalone levels match the filter."));
+      return;
+    }
+
+    const levelsBlock = createPickerBlock("1) Select Level File");
+    for (const doc of levelDocs) {
+      if (!doc) {
+        continue;
+      }
+      const selected = state.selection?.type === "file" && state.selection.docId === doc.id;
+      levelsBlock.list.appendChild(
+        createPickerButton(`${doc.label}${doc.isSynthetic ? " (workspace)" : ""}`, selected, () => {
+          state.selection = {
+            type: "file",
+            docId: doc.id,
+          };
+          state.diffText = "";
+          renderAll();
+        }),
+      );
+    }
+    container.appendChild(levelsBlock.root);
+
+    if (state.selection?.type !== "file" && state.selection?.type !== "level-mission") {
+      return;
+    }
+
+    const selectedDoc = workspace.docs[state.selection.docId];
+    if (!selectedDoc || !isLevelJsonData(selectedDoc.currentData)) {
+      return;
+    }
+
+    const missionsBlock = createPickerBlock("2) Select Mission");
+    selectedDoc.currentData.missions.forEach((mission, missionIndex) => {
+      const selected =
+        state.selection?.type === "level-mission" &&
+        state.selection.docId === selectedDoc.id &&
+        state.selection.missionIndex === missionIndex;
+      missionsBlock.list.appendChild(
+        createPickerButton(`${mission.name} (${mission.missionId})`, selected, () => {
+          state.selection = {
+            type: "level-mission",
+            docId: selectedDoc.id,
+            missionIndex,
+          };
+          state.diffText = "";
+          renderAll();
+        }),
+      );
+    });
+    container.appendChild(missionsBlock.root);
+  }
+
+  function renderPresetPicker(workspace: LevelEditorWorkspace, container: HTMLElement): void {
+    const presetDoc = workspace.docs["/data/waves/presets.json"];
+    if (!presetDoc || typeof presetDoc.currentData !== "object" || presetDoc.currentData === null) {
+      container.appendChild(createInfoText("presets.json is unavailable."));
+      return;
+    }
+
+    const presets = (presetDoc.currentData as { presets?: Record<string, { waves: number; missionDifficultyScalar: number }> }).presets;
+    if (!presets) {
+      container.appendChild(createInfoText("presets.json has invalid format."));
+      return;
+    }
+
+    const block = createPickerBlock("Select Preset");
+    for (const presetId of Object.keys(presets).sort((left, right) => left.localeCompare(right))) {
+      if (state.search.trim() && !presetId.toLowerCase().includes(state.search.trim().toLowerCase())) {
+        continue;
+      }
+      const preset = presets[presetId];
+      const selected = state.selection?.type === "preset" && state.selection.docId === presetDoc.id && state.selection.presetId === presetId;
+      block.list.appendChild(
+        createPickerButton(`${presetId} (${preset.waves}w / x${preset.missionDifficultyScalar.toFixed(2)})`, selected, () => {
+          state.selection = {
+            type: "preset",
+            docId: presetDoc.id,
+            presetId,
+          };
+          state.diffText = "";
+          renderAll();
+        }),
+      );
+    }
+    container.appendChild(block.root);
+  }
+
+  function renderGlobalPicker(workspace: LevelEditorWorkspace, container: HTMLElement): void {
+    const docs = workspace.order
+      .map((docId) => workspace.docs[docId])
+      .filter(
+        (doc) =>
+          doc &&
+          doc.kind !== "campaign" &&
+          doc.kind !== "level-json" &&
+          doc.kind !== "legacy-level" &&
+          doc.kind !== "wave-presets",
+      );
+
+    if (docs.length === 0) {
+      container.appendChild(createInfoText("No global documents available."));
+      return;
+    }
+
+    const block = createPickerBlock("Select Global File");
+    for (const doc of docs) {
+      if (!doc) {
+        continue;
+      }
+      if (state.search.trim() && !`${doc.label} ${doc.path}`.toLowerCase().includes(state.search.trim().toLowerCase())) {
+        continue;
+      }
+      const selected = state.selection?.type === "file" && state.selection.docId === doc.id;
+      block.list.appendChild(
+        createPickerButton(doc.label, selected, () => {
+          state.selection = {
+            type: "file",
+            docId: doc.id,
+          };
+          state.diffText = "";
+          renderAll();
+        }),
+      );
+    }
+    container.appendChild(block.root);
   }
 
   function renderInspector(): void {
@@ -1094,16 +1375,104 @@ function drawMapPreview(canvas: HTMLCanvasElement, map: MapPreviewModel): void {
 }
 
 function findFirstSelection(workspace: LevelEditorWorkspace): LevelEditorSelection | null {
-  const nodes = buildLibrary(workspace, "");
-  const firstSelectable = nodes.find((node) => node.selectable && node.selection !== null);
-  return firstSelectable?.selection ?? null;
+  const campaignDoc = workspace.docs["/data/campaign/campaign_v2.json"];
+  if (campaignDoc && isCampaignSpecData(campaignDoc.currentData) && campaignDoc.currentData.stages.length > 0) {
+    const firstStage = campaignDoc.currentData.stages[0];
+    if (firstStage.levels.length > 0) {
+      return {
+        type: "campaign-mission",
+        docId: campaignDoc.id,
+        stageIndex: 0,
+        levelIndex: 0,
+      };
+    }
+  }
+
+  for (const docId of workspace.order) {
+    const doc = workspace.docs[docId];
+    if (!doc) {
+      continue;
+    }
+    return {
+      type: "file",
+      docId: doc.id,
+    };
+  }
+
+  return null;
 }
 
-function selectionsEqual(left: LevelEditorSelection | null, right: LevelEditorSelection | null): boolean {
-  if (!left || !right) {
-    return false;
+function syncCampaignCursorFromSelection(state: {
+  selection: LevelEditorSelection | null;
+  campaignStageIndex: number;
+  campaignLevelIndex: number;
+}): void {
+  if (!state.selection) {
+    return;
   }
-  return JSON.stringify(left) === JSON.stringify(right);
+  if (state.selection.type === "campaign-stage") {
+    state.campaignStageIndex = state.selection.stageIndex;
+    state.campaignLevelIndex = 0;
+    return;
+  }
+  if (state.selection.type === "campaign-level" || state.selection.type === "campaign-mission") {
+    state.campaignStageIndex = state.selection.stageIndex;
+    state.campaignLevelIndex = state.selection.levelIndex;
+  }
+}
+
+function createPickerBlock(title: string): { root: HTMLDivElement; list: HTMLDivElement } {
+  const root = document.createElement("div");
+  root.style.border = "1px solid rgba(116, 157, 224, 0.24)";
+  root.style.borderRadius = "10px";
+  root.style.padding = "8px";
+  root.style.background = "rgba(12, 22, 37, 0.78)";
+
+  const heading = document.createElement("p");
+  heading.className = "campaign-progress-title";
+  heading.textContent = title;
+  heading.style.marginBottom = "6px";
+
+  const list = document.createElement("div");
+  list.style.display = "grid";
+  list.style.gap = "4px";
+
+  root.append(heading, list);
+  return { root, list };
+}
+
+function createPickerButton(label: string, selected: boolean, onClick: () => void): HTMLButtonElement {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.textContent = label;
+  button.style.padding = "6px 8px";
+  button.style.textAlign = "left";
+  button.style.borderRadius = "8px";
+  button.style.border = `1px solid ${selected ? "rgba(115, 170, 255, 0.8)" : "rgba(125, 154, 207, 0.22)"}`;
+  button.style.background = selected ? "rgba(35, 57, 90, 0.82)" : "rgba(16, 28, 45, 0.75)";
+  button.style.color = "#d6e3ff";
+  button.style.cursor = "pointer";
+  button.onclick = onClick;
+  return button;
+}
+
+function isCampaignSpecData(value: unknown): value is CampaignSpecV2 {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    (value as { version?: number }).version === 2 &&
+    Array.isArray((value as { stages?: unknown[] }).stages)
+  );
+}
+
+function isLevelJsonData(value: unknown): value is LevelJson {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    (value as { version?: number }).version === 1 &&
+    Array.isArray((value as { missions?: unknown[] }).missions) &&
+    Array.isArray((value as { nodes?: unknown[] }).nodes)
+  );
 }
 
 function cssEscape(value: string): string {
