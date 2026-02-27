@@ -24,6 +24,7 @@ import {
   setDocumentRaw,
 } from "../services/workspaceMutations";
 import { splitIssues, validateWorkspace } from "../services/validation";
+import { createEnemiesTab } from "./EnemiesTab";
 
 export interface LevelEditorScreenProps {
   onBack: () => void;
@@ -34,6 +35,7 @@ interface EditorUiState {
   loadError: string | null;
   workspace: LevelEditorWorkspace | null;
   selection: LevelEditorSelection | null;
+  activeTab: "levels" | "enemies";
   libraryScope: "campaign" | "levels" | "presets" | "globals";
   campaignStageIndex: number;
   campaignLevelIndex: number;
@@ -76,6 +78,7 @@ export function renderLevelEditorScreen(props: LevelEditorScreenProps): HTMLDivE
     loadError: null,
     workspace: null,
     selection: null,
+    activeTab: "levels",
     libraryScope: "campaign",
     campaignStageIndex: 0,
     campaignLevelIndex: 0,
@@ -102,6 +105,23 @@ export function renderLevelEditorScreen(props: LevelEditorScreenProps): HTMLDivE
 
   toolbar.append(backBtn);
 
+  const levelsTabBtn = document.createElement("button");
+  levelsTabBtn.type = "button";
+  levelsTabBtn.textContent = "Levels";
+  levelsTabBtn.onclick = () => {
+    state.activeTab = "levels";
+    renderAll();
+  };
+
+  const enemiesTabBtn = document.createElement("button");
+  enemiesTabBtn.type = "button";
+  enemiesTabBtn.textContent = "Enemies";
+  enemiesTabBtn.onclick = () => {
+    state.activeTab = "enemies";
+    renderAll();
+  };
+  toolbar.append(levelsTabBtn, enemiesTabBtn);
+
   const layout = document.createElement("div");
   layout.style.display = "grid";
   layout.style.gridTemplateColumns = "minmax(260px, 0.8fr) minmax(420px, 1.2fr) minmax(360px, 1fr)";
@@ -118,7 +138,27 @@ export function renderLevelEditorScreen(props: LevelEditorScreenProps): HTMLDivE
   status.className = "campaign-progress-subtitle";
   status.style.marginTop = "12px";
 
-  panel.append(header, toolbar, layout, status);
+  const enemiesRoot = document.createElement("div");
+  const enemiesTab = createEnemiesTab({
+    getWorkspace: () => state.workspace,
+    commitWorkspace: (updater) => {
+      if (!state.workspace) {
+        return;
+      }
+      const nextWorkspace = updater(state.workspace);
+      if (nextWorkspace !== state.workspace) {
+        setWorkspace(nextWorkspace);
+      }
+    },
+    reloadEnemyDocsFromDisk: reloadEnemyDocsFromDisk,
+    onInfoMessage: (message) => {
+      state.infoMessage = message;
+      renderStatus();
+    },
+  });
+  enemiesRoot.appendChild(enemiesTab.root);
+
+  panel.append(header, toolbar, layout, enemiesRoot, status);
 
   void initialize();
   renderAll();
@@ -146,10 +186,20 @@ export function renderLevelEditorScreen(props: LevelEditorScreenProps): HTMLDivE
   }
 
   function renderAll(): void {
-    renderLibrary();
-    renderInspector();
-    renderPreview();
-    renderStatus();
+    applyTabButtonStyle(levelsTabBtn, state.activeTab === "levels");
+    applyTabButtonStyle(enemiesTabBtn, state.activeTab === "enemies");
+
+    const showLevels = state.activeTab === "levels";
+    layout.style.display = showLevels ? "grid" : "none";
+    status.style.display = showLevels ? "block" : "none";
+    enemiesTab.setActive(!showLevels);
+
+    if (showLevels) {
+      renderLibrary();
+      renderInspector();
+      renderPreview();
+      renderStatus();
+    }
   }
 
   function renderLibrary(): void {
@@ -909,6 +959,23 @@ export function renderLevelEditorScreen(props: LevelEditorScreenProps): HTMLDivE
     state.issues = validateWorkspace(nextWorkspace);
     saveWorkspaceSnapshot(nextWorkspace);
     renderAll();
+  }
+
+  async function reloadEnemyDocsFromDisk(): Promise<void> {
+    if (!state.workspace) {
+      throw new Error("Workspace unavailable.");
+    }
+    const freshWorkspace = await loadLevelEditorWorkspace();
+    let nextWorkspace = state.workspace;
+    for (const path of ["/data/enemyArchetypes.json", "/data/campaign/campaign_v2.json", "/data/levelEnemySets.json"]) {
+      const freshDoc = freshWorkspace.docs[path];
+      if (!freshDoc) {
+        continue;
+      }
+      nextWorkspace = replaceWorkspaceDocument(nextWorkspace, freshDoc);
+    }
+    state.infoMessage = "Reloaded enemy documents from disk.";
+    setWorkspace(nextWorkspace);
   }
 }
 
@@ -2003,4 +2070,30 @@ function clamp(value: number, min: number, max: number): number {
 
 function cssEscape(value: string): string {
   return value.replace(/([\\"\[\].:#])/g, "\\$1");
+}
+
+function applyTabButtonStyle(button: HTMLButtonElement, active: boolean): void {
+  button.style.padding = "7px 10px";
+  button.style.borderRadius = "8px";
+  button.style.border = `1px solid ${active ? "rgba(115, 170, 255, 0.8)" : "rgba(125, 154, 207, 0.3)"}`;
+  button.style.background = active ? "rgba(36, 58, 92, 0.86)" : "rgba(16, 28, 45, 0.75)";
+  button.style.color = active ? "#e9f2ff" : "#cfddf7";
+  button.style.fontWeight = active ? "650" : "550";
+  button.style.cursor = "pointer";
+}
+
+function replaceWorkspaceDocument(
+  workspace: LevelEditorWorkspace,
+  doc: LevelEditorWorkspace["docs"][string],
+): LevelEditorWorkspace {
+  const alreadyPresent = workspace.order.includes(doc.id);
+  return {
+    ...workspace,
+    updatedAt: Date.now(),
+    order: alreadyPresent ? workspace.order : [...workspace.order, doc.id],
+    docs: {
+      ...workspace.docs,
+      [doc.id]: doc,
+    },
+  };
 }
