@@ -308,63 +308,124 @@ export function renderLevelEditorScreen(props: LevelEditorScreenProps): HTMLDivE
     }
 
     const selectedLevel = selectedStage.levels[state.campaignLevelIndex];
+    const selectBlock = document.createElement("div");
+    selectBlock.style.border = "1px solid rgba(116, 157, 224, 0.3)";
+    selectBlock.style.borderRadius = "10px";
+    selectBlock.style.padding = "10px";
+    selectBlock.style.background = "rgba(13, 24, 40, 0.86)";
+    selectBlock.style.display = "grid";
+    selectBlock.style.gap = "10px";
 
-    const stagesBlock = createPickerBlock("1) Select Stage");
+    const blockTitle = document.createElement("p");
+    blockTitle.className = "campaign-progress-title";
+    blockTitle.textContent = "Campaign Picker";
+    blockTitle.style.color = "#cfe0ff";
+    blockTitle.style.fontSize = "12px";
+    blockTitle.style.letterSpacing = "0.04em";
+    blockTitle.style.textTransform = "uppercase";
+    blockTitle.style.marginBottom = "2px";
+    selectBlock.appendChild(blockTitle);
+
+    const stageSelect = document.createElement("select");
+    stageSelect.className = "campaign-generator-size-select";
+    stageSelect.style.width = "100%";
     for (const stageIndex of filteredStageIndexes) {
       const stage = campaign.stages[stageIndex];
-      stagesBlock.list.appendChild(
-        createPickerButton(`${stage.displayName} (${stage.id})`, state.campaignStageIndex === stageIndex, () => {
-          state.campaignStageIndex = stageIndex;
-          state.campaignLevelIndex = 0;
-          state.selection = {
-            type: "campaign-stage",
-            docId: campaignDoc.id,
-            stageIndex,
-          };
-          renderAll();
-        }),
-      );
+      const option = document.createElement("option");
+      option.value = `${stageIndex}`;
+      option.textContent = `${stage.displayName} (${stage.id})`;
+      option.selected = stageIndex === state.campaignStageIndex;
+      stageSelect.appendChild(option);
     }
-    container.appendChild(stagesBlock.root);
+    stageSelect.onchange = () => {
+      const nextStageIndex = Number.parseInt(stageSelect.value, 10);
+      if (!Number.isFinite(nextStageIndex)) {
+        return;
+      }
+      state.campaignStageIndex = nextStageIndex;
+      state.campaignLevelIndex = 0;
+      state.selection = {
+        type: "campaign-stage",
+        docId: campaignDoc.id,
+        stageIndex: nextStageIndex,
+      };
+      renderAll();
+    };
+    selectBlock.appendChild(labelWith("Stage", stageSelect));
 
-    const levelsBlock = createPickerBlock("2) Select Level");
+    const levelSelect = document.createElement("select");
+    levelSelect.className = "campaign-generator-size-select";
+    levelSelect.style.width = "100%";
     for (const levelIndex of filteredLevelIndexes) {
       const level = selectedStage.levels[levelIndex];
-      levelsBlock.list.appendChild(
-        createPickerButton(`${level.displayName} (${level.id})`, state.campaignLevelIndex === levelIndex, () => {
-          state.campaignLevelIndex = levelIndex;
-          state.selection = {
-            type: "campaign-level",
-            docId: campaignDoc.id,
-            stageIndex: state.campaignStageIndex,
-            levelIndex,
-          };
-          renderAll();
-        }),
-      );
+      const option = document.createElement("option");
+      option.value = `${levelIndex}`;
+      option.textContent = `${level.displayName} (${level.id})`;
+      option.selected = levelIndex === state.campaignLevelIndex;
+      levelSelect.appendChild(option);
     }
-    container.appendChild(levelsBlock.root);
+    levelSelect.onchange = () => {
+      const nextLevelIndex = Number.parseInt(levelSelect.value, 10);
+      if (!Number.isFinite(nextLevelIndex)) {
+        return;
+      }
+      state.campaignLevelIndex = nextLevelIndex;
+      state.selection = {
+        type: "campaign-level",
+        docId: campaignDoc.id,
+        stageIndex: state.campaignStageIndex,
+        levelIndex: nextLevelIndex,
+      };
+      renderAll();
+    };
+    selectBlock.appendChild(labelWith("Level", levelSelect));
 
-    const missionBlock = createPickerBlock("3) Select Mission");
-    missionBlock.list.appendChild(
-      createPickerButton(
-        `Mission (${selectedLevel.wavePlan.preset} / ${selectedLevel.wavePlan.waves ?? "preset"} waves)`,
-        state.selection?.type === "campaign-mission" &&
-          state.selection.docId === campaignDoc.id &&
-          state.selection.stageIndex === state.campaignStageIndex &&
-          state.selection.levelIndex === state.campaignLevelIndex,
-        () => {
-          state.selection = {
-            type: "campaign-mission",
-            docId: campaignDoc.id,
-            stageIndex: state.campaignStageIndex,
-            levelIndex: state.campaignLevelIndex,
-          };
-          renderAll();
-        },
-      ),
-    );
-    container.appendChild(missionBlock.root);
+    const missionSelect = document.createElement("select");
+    missionSelect.className = "campaign-generator-size-select";
+    missionSelect.style.width = "100%";
+    const missionPlaceholder = document.createElement("option");
+    missionPlaceholder.value = "";
+    missionPlaceholder.textContent = "Select mission...";
+    const missionSelected =
+      state.selection?.type === "campaign-mission" &&
+      state.selection.docId === campaignDoc.id &&
+      state.selection.stageIndex === state.campaignStageIndex &&
+      state.selection.levelIndex === state.campaignLevelIndex;
+    missionPlaceholder.selected = !missionSelected;
+    missionSelect.appendChild(missionPlaceholder);
+    const missionOption = document.createElement("option");
+    missionOption.value = "mission";
+    missionOption.textContent = `Mission (${selectedLevel.wavePlan.preset} / ${selectedLevel.wavePlan.waves ?? "preset"} waves)`;
+    missionOption.selected = missionSelected;
+    missionSelect.appendChild(missionOption);
+    missionSelect.onchange = () => {
+      if (missionSelect.value !== "mission") {
+        state.selection = {
+          type: "campaign-level",
+          docId: campaignDoc.id,
+          stageIndex: state.campaignStageIndex,
+          levelIndex: state.campaignLevelIndex,
+        };
+      } else {
+        state.selection = {
+          type: "campaign-mission",
+          docId: campaignDoc.id,
+          stageIndex: state.campaignStageIndex,
+          levelIndex: state.campaignLevelIndex,
+        };
+      }
+      renderAll();
+    };
+    selectBlock.appendChild(labelWith("Mission", missionSelect));
+
+    const hint = document.createElement("p");
+    hint.className = "campaign-progress-subtitle";
+    hint.textContent = "Preview appears when mission is selected.";
+    hint.style.marginTop = "2px";
+    hint.style.marginBottom = "0";
+    selectBlock.appendChild(hint);
+
+    container.appendChild(selectBlock);
   }
 
   function renderStandaloneLevelPicker(workspace: LevelEditorWorkspace, container: HTMLElement): void {
