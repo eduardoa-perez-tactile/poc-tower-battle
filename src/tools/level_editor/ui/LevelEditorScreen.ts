@@ -61,6 +61,10 @@ interface EditablePreviewMap {
   edges: Array<{ fromId: string; toId: string }>;
 }
 
+interface EditableMapPreviewController {
+  resetView: () => void;
+}
+
 export function renderLevelEditorScreen(props: LevelEditorScreenProps): HTMLDivElement {
   const panel = document.createElement("div");
   panel.className = "panel ui-panel menu-panel menu-panel-wide campaign-shell";
@@ -745,7 +749,17 @@ export function renderLevelEditorScreen(props: LevelEditorScreenProps): HTMLDivE
       }`;
       previewPanel.body.appendChild(mapTitle);
 
+      let resetViewBtn: HTMLButtonElement | null = null;
       if (editableMap) {
+        const mapActions = document.createElement("div");
+        mapActions.style.display = "flex";
+        mapActions.style.justifyContent = "flex-end";
+        mapActions.style.marginBottom = "6px";
+        previewPanel.body.appendChild(mapActions);
+
+        resetViewBtn = createButton("Reset View", () => undefined, { variant: "ghost" });
+        mapActions.appendChild(resetViewBtn);
+
         const mapHint = document.createElement("p");
         mapHint.className = "campaign-progress-subtitle";
         mapHint.textContent = "Drag nodes to edit. Drag background to pan. Wheel to zoom.";
@@ -763,13 +777,18 @@ export function renderLevelEditorScreen(props: LevelEditorScreenProps): HTMLDivE
       canvas.style.touchAction = "none";
       previewPanel.body.appendChild(canvas);
       if (editableMap) {
-        attachInteractiveMapPreview(canvas, editableMap, (editedNodes) => {
+        const controller = attachInteractiveMapPreview(canvas, editableMap, (editedNodes) => {
           const nextWorkspace = applyEditedMissionNodes(state.workspace!, state.selection!, editedNodes);
           if (nextWorkspace !== state.workspace) {
             state.infoMessage = "Map nodes updated.";
             setWorkspace(nextWorkspace);
           }
         });
+        if (resetViewBtn) {
+          resetViewBtn.onclick = () => {
+            controller.resetView();
+          };
+        }
       } else if (mapModel) {
         drawMapPreview(canvas, mapModel);
       }
@@ -1521,10 +1540,12 @@ function attachInteractiveMapPreview(
   canvas: HTMLCanvasElement,
   editableMap: EditablePreviewMap,
   onCommit: (editedNodes: EditablePreviewNode[]) => void,
-): void {
+): EditableMapPreviewController {
   const ctx = canvas.getContext("2d");
   if (!ctx) {
-    return;
+    return {
+      resetView: () => undefined,
+    };
   }
 
   const MIN_ZOOM = 0.45;
@@ -1557,6 +1578,17 @@ function attachInteractiveMapPreview(
 
   const redraw = (): void => {
     drawEditableMapPreview(ctx, canvas, editableMap, nodes, camera, interaction.nodeId, metrics);
+  };
+
+  const resetView = (): void => {
+    const mapPixelWidth = Math.max(1, editableMap.width * metrics.scale);
+    const mapPixelHeight = Math.max(1, editableMap.height * metrics.scale);
+    const fitX = (canvas.width * 0.88) / mapPixelWidth;
+    const fitY = (canvas.height * 0.88) / mapPixelHeight;
+    camera.zoom = clamp(Math.min(fitX, fitY, 1.8), MIN_ZOOM, MAX_ZOOM);
+    camera.panX = 0;
+    camera.panY = 0;
+    redraw();
   };
 
   const endInteraction = (): void => {
@@ -1671,7 +1703,8 @@ function attachInteractiveMapPreview(
     { passive: false },
   );
 
-  redraw();
+  resetView();
+  return { resetView };
 }
 
 function getPreviewMapMetrics(
@@ -1719,6 +1752,23 @@ function drawEditableMapPreview(
   ctx.strokeStyle = "rgba(110, 168, 255, 0.2)";
   ctx.lineWidth = 1;
   ctx.strokeRect(metrics.offsetX, metrics.offsetY, mapPixelWidth, mapPixelHeight);
+
+  ctx.strokeStyle = "rgba(132, 170, 224, 0.16)";
+  ctx.lineWidth = 1;
+  for (let x = 0; x <= map.width; x += 1) {
+    const gridX = metrics.offsetX + x * metrics.scale;
+    ctx.beginPath();
+    ctx.moveTo(gridX, metrics.offsetY);
+    ctx.lineTo(gridX, metrics.offsetY + mapPixelHeight);
+    ctx.stroke();
+  }
+  for (let y = 0; y <= map.height; y += 1) {
+    const gridY = metrics.offsetY + y * metrics.scale;
+    ctx.beginPath();
+    ctx.moveTo(metrics.offsetX, gridY);
+    ctx.lineTo(metrics.offsetX + mapPixelWidth, gridY);
+    ctx.stroke();
+  }
 
   const byId = new Map(nodes.map((node) => [node.id, node] as const));
   const toCanvas = (x: number, y: number): { x: number; y: number } => ({
