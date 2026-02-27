@@ -8,21 +8,17 @@ import type {
   LevelEditorSelection,
   LevelEditorWorkspace,
 } from "../model/types";
-import { exportChangedFiles, copyJsonToClipboard, listChangedFiles } from "../io/exportChanged";
+import { listChangedFiles } from "../io/exportChanged";
 import { loadLevelEditorWorkspace } from "../io/loadAll";
 import { applyWorkspaceSnapshot, loadWorkspaceSnapshot, saveWorkspaceSnapshot } from "../io/workspaceStore";
 import { buildMapPreviewModel, type MapPreviewModel } from "../services/preview";
 import { resolveMissionForSelection } from "../services/resolver";
 import { getSelectedCampaignLevel, getSelectedDoc, getSelectedLevel, getSelectedLevelMission, getSelectedPreset } from "../services/selection";
-import { createUnifiedLineDiff } from "../services/diff";
 import {
-  duplicateCampaignMission,
-  duplicateLevel,
   mutateCampaignMission,
   mutateLevel,
   mutateLevelMission,
   mutatePreset,
-  revertDocument,
   selectionToOwningDocId,
   setDocumentRaw,
 } from "../services/workspaceMutations";
@@ -45,7 +41,6 @@ interface EditorUiState {
   tierId: DifficultyTierId;
   runDifficultyScalar: number;
   issues: LevelEditorIssue[];
-  diffText: string;
   infoMessage: string;
 }
 
@@ -68,7 +63,6 @@ export function renderLevelEditorScreen(props: LevelEditorScreenProps): HTMLDivE
     tierId: "NORMAL",
     runDifficultyScalar: 1,
     issues: [],
-    diffText: "",
     infoMessage: "",
   };
 
@@ -79,86 +73,13 @@ export function renderLevelEditorScreen(props: LevelEditorScreenProps): HTMLDivE
   toolbar.style.flexWrap = "wrap";
   toolbar.style.alignItems = "center";
 
-  const validateBtn = createButton("Validate", () => {
-    if (!state.workspace) {
-      return;
-    }
-    state.issues = validateWorkspace(state.workspace);
-    const split = splitIssues(state.issues);
-    state.infoMessage = `Validation complete: ${split.errors.length} errors, ${split.warnings.length} warnings.`;
-    renderAll();
-  }, { variant: "secondary" });
-
-  const diffBtn = createButton("Diff", () => {
-    if (!state.workspace || !state.selection) {
-      return;
-    }
-    const ownerDoc = state.workspace.docs[selectionToOwningDocId(state.selection)];
-    if (!ownerDoc) {
-      return;
-    }
-    state.diffText = createUnifiedLineDiff(ownerDoc.originalRaw, ownerDoc.currentRaw);
-    renderAll();
-  }, { variant: "secondary" });
-
-  const exportBtn = createButton("Export Changed", () => {
-    if (!state.workspace) {
-      return;
-    }
-    const changed = exportChangedFiles(state.workspace);
-    state.infoMessage = changed.length > 0 ? `Exported ${changed.length} file(s).` : "No changed files to export.";
-    renderAll();
-  }, { variant: "primary" });
-
-  const revertBtn = createButton("Revert", () => {
-    if (!state.workspace || !state.selection) {
-      return;
-    }
-    const docId = selectionToOwningDocId(state.selection);
-    setWorkspace(revertDocument(state.workspace, docId));
-    state.diffText = "";
-    state.infoMessage = `Reverted ${docId}.`;
-  }, { variant: "danger" });
-
-  const duplicateBtn = createButton("Duplicate", () => {
-    if (!state.workspace || !state.selection) {
-      return;
-    }
-
-    if (state.selection.type === "campaign-mission") {
-      setWorkspace(
-        duplicateCampaignMission(
-          state.workspace,
-          state.selection.docId,
-          state.selection.stageIndex,
-          state.selection.levelIndex,
-        ),
-      );
-      state.infoMessage = "Duplicated campaign mission.";
-      return;
-    }
-
-    if (state.selection.type === "file") {
-      const level = getSelectedLevel(state.workspace, state.selection);
-      if (!level) {
-        return;
-      }
-      setWorkspace(duplicateLevel(state.workspace, state.selection.docId));
-      state.infoMessage = `Duplicated level ${level.levelId}.`;
-    }
-  }, { variant: "secondary" });
-
-  const copyBtn = createButton("Copy JSON", () => {
-    void copyCurrentJson();
-  }, { variant: "secondary" });
-
   const backBtn = createButton("Back", props.onBack, {
     variant: "ghost",
     escapeAction: true,
     hotkey: "Esc",
   });
 
-  toolbar.append(validateBtn, diffBtn, exportBtn, revertBtn, duplicateBtn, copyBtn, backBtn);
+  toolbar.append(backBtn);
 
   const layout = document.createElement("div");
   layout.style.display = "grid";
@@ -190,6 +111,7 @@ export function renderLevelEditorScreen(props: LevelEditorScreenProps): HTMLDivE
         loadWorkspaceSnapshot(),
       );
       state.workspace = workspace;
+      state.issues = validateWorkspace(workspace);
       state.loading = false;
       state.selection = findFirstSelection(workspace);
       syncCampaignCursorFromSelection(state);
@@ -223,7 +145,8 @@ export function renderLevelEditorScreen(props: LevelEditorScreenProps): HTMLDivE
     const scopeRow = document.createElement("div");
     scopeRow.style.display = "grid";
     scopeRow.style.gridTemplateColumns = "repeat(2, minmax(0, 1fr))";
-    scopeRow.style.gap = "6px";
+    scopeRow.style.gap = "8px";
+    scopeRow.style.marginTop = "2px";
 
     const scopes: Array<{ id: EditorUiState["libraryScope"]; label: string }> = [
       { id: "campaign", label: "Campaign" },
@@ -241,6 +164,9 @@ export function renderLevelEditorScreen(props: LevelEditorScreenProps): HTMLDivE
       button.style.borderRadius = "8px";
       button.style.border = "1px solid rgba(125, 154, 207, 0.28)";
       button.style.cursor = "pointer";
+      button.style.color = "#dbe8ff";
+      button.style.fontSize = "14px";
+      button.style.fontWeight = "650";
       const active = state.libraryScope === scope.id;
       button.style.background = active ? "rgba(37, 62, 98, 0.86)" : "rgba(16, 28, 46, 0.78)";
       button.style.borderColor = active ? "rgba(115, 170, 255, 0.78)" : "rgba(125, 154, 207, 0.28)";
@@ -252,12 +178,27 @@ export function renderLevelEditorScreen(props: LevelEditorScreenProps): HTMLDivE
     }
     libraryPanel.body.appendChild(scopeRow);
 
+    const helper = document.createElement("p");
+    helper.className = "campaign-progress-subtitle";
+    helper.textContent =
+      state.libraryScope === "campaign"
+        ? "Pick stage, then level, then mission to preview."
+        : "Pick an item in this scope to edit.";
+    helper.style.marginTop = "8px";
+    helper.style.marginBottom = "0";
+    libraryPanel.body.appendChild(helper);
+
     const searchInput = document.createElement("input");
     searchInput.type = "search";
     searchInput.placeholder = "Filter current picker...";
     searchInput.value = state.search;
     searchInput.className = "campaign-generator-size-select";
     searchInput.style.marginTop = "8px";
+    searchInput.style.color = "#d6e5ff";
+    searchInput.style.background = "rgba(10, 19, 32, 0.9)";
+    searchInput.style.border = "1px solid rgba(117, 157, 220, 0.32)";
+    searchInput.style.borderRadius = "10px";
+    searchInput.style.padding = "9px 11px";
     searchInput.oninput = () => {
       state.search = searchInput.value;
       renderLibrary();
@@ -270,6 +211,10 @@ export function renderLevelEditorScreen(props: LevelEditorScreenProps): HTMLDivE
     pickerWrap.style.gap = "8px";
     pickerWrap.style.maxHeight = "52vh";
     pickerWrap.style.overflowY = "auto";
+    pickerWrap.style.border = "1px solid rgba(117, 157, 220, 0.26)";
+    pickerWrap.style.borderRadius = "10px";
+    pickerWrap.style.padding = "8px";
+    pickerWrap.style.background = "rgba(8, 17, 30, 0.66)";
 
     if (state.libraryScope === "campaign") {
       renderCampaignDrilldown(state.workspace, pickerWrap);
@@ -295,6 +240,12 @@ export function renderLevelEditorScreen(props: LevelEditorScreenProps): HTMLDivE
     for (const file of changed) {
       const item = document.createElement("code");
       item.textContent = file.path;
+      item.style.color = "#adc6ee";
+      item.style.fontSize = "11px";
+      item.style.background = "rgba(16, 29, 47, 0.7)";
+      item.style.border = "1px solid rgba(117, 157, 220, 0.2)";
+      item.style.borderRadius = "6px";
+      item.style.padding = "4px 6px";
       changedList.appendChild(item);
     }
     if (changed.length === 0) {
@@ -370,7 +321,6 @@ export function renderLevelEditorScreen(props: LevelEditorScreenProps): HTMLDivE
             docId: campaignDoc.id,
             stageIndex,
           };
-          state.diffText = "";
           renderAll();
         }),
       );
@@ -389,7 +339,6 @@ export function renderLevelEditorScreen(props: LevelEditorScreenProps): HTMLDivE
             stageIndex: state.campaignStageIndex,
             levelIndex,
           };
-          state.diffText = "";
           renderAll();
         }),
       );
@@ -411,7 +360,6 @@ export function renderLevelEditorScreen(props: LevelEditorScreenProps): HTMLDivE
             stageIndex: state.campaignStageIndex,
             levelIndex: state.campaignLevelIndex,
           };
-          state.diffText = "";
           renderAll();
         },
       ),
@@ -450,7 +398,6 @@ export function renderLevelEditorScreen(props: LevelEditorScreenProps): HTMLDivE
             type: "file",
             docId: doc.id,
           };
-          state.diffText = "";
           renderAll();
         }),
       );
@@ -479,7 +426,6 @@ export function renderLevelEditorScreen(props: LevelEditorScreenProps): HTMLDivE
             docId: selectedDoc.id,
             missionIndex,
           };
-          state.diffText = "";
           renderAll();
         }),
       );
@@ -514,7 +460,6 @@ export function renderLevelEditorScreen(props: LevelEditorScreenProps): HTMLDivE
             docId: presetDoc.id,
             presetId,
           };
-          state.diffText = "";
           renderAll();
         }),
       );
@@ -554,7 +499,6 @@ export function renderLevelEditorScreen(props: LevelEditorScreenProps): HTMLDivE
             type: "file",
             docId: doc.id,
           };
-          state.diffText = "";
           renderAll();
         }),
       );
@@ -654,15 +598,6 @@ export function renderLevelEditorScreen(props: LevelEditorScreenProps): HTMLDivE
     }, { variant: "secondary" });
     rawActions.appendChild(applyRawBtn);
     inspectorPanel.body.appendChild(rawActions);
-
-    if (state.diffText.length > 0) {
-      const diffTitle = document.createElement("p");
-      diffTitle.className = "campaign-progress-title";
-      diffTitle.textContent = "Diff";
-      diffTitle.style.marginTop = "10px";
-      inspectorPanel.body.appendChild(diffTitle);
-      inspectorPanel.body.appendChild(createCodeBlock(state.diffText));
-    }
 
     renderIssueList(inspectorPanel.body);
   }
@@ -851,21 +786,9 @@ export function renderLevelEditorScreen(props: LevelEditorScreenProps): HTMLDivE
 
   function setWorkspace(nextWorkspace: LevelEditorWorkspace): void {
     state.workspace = nextWorkspace;
+    state.issues = validateWorkspace(nextWorkspace);
     saveWorkspaceSnapshot(nextWorkspace);
     renderAll();
-  }
-
-  async function copyCurrentJson(): Promise<void> {
-    if (!state.workspace || !state.selection) {
-      return;
-    }
-    const ownerDoc = state.workspace.docs[selectionToOwningDocId(state.selection)];
-    if (!ownerDoc) {
-      return;
-    }
-    const copied = await copyJsonToClipboard(ownerDoc.currentRaw);
-    state.infoMessage = copied ? "Copied JSON to clipboard." : "Clipboard copy failed.";
-    renderStatus();
   }
 }
 
@@ -1423,15 +1346,19 @@ function syncCampaignCursorFromSelection(state: {
 
 function createPickerBlock(title: string): { root: HTMLDivElement; list: HTMLDivElement } {
   const root = document.createElement("div");
-  root.style.border = "1px solid rgba(116, 157, 224, 0.24)";
+  root.style.border = "1px solid rgba(116, 157, 224, 0.3)";
   root.style.borderRadius = "10px";
   root.style.padding = "8px";
-  root.style.background = "rgba(12, 22, 37, 0.78)";
+  root.style.background = "rgba(13, 24, 40, 0.86)";
 
   const heading = document.createElement("p");
   heading.className = "campaign-progress-title";
   heading.textContent = title;
   heading.style.marginBottom = "6px";
+  heading.style.color = "#cfe0ff";
+  heading.style.fontSize = "12px";
+  heading.style.letterSpacing = "0.04em";
+  heading.style.textTransform = "uppercase";
 
   const list = document.createElement("div");
   list.style.display = "grid";
@@ -1445,12 +1372,14 @@ function createPickerButton(label: string, selected: boolean, onClick: () => voi
   const button = document.createElement("button");
   button.type = "button";
   button.textContent = label;
-  button.style.padding = "6px 8px";
+  button.style.padding = "7px 9px";
   button.style.textAlign = "left";
   button.style.borderRadius = "8px";
   button.style.border = `1px solid ${selected ? "rgba(115, 170, 255, 0.8)" : "rgba(125, 154, 207, 0.22)"}`;
   button.style.background = selected ? "rgba(35, 57, 90, 0.82)" : "rgba(16, 28, 45, 0.75)";
-  button.style.color = "#d6e3ff";
+  button.style.color = selected ? "#e9f1ff" : "#cfddf7";
+  button.style.fontSize = "14px";
+  button.style.fontWeight = selected ? "650" : "550";
   button.style.cursor = "pointer";
   button.onclick = onClick;
   return button;
