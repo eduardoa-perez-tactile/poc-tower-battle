@@ -547,6 +547,19 @@ async function bootstrap(): Promise<void> {
     render();
   };
 
+  const ensureMissionOverlayDefaults = (): boolean => {
+    const state = debugUiStore.getState();
+    if (state.showOverlayRegenNumbers && state.showOverlayCaptureRings && state.showOverlayClusterHighlight) {
+      return false;
+    }
+    debugUiStore.setState({
+      showOverlayRegenNumbers: true,
+      showOverlayCaptureRings: true,
+      showOverlayClusterHighlight: true,
+    });
+    return true;
+  };
+
   const startCampaignMissionById = async (missionId: string): Promise<void> => {
     if (!app.selectedStageId || !app.selectedLevelId) {
       showToast(screenRoot, "Select a level first.");
@@ -679,7 +692,9 @@ async function bootstrap(): Promise<void> {
       );
       renderer.setMapRenderData(baseLevel.mapRenderData ?? null);
       app.screen = "mission";
-      render();
+      if (!ensureMissionOverlayDefaults()) {
+        render();
+      }
     } catch (error) {
       console.error("Failed to start campaign mission", error);
       showToast(screenRoot, "Failed to start mission. Check console for details.");
@@ -783,7 +798,9 @@ async function bootstrap(): Promise<void> {
     renderer.setMapRenderData(tunedLevel.mapRenderData ?? null);
     app.screen = "mission";
     saveRunState(app.runState);
-    render();
+    if (!ensureMissionOverlayDefaults()) {
+      render();
+    }
   };
 
   const handleMissionResult = (): void => {
@@ -1625,36 +1642,25 @@ function renderCurrentScreen(
     const subtitle = document.createElement("p");
     subtitle.className = "splash-subtitle";
     subtitle.textContent = "Strategic Tactical Response";
-    const summary = document.createElement("p");
-    summary.className = "splash-summary";
-    summary.textContent = "Command linked towers. Hold lanes. Break the siege.";
-    titleWrap.append(title, subtitle, summary);
+    const cta = document.createElement("div");
+    cta.className = "splash-cta";
+    const ctaText = document.createElement("p");
+    ctaText.className = "splash-cta-text";
+    ctaText.textContent = "Tap Screen to Begin";
+    const ctaDot = document.createElement("div");
+    ctaDot.className = "splash-cta-dot";
+    cta.append(ctaText, ctaDot);
+    titleWrap.append(title, subtitle, cta);
 
     hero.append(emblemWrap, titleWrap);
 
     const footer = document.createElement("div");
     footer.className = "splash-footer";
 
-    const cta = document.createElement("div");
-    cta.className = "splash-cta";
-    const ctaText = document.createElement("p");
-    ctaText.className = "splash-cta-text";
-    ctaText.textContent = "Tap screen to begin";
-    const ctaDot = document.createElement("div");
-    ctaDot.className = "splash-cta-dot";
-    cta.append(ctaText, ctaDot);
-
-    const startBtn = createButton("Press Enter", openMainMenu, { variant: "ghost", hotkey: "Enter" });
-    startBtn.classList.add("splash-start-btn");
-    startBtn.onclick = (event) => {
-      event.stopPropagation();
-      openMainMenu();
-    };
-
     const homeIndicator = document.createElement("div");
     homeIndicator.className = "splash-home-indicator";
 
-    footer.append(cta, startBtn, homeIndicator);
+    footer.append(homeIndicator);
     shell.append(hero, footer);
     wrapper.appendChild(shell);
     screenRoot.appendChild(wrapper);
@@ -1662,38 +1668,23 @@ function renderCurrentScreen(
   }
 
   if (app.screen === "main-menu") {
-    const panel = document.createElement("div");
-    panel.className = "panel ui-panel menu-panel campaign-main-menu";
+    const wrapper = document.createElement("div");
+    wrapper.className = "centered campaign-main-centered";
 
-    const topBar = document.createElement("div");
-    topBar.className = "campaign-topbar";
-    const badge = document.createElement("div");
-    badge.className = "campaign-topbar-badge";
-    badge.textContent = "TB";
-    const title = document.createElement("p");
-    title.className = "campaign-topbar-title";
-    title.textContent = "Command Interface";
-    topBar.append(badge, title);
-    panel.appendChild(topBar);
+    const layout = document.createElement("div");
+    layout.className = "campaign-main-layout";
 
-    const hero = document.createElement("div");
-    hero.className = "campaign-main-hero";
-    const overline = document.createElement("p");
-    overline.className = "campaign-overline";
-    overline.textContent = "Main Menu";
     const heading = document.createElement("h2");
-    heading.className = "campaign-main-heading";
-    heading.innerHTML = `GRID <span>DEFENDER</span>`;
-    const subtitle = document.createElement("p");
-    subtitle.className = "campaign-main-subtitle";
-    subtitle.textContent =
-      "Launch campaign operations, review profile progress, or generate new battlefields.";
-    hero.append(overline, heading, subtitle);
-    panel.appendChild(hero);
+    heading.className = "splash-title campaign-main-title";
+    heading.innerHTML = "<span>Grid</span>Defense";
+    layout.appendChild(heading);
+
+    const panel = document.createElement("div");
+    panel.className = "panel ui-panel campaign-main-menu";
 
     const actionCard = document.createElement("div");
     actionCard.className = "campaign-main-actions";
-    const campaignBtn = createButton("Play Campaign", openStageSelect, {
+    const campaignBtn = createButton("Play", openStageSelect, {
       variant: "primary",
       primaryAction: true,
       hotkey: "Enter",
@@ -1701,29 +1692,22 @@ function renderCurrentScreen(
     campaignBtn.classList.add("campaign-main-action");
     actionCard.appendChild(campaignBtn);
 
-    const profileBtn = createButton("Profile Snapshot", openProfileSnapshot, { variant: "secondary" });
+    const profileBtn = createButton("Commander Record", openProfileSnapshot, { variant: "secondary" });
     profileBtn.classList.add("campaign-main-action");
     actionCard.appendChild(profileBtn);
+
+    const metaBtn = createButton("Upgrades Shop", openMetaScreen, { variant: "secondary" });
+    metaBtn.classList.add("campaign-main-action");
+    actionCard.appendChild(metaBtn);
 
     const generatorBtn = createButton("Level Generator", openLevelGenerator, { variant: "secondary" });
     generatorBtn.classList.add("campaign-main-action");
     actionCard.appendChild(generatorBtn);
-
-    const metaBtn = createButton("Meta Progression", openMetaScreen, { variant: "secondary" });
-    metaBtn.classList.add("campaign-main-action");
-    actionCard.appendChild(metaBtn);
     panel.appendChild(actionCard);
 
-    const quickStats = document.createElement("div");
-    quickStats.className = "campaign-main-stats";
-    quickStats.append(
-      createInfoPill("Gold", `${app.metaProfile.glory}`),
-      createInfoPill("Meta Lv", `${computeMetaAccountLevel(app.metaProfile)}`),
-      createInfoPill("Stages", `${app.campaignStages.length}`),
-    );
-    panel.appendChild(quickStats);
-
-    screenRoot.appendChild(wrapCentered(panel));
+    layout.appendChild(panel);
+    wrapper.appendChild(layout);
+    screenRoot.appendChild(wrapper);
     return;
   }
 
@@ -1799,7 +1783,6 @@ function renderCurrentScreen(
       unlocks: app.campaignUnlocks,
       onSelectStage: openLevelSelect,
       onBack: openMainMenu,
-      onOpenGenerator: openLevelGenerator,
     });
     screenRoot.appendChild(wrapCentered(panel));
     return;
@@ -2223,14 +2206,6 @@ function renderCurrentScreen(
       heroCopy.append(heroTitle, heroSubtitle);
       hero.append(emblem, heroCopy);
       pausePanel.appendChild(hero);
-
-      const summary = document.createElement("section");
-      summary.className = "mission-pause-summary";
-      summary.appendChild(createMissionHudLabel("Control Summary"));
-      summary.appendChild(createParagraph("Continue: resume simulation and restore controls."));
-      summary.appendChild(createParagraph("Restart Mission: reset this mission from the start."));
-      summary.appendChild(createParagraph("Main Menu: leave mission and return to command menu."));
-      pausePanel.appendChild(summary);
 
       const actions = document.createElement("div");
       actions.className = "mission-pause-actions";

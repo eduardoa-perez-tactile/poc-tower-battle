@@ -66,9 +66,9 @@ export const debugUiStore = new DebugUiStore({
   showMissionHud: true,
   showWavePreview: true,
   showSkillHud: true,
-  showOverlayRegenNumbers: false,
-  showOverlayCaptureRings: false,
-  showOverlayClusterHighlight: false,
+  showOverlayRegenNumbers: true,
+  showOverlayCaptureRings: true,
+  showOverlayClusterHighlight: true,
   showHitboxes: false,
   showGridLines: true,
 });

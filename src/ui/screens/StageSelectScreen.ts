@@ -7,7 +7,6 @@ export interface StageSelectScreenProps {
   unlocks: CampaignUnlocks;
   onSelectStage: (stageId: string) => void;
   onBack: () => void;
-  onOpenGenerator: () => void;
 }
 
 const STAGE_GRADIENTS = [
@@ -103,11 +102,9 @@ export function renderStageSelectScreen(props: StageSelectScreenProps): HTMLDivE
 
   const footer = document.createElement("div");
   footer.className = "menu-footer campaign-footer";
-  const generatorBtn = createButton("Level Generator", props.onOpenGenerator, { variant: "secondary" });
-  generatorBtn.classList.add("campaign-footer-btn");
   const backBtn = createButton("Back", props.onBack, { variant: "ghost", escapeAction: true, hotkey: "Esc" });
   backBtn.classList.add("campaign-footer-btn");
-  footer.append(generatorBtn, backBtn);
+  footer.append(backBtn);
   panel.appendChild(footer);
 
   return panel;

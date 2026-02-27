@@ -47,17 +47,18 @@
 - State lives in `src/ui/debugStore.ts` (`debugOpen` + UI toggles).
 - The tabbed right-dock menu is rendered by `renderDebugPanel()` in `src/main.ts`.
 - Overlay toggles (`Regen`, `Capture`, `Cluster`) are mirrored between debug UI toggles and top HUD mini-toggle buttons.
+- Overlay toggles (`R/C/L`) default to enabled and are auto-enabled on mission start.
 
 ## Splash screen
 - Splash screen is rendered in `renderCurrentScreen()` (`src/main.ts`, `title` branch).
 - The mock device status strip and loading bar were removed.
-- Primary CTA is the enlarged `Tap screen to begin` prompt plus optional `Press Enter` button.
+- Primary CTA is the enlarged `Tap Screen to Begin` prompt.
 
 ## Mission pause modal style
 - Pause overlay uses `wrapCenteredModal()` in `src/main.ts` to vertically center the popup in gameplay.
 - Modal shell classes are:
 - `mission-pause-shell`
 - `mission-pause-hero`
-- `mission-pause-summary`
 - `mission-pause-actions`
+- The control-summary explanatory text block was removed; only hero + actions are shown.
 - Buttons are intentionally full-width and stacked (not horizontal) to improve readability during pause decisions.

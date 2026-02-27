@@ -82,18 +82,13 @@ export function renderLevelSelectScreen(props: LevelSelectScreenProps): HTMLDivE
 
     const title = document.createElement("h3");
     title.className = "campaign-level-title";
-    title.textContent = level.name;
+    title.textContent = formatLevelTitle(level.name);
     body.appendChild(title);
 
     const meta = document.createElement("p");
     meta.className = "campaign-level-meta";
-    meta.textContent = `${level.levelId.toUpperCase()} • ${level.size.toUpperCase()} • ${level.missions.length} missions`;
+    meta.textContent = `${level.size.toUpperCase()} • ${level.missions.length} missions`;
     body.appendChild(meta);
-
-    const source = document.createElement("p");
-    source.className = "campaign-level-source";
-    source.textContent = entry.source === "user" ? "Source: User Generated" : "Source: Bundled";
-    body.appendChild(source);
 
     const openBtn = createButton("Open Missions", () => props.onSelectLevel(level.levelId), {
       variant: state.unlocked ? "primary" : "ghost",
@@ -175,4 +170,8 @@ function createProgressCard(input: {
   track.appendChild(fill);
   card.appendChild(track);
   return card;
+}
+
+function formatLevelTitle(title: string): string {
+  return title.replace(/^T\d+\s*-\s*/i, "").trim();
 }
