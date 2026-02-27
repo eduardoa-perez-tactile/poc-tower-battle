@@ -114,6 +114,7 @@ type Screen =
   | "level-select"
   | "mission-select"
   | "level-generator"
+  | "level-editor"
   | "mission";
 type DebugTab = "run" | "sim" | "ui" | "dev";
 
@@ -189,6 +190,7 @@ interface AppState {
 }
 
 const DEBUG_TOOLS_ENABLED = true;
+const LEVEL_EDITOR_ENABLED = import.meta.env.DEV;
 void bootstrap();
 
 async function bootstrap(): Promise<void> {
@@ -199,6 +201,7 @@ async function bootstrap(): Promise<void> {
   const debugPanel = getDebugPanel();
   const debugIndicator = getDebugIndicator();
   const levelCache = new Map<string, LoadedLevel>();
+  let renderLevelEditorScreenFn: ((props: { onBack: () => void }) => HTMLDivElement) | null = null;
   let debugPanelInteractionUntilSec = 0;
   debugIndicator.onclick = () => {
     if (DEBUG_TOOLS_ENABLED) {
@@ -363,12 +366,16 @@ async function bootstrap(): Promise<void> {
       openLevelSelect,
       openMissionSelect,
       openLevelGenerator,
+      () => {
+        void openLevelEditor();
+      },
       generateDraftLevel,
       saveDraftLevel,
       startCampaignMissionById,
       gameplayHud,
       debugState,
       setMissionPaused,
+      renderLevelEditorScreenFn,
     );
     renderDebugPanel(
       debugPanel,
@@ -500,6 +507,20 @@ async function bootstrap(): Promise<void> {
       });
     }
     app.screen = "level-generator";
+    render();
+  };
+
+  const openLevelEditor = async (): Promise<void> => {
+    if (!LEVEL_EDITOR_ENABLED) {
+      showToast(screenRoot, "Level Editor is only available in DEV mode.");
+      return;
+    }
+    if (!renderLevelEditorScreenFn) {
+      const module = await import("./tools/level_editor/ui/LevelEditorScreen");
+      renderLevelEditorScreenFn = module.renderLevelEditorScreen;
+    }
+    stopMission();
+    app.screen = "level-editor";
     render();
   };
 
@@ -1589,12 +1610,14 @@ function renderCurrentScreen(
   openLevelSelect: (stageId: string) => void,
   openMissionSelect: (levelId: string) => void,
   openLevelGenerator: () => void,
+  openLevelEditor: () => void,
   generateDraftLevel: () => void,
   saveDraftLevel: () => Promise<void>,
   startCampaignMissionById: (missionId: string) => Promise<void>,
   gameplayHud: GameplayHUD,
   debugState: DebugUiState,
   setMissionPaused: (paused: boolean) => void,
+  renderLevelEditorScreenFn: ((props: { onBack: () => void }) => HTMLDivElement) | null,
 ): void {
   screenRoot.replaceChildren();
 
@@ -1700,9 +1723,25 @@ function renderCurrentScreen(
     metaBtn.classList.add("campaign-main-action");
     actionCard.appendChild(metaBtn);
 
-    const generatorBtn = createButton("Level Generator", openLevelGenerator, { variant: "secondary" });
-    generatorBtn.classList.add("campaign-main-action");
-    actionCard.appendChild(generatorBtn);
+    if (LEVEL_EDITOR_ENABLED) {
+      const editorBtn = createButton(
+        "Level Editor",
+        () => {
+          void openLevelEditor();
+        },
+        { variant: "secondary" },
+      );
+      editorBtn.classList.add("campaign-main-action");
+      actionCard.appendChild(editorBtn);
+
+      const legacyBtn = createButton("Legacy Generator", openLevelGenerator, { variant: "secondary" });
+      legacyBtn.classList.add("campaign-main-action");
+      actionCard.appendChild(legacyBtn);
+    } else {
+      const generatorBtn = createButton("Level Generator", openLevelGenerator, { variant: "secondary" });
+      generatorBtn.classList.add("campaign-main-action");
+      actionCard.appendChild(generatorBtn);
+    }
     panel.appendChild(actionCard);
 
     layout.appendChild(panel);
@@ -1850,6 +1889,19 @@ function renderCurrentScreen(
       onSave: () => {
         void saveDraftLevel();
       },
+      onBack: openMainMenu,
+    });
+    screenRoot.appendChild(wrapCentered(panel));
+    return;
+  }
+
+  if (app.screen === "level-editor") {
+    if (!renderLevelEditorScreenFn) {
+      const loadingPanel = createPanel("Level Editor", "Loading dev tools module...");
+      screenRoot.appendChild(wrapCentered(loadingPanel));
+      return;
+    }
+    const panel = renderLevelEditorScreenFn({
       onBack: openMainMenu,
     });
     screenRoot.appendChild(wrapCentered(panel));
