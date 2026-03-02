@@ -1,4 +1,6 @@
 import type { Owner } from "../sim/World";
+import type { TerrainData } from "../types/Terrain";
+import type { LevelVisualsData } from "../types/Visuals";
 
 export type LevelSizePreset = "small" | "medium" | "big";
 
@@ -99,6 +101,8 @@ export interface LevelJson {
   edges: LevelEdge[];
   missions: LevelMission[];
   runtime?: LevelRuntimeOverrides;
+  terrain?: TerrainData;
+  visuals?: LevelVisualsData;
 }
 
 export interface StageJson {

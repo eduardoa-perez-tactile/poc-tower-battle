@@ -1,0 +1,22 @@
+{
+  "tileSize": 32,
+  "tilesheet": {
+    "image": "assets/tiles/summer.png",
+    "tileW": 32,
+    "tileH": 32,
+    "cols": 18,
+    "rows": 27
+  },
+  "buildings": {
+    "barracks": { "image": "assets/buildings/barracks.png", "frameW": 96, "frameH": 192, "anchorX": 48, "anchorY": 170 },
+    "cannon_tower": { "image": "assets/buildings/cannon_tower.png", "frameW": 64, "frameH": 128, "anchorX": 32, "anchorY": 110 },
+    "castle": { "image": "assets/buildings/castle.png", "frameW": 128, "frameH": 256, "anchorX": 64, "anchorY": 230 },
+    "foundry": { "image": "assets/buildings/foundry.png", "frameW": 96, "frameH": 192, "anchorX": 48, "anchorY": 170 },
+    "gnomish_inventor": { "image": "assets/buildings/gnomish_inventor.png", "frameW": 96, "frameH": 192, "anchorX": 48, "anchorY": 170 },
+    "guard_tower": { "image": "assets/buildings/guard_tower.png", "frameW": 64, "frameH": 128, "anchorX": 32, "anchorY": 110 },
+    "keep": { "image": "assets/buildings/keep.png", "frameW": 128, "frameH": 256, "anchorX": 64, "anchorY": 230 },
+    "mage_tower": { "image": "assets/buildings/mage_tower.png", "frameW": 96, "frameH": 192, "anchorX": 48, "anchorY": 170 },
+    "scout_tower": { "image": "assets/buildings/scout_tower.png", "frameW": 64, "frameH": 128, "anchorX": 32, "anchorY": 110 },
+    "stables": { "image": "assets/buildings/stables.png", "frameW": 96, "frameH": 192, "anchorX": 48, "anchorY": 170 }
+  }
+}

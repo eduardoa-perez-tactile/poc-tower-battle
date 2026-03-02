@@ -9,6 +9,7 @@ import type {
   LevelNode,
   LevelSizePreset,
 } from "./types";
+import { parseOptionalTerrain, parseOptionalVisuals } from "./LevelVisuals";
 
 export const USER_LEVELS_STORAGE_KEY = "tower-battle.user-levels.v1";
 
@@ -114,6 +115,7 @@ export function parseLevelJson(data: unknown, sourceLabel: string): LevelJson {
   if (!isObject(data)) {
     throw new Error(`${sourceLabel}: level JSON root must be an object`);
   }
+  const base = data as Record<string, unknown>;
 
   const version = asNumber(data.version, `${sourceLabel}.version`);
   if (version !== 1) {
@@ -130,6 +132,7 @@ export function parseLevelJson(data: unknown, sourceLabel: string): LevelJson {
   const missions = parseMissions(data.missions, `${sourceLabel}.missions`);
 
   return {
+    ...base,
     version: 1,
     stageId,
     levelId,
@@ -140,6 +143,8 @@ export function parseLevelJson(data: unknown, sourceLabel: string): LevelJson {
     edges,
     missions,
     runtime: parseRuntime(data.runtime, `${sourceLabel}.runtime`),
+    terrain: parseOptionalTerrain(data.terrain, `${sourceLabel}.terrain`),
+    visuals: parseOptionalVisuals(data.visuals, `${sourceLabel}.visuals`),
   };
 }
 
@@ -171,10 +176,12 @@ function parseGrid(value: unknown, fieldName: string): LevelGrid {
   const blocked = parsePointsArray(value.layers.blocked, `${fieldName}.layers.blocked`, width, height);
 
   return {
+    ...(value as Record<string, unknown>),
     width,
     height,
     minCellSize,
     layers: {
+      ...(value.layers as Record<string, unknown>),
       ground,
       decor,
       blocked,
@@ -203,6 +210,7 @@ function parseGroundLayer(value: unknown, fieldName: string): GroundLayer {
   });
 
   return {
+    ...(value as Record<string, unknown>),
     default: fallback,
     overrides,
   };
@@ -214,6 +222,7 @@ function parseDecorLayer(value: unknown, fieldName: string): DecorLayer {
   }
 
   return {
+    ...(value as Record<string, unknown>),
     overrides: parseTileOverrides(value.overrides, `${fieldName}.overrides`),
   };
 }
@@ -235,6 +244,7 @@ function parseTileOverrides(
     }
 
     return {
+      ...(entry as Record<string, unknown>),
       x: asInteger(entry.x, `${fieldName}[${index}].x`),
       y: asInteger(entry.y, `${fieldName}[${index}].y`),
       tile: asString(entry.tile, `${fieldName}[${index}].tile`),
@@ -276,6 +286,7 @@ function parseNodes(value: unknown, grid: LevelGrid, fieldName: string): LevelNo
     }
 
     return {
+      ...(entry as Record<string, unknown>),
       id,
       x,
       y,
@@ -311,7 +322,11 @@ function parseEdges(value: unknown, nodes: LevelNode[], fieldName: string): Leve
       throw new Error(`${fieldName}[${index}] references unknown node id`);
     }
 
-    return { from, to };
+    return {
+      ...(entry as Record<string, unknown>),
+      from,
+      to,
+    };
   });
 }
 
@@ -333,6 +348,7 @@ function parseMissions(value: unknown, fieldName: string): LevelMission[] {
     ids.add(missionId);
 
     const mission: LevelMission = {
+      ...(entry as Record<string, unknown>),
       missionId,
       name: asString(entry.name, `${fieldName}[${index}].name`),
       seed: asInteger(entry.seed, `${fieldName}[${index}].seed`),

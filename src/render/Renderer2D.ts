@@ -5,6 +5,8 @@ import type {
   PointerHint,
 } from "../input/InputController";
 import type { GridRenderData } from "../levels/runtime";
+import type { TerrainData } from "../types/Terrain";
+import type { LevelVisualsData } from "../types/Visuals";
 import {
   TOWER_RADIUS_PX,
   type Link,
@@ -15,6 +17,8 @@ import {
   type World,
 } from "../sim/World";
 import type { WaveRenderState } from "../waves/WaveDirector";
+import { MapRenderer } from "./MapRenderer";
+import { SpriteAtlas } from "./SpriteAtlas";
 
 const OWNER_COLORS: Record<Owner, string> = {
   player: "#2a9d8f",
@@ -37,22 +41,52 @@ const PACKET_COLORS: Record<Owner, string> = {
 export class Renderer2D {
   private readonly canvas: HTMLCanvasElement;
   private readonly ctx: CanvasRenderingContext2D;
+  private readonly spriteAtlas: SpriteAtlas;
+  private readonly mapRenderer: MapRenderer;
+  private readonly spriteDrawnTowerIds: Set<string>;
   private mapRenderData: GridRenderData | null;
+  private mapTerrain: TerrainData | null;
+  private mapVisuals: LevelVisualsData | null;
   private showGridLines: boolean;
+  private renderArtMap: boolean;
+  private showMapDebugOverlay: boolean;
 
   constructor(canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D) {
     this.canvas = canvas;
     this.ctx = ctx;
+    this.spriteAtlas = new SpriteAtlas();
+    this.mapRenderer = new MapRenderer();
+    this.spriteDrawnTowerIds = new Set<string>();
     this.mapRenderData = null;
+    this.mapTerrain = null;
+    this.mapVisuals = null;
     this.showGridLines = true;
+    this.renderArtMap = true;
+    this.showMapDebugOverlay = false;
+    void this.spriteAtlas.ensureLoaded().catch((error) => {
+      console.error("Failed to load map art atlas", error);
+    });
   }
 
   setMapRenderData(mapRenderData: GridRenderData | null): void {
     this.mapRenderData = mapRenderData;
   }
 
+  setMapArtData(terrain: TerrainData | null, visuals: LevelVisualsData | null): void {
+    this.mapTerrain = terrain;
+    this.mapVisuals = visuals;
+  }
+
   setShowGridLines(enabled: boolean): void {
     this.showGridLines = enabled;
+  }
+
+  setRenderArtMap(enabled: boolean): void {
+    this.renderArtMap = enabled;
+  }
+
+  setShowMapDebugOverlay(enabled: boolean): void {
+    this.showMapDebugOverlay = enabled;
   }
 
   clear(): void {
@@ -72,8 +106,31 @@ export class Renderer2D {
   ): void {
     this.clear();
 
-    this.drawGroundAndGrid();
-    this.drawStaticGraphEdges();
+    const viewport = this.getViewportSize();
+    const shouldRenderArt = this.renderArtMap && this.mapTerrain !== null;
+    if (shouldRenderArt && this.mapTerrain) {
+      this.mapRenderer.renderTerrain(this.ctx, this.mapTerrain, this.spriteAtlas, {
+        x: 0,
+        y: 0,
+        width: viewport.width,
+        height: viewport.height,
+      });
+      this.mapRenderer.renderTowerSprites(
+        this.ctx,
+        world.towers,
+        this.mapVisuals ?? undefined,
+        this.spriteAtlas,
+        this.spriteDrawnTowerIds,
+      );
+    } else {
+      this.spriteDrawnTowerIds.clear();
+    }
+
+    const showDebugMapOverlay = !shouldRenderArt || this.showMapDebugOverlay;
+    if (showDebugMapOverlay) {
+      this.drawGroundAndGrid();
+      this.drawStaticGraphEdges();
+    }
 
     for (const link of world.links) {
       this.drawLink(link);
@@ -104,7 +161,12 @@ export class Renderer2D {
     for (const tower of world.towers) {
       const candidateState = dragOverlay?.candidateStateByTowerId[tower.id] ?? null;
       const isDragSource = dragOverlay?.sourceTowerId === tower.id;
-      this.drawTower(tower, candidateState, isDragSource);
+      const renderedBySprite = shouldRenderArt && this.spriteDrawnTowerIds.has(tower.id);
+      if (!renderedBySprite || showDebugMapOverlay) {
+        this.drawTower(tower, candidateState, isDragSource);
+        continue;
+      }
+      this.drawTowerInteractionHints(tower, candidateState, isDragSource);
     }
 
     if (preview) {
@@ -250,6 +312,56 @@ export class Renderer2D {
       this.ctx.stroke();
       this.ctx.restore();
     } else if (linkCandidateState === "invalid") {
+      this.ctx.save();
+      this.ctx.strokeStyle = "rgba(255, 186, 138, 0.9)";
+      this.ctx.lineWidth = 2.5;
+      this.ctx.setLineDash([6, 4]);
+      this.ctx.beginPath();
+      this.ctx.arc(x, y, TOWER_RADIUS_PX + 4, 0, Math.PI * 2);
+      this.ctx.stroke();
+      this.ctx.setLineDash([]);
+      this.ctx.strokeStyle = "rgba(255, 132, 132, 0.9)";
+      this.ctx.lineWidth = 2;
+      this.ctx.beginPath();
+      this.ctx.moveTo(x - 8, y - 8);
+      this.ctx.lineTo(x + 8, y + 8);
+      this.ctx.moveTo(x + 8, y - 8);
+      this.ctx.lineTo(x - 8, y + 8);
+      this.ctx.stroke();
+      this.ctx.restore();
+    }
+  }
+
+  private drawTowerInteractionHints(
+    tower: Tower,
+    linkCandidateState: LinkCandidateState | null,
+    isDragSource: boolean,
+  ): void {
+    const x = tower.x;
+    const y = tower.y;
+
+    if (isDragSource) {
+      this.ctx.save();
+      this.ctx.strokeStyle = "rgba(124, 227, 214, 0.96)";
+      this.ctx.lineWidth = 3;
+      this.ctx.beginPath();
+      this.ctx.arc(x, y, TOWER_RADIUS_PX + 7, 0, Math.PI * 2);
+      this.ctx.stroke();
+      this.ctx.restore();
+    }
+
+    if (linkCandidateState === "valid") {
+      this.ctx.save();
+      this.ctx.strokeStyle = "rgba(111, 255, 201, 0.95)";
+      this.ctx.lineWidth = 3;
+      this.ctx.beginPath();
+      this.ctx.arc(x, y, TOWER_RADIUS_PX + 5, 0, Math.PI * 2);
+      this.ctx.stroke();
+      this.ctx.restore();
+      return;
+    }
+
+    if (linkCandidateState === "invalid") {
       this.ctx.save();
       this.ctx.strokeStyle = "rgba(255, 186, 138, 0.9)";
       this.ctx.lineWidth = 2.5;

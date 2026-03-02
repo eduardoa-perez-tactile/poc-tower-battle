@@ -1,6 +1,7 @@
 import { parseTowerArchetype } from "../sim/DepthConfig";
 import { TowerArchetype } from "../sim/DepthTypes";
 import type { Tower } from "../sim/World";
+import { cloneOptionalTerrain, cloneOptionalVisuals } from "./LevelVisuals";
 import { createGridWorldTransform, gridBoundsWorld, gridToWorld, type ViewportSize } from "./grid";
 import type { LoadedLevel } from "./runtime";
 import type { LevelJson, LevelNode } from "./types";
@@ -206,6 +207,8 @@ export function buildRuntimeLevelFromLevel(
       nodes: renderNodes,
       edges: renderEdges,
     },
+    terrain: cloneOptionalTerrain(level.terrain),
+    visuals: cloneOptionalVisuals(level.visuals),
   };
 }
 
