@@ -25,6 +25,7 @@ import {
 } from "../services/workspaceMutations";
 import { splitIssues, validateWorkspace } from "../services/validation";
 import { createEnemiesTab } from "./EnemiesTab";
+import { createTutorialTab } from "./TutorialTab";
 
 export interface LevelEditorScreenProps {
   onBack: () => void;
@@ -35,7 +36,7 @@ interface EditorUiState {
   loadError: string | null;
   workspace: LevelEditorWorkspace | null;
   selection: LevelEditorSelection | null;
-  activeTab: "levels" | "enemies";
+  activeTab: "levels" | "enemies" | "tutorial";
   libraryScope: "campaign" | "levels" | "presets" | "globals";
   campaignStageIndex: number;
   campaignLevelIndex: number;
@@ -120,7 +121,14 @@ export function renderLevelEditorScreen(props: LevelEditorScreenProps): HTMLDivE
     state.activeTab = "enemies";
     renderAll();
   };
-  toolbar.append(levelsTabBtn, enemiesTabBtn);
+  const tutorialTabBtn = document.createElement("button");
+  tutorialTabBtn.type = "button";
+  tutorialTabBtn.textContent = "Tutorial";
+  tutorialTabBtn.onclick = () => {
+    state.activeTab = "tutorial";
+    renderAll();
+  };
+  toolbar.append(levelsTabBtn, enemiesTabBtn, tutorialTabBtn);
 
   const layout = document.createElement("div");
   layout.style.display = "grid";
@@ -158,7 +166,26 @@ export function renderLevelEditorScreen(props: LevelEditorScreenProps): HTMLDivE
   });
   enemiesRoot.appendChild(enemiesTab.root);
 
-  panel.append(header, toolbar, layout, enemiesRoot, status);
+  const tutorialRoot = document.createElement("div");
+  const tutorialTab = createTutorialTab({
+    getWorkspace: () => state.workspace,
+    commitWorkspace: (updater) => {
+      if (!state.workspace) {
+        return;
+      }
+      const nextWorkspace = updater(state.workspace);
+      if (nextWorkspace !== state.workspace) {
+        setWorkspace(nextWorkspace);
+      }
+    },
+    onInfoMessage: (message) => {
+      state.infoMessage = message;
+      renderStatus();
+    },
+  });
+  tutorialRoot.appendChild(tutorialTab.root);
+
+  panel.append(header, toolbar, layout, enemiesRoot, tutorialRoot, status);
 
   void initialize();
   renderAll();
@@ -188,11 +215,15 @@ export function renderLevelEditorScreen(props: LevelEditorScreenProps): HTMLDivE
   function renderAll(): void {
     applyTabButtonStyle(levelsTabBtn, state.activeTab === "levels");
     applyTabButtonStyle(enemiesTabBtn, state.activeTab === "enemies");
+    applyTabButtonStyle(tutorialTabBtn, state.activeTab === "tutorial");
 
     const showLevels = state.activeTab === "levels";
+    const showEnemies = state.activeTab === "enemies";
+    const showTutorial = state.activeTab === "tutorial";
     layout.style.display = showLevels ? "grid" : "none";
     status.style.display = showLevels ? "block" : "none";
-    enemiesTab.setActive(!showLevels);
+    enemiesTab.setActive(showEnemies);
+    tutorialTab.setActive(showTutorial);
 
     if (showLevels) {
       renderLibrary();
@@ -1109,6 +1140,15 @@ function renderCampaignMissionForm(
         })),
       );
     }),
+    makeTextField("Tutorial ID (optional)", level.tutorialId ?? "", "tutorialId", (value) => {
+      const nextId = value.trim();
+      onWorkspaceChange(
+        mutateCampaignMission(workspace, selection.docId, selection.stageIndex, selection.levelIndex, (entry) => ({
+          ...entry,
+          tutorialId: nextId.length > 0 ? nextId : undefined,
+        })),
+      );
+    }),
     makeTextField("Wave Preset", level.wavePlan.preset, "wavePlan.preset", (value) => {
       onWorkspaceChange(
         mutateCampaignMission(workspace, selection.docId, selection.stageIndex, selection.levelIndex, (entry) => ({
@@ -1381,6 +1421,15 @@ function renderLevelMissionForm(
         mutateLevelMission(workspace, selection.docId, selection.missionIndex, (entry) => ({
           ...entry,
           objectiveText: value,
+        })),
+      );
+    }),
+    makeTextField("Tutorial ID (optional)", mission.tutorialId ?? "", `missions[${selection.missionIndex}].tutorialId`, (value) => {
+      const nextId = value.trim();
+      onWorkspaceChange(
+        mutateLevelMission(workspace, selection.docId, selection.missionIndex, (entry) => ({
+          ...entry,
+          tutorialId: nextId.length > 0 ? nextId : undefined,
         })),
       );
     }),

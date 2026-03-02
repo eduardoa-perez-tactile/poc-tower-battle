@@ -61,7 +61,16 @@ export async function loadCampaignRegistryV2(
 
       const resolvedWavePlan = resolveWavePlan(level.wavePlan, wavePresets.presets[level.wavePlan.preset]);
       const missionId = "m01";
-      const levelJson = mapToLevelJson(stage.id, level.id, level.displayName, level.objectivesText, map, resolvedWavePlan, missionId);
+      const levelJson = mapToLevelJson(
+        stage.id,
+        level.id,
+        level.displayName,
+        level.objectivesText,
+        map,
+        resolvedWavePlan,
+        missionId,
+        level.tutorialId,
+      );
 
       levels.push({
         source: "bundled",
@@ -74,6 +83,7 @@ export async function loadCampaignRegistryV2(
         stageId: stage.id,
         levelId: level.id,
         missionId,
+        tutorialId: level.tutorialId,
         dynamic: level.dynamic,
         teaches: [...level.teaches],
         reinforces: [...level.reinforces],
@@ -115,6 +125,7 @@ function mapToLevelJson(
   map: CampaignMapDefinition,
   wavePlan: ResolvedCampaignWavePlan,
   missionId: string,
+  tutorialId?: string,
 ): LevelJson {
   const nodeCount = map.nodes.length;
   const sizePreset: LevelSizePreset = nodeCount <= 12 ? "small" : nodeCount <= 18 ? "medium" : "big";
@@ -171,6 +182,7 @@ function mapToLevelJson(
         waveSetId: wavePlan.preset,
         objectiveText,
         difficulty: wavePlan.missionDifficultyScalar,
+        ...(tutorialId ? { tutorialId } : {}),
       },
     ],
     runtime: {

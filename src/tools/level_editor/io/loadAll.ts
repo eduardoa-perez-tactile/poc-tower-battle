@@ -178,6 +178,9 @@ function resolveKind(path: string, data: unknown | null): LevelEditorDocKind {
   if (path.endsWith("/missions.json")) {
     return "mission-catalog";
   }
+  if (path.endsWith("/tutorials.json")) {
+    return "tutorial-catalog";
+  }
   if (isCampaignMapPath(path)) {
     return "campaign-map";
   }
@@ -212,6 +215,8 @@ function resolveGroup(kind: LevelEditorDocKind): LevelEditorDocument["group"] {
     case "wave-pacing-targets":
     case "mission-catalog":
       return "globals";
+    case "tutorial-catalog":
+      return "tutorials";
     default:
       return "other";
   }

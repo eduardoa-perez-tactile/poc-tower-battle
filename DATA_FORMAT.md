@@ -14,6 +14,7 @@
 - `public/data/balanceBaselines.json`
 - `public/data/difficultyTiers.json`
 - `public/data/wavePacingTargets.json`
+- `public/data/tutorials/tutorials.json`
 
 ## Level file (`levels/level01.json`)
 
@@ -60,6 +61,27 @@
 - `MissionTemplate.name`: string
 - `MissionTemplate.levelPath`: string
 - `MissionTemplate.baseDifficulty`: number
+
+## Tutorial catalog (`public/data/tutorials/tutorials.json`)
+- Root: `{ version: 1, tutorials: TutorialDefinition[] }`
+- `TutorialDefinition`:
+- `id`: stable string id (example: `TUT_T01_CAPTURE_SEND`)
+- `title`: tutorial title shown in modal
+- `steps`: `TutorialStep[]` (supports 1..N steps)
+- `TutorialStep`:
+- `id`: stable per-tutorial step id
+- `heading`: step heading
+- `body`: step copy/body text
+- `goals`: string[] (bullet goals shown in modal)
+- Optional:
+- `highlight`: `{ type: \"tower\" | \"ui\" | \"none\", targetId?: string }`
+- `image`: string asset path
+
+## Campaign tutorial linkage (`public/data/campaign/campaign_v2.json`)
+- Tutorial missions reference tutorials by id only:
+- `stages[].levels[].tutorialId` (optional)
+- Tutorial data must live in `public/data/tutorials/tutorials.json` (never inline in campaign mission payload).
+- Runtime mission objects may also carry `missions[].tutorialId` after campaign resolution.
 
 ## Persistent upgrades (`public/data/upgrades.json`)
 - Root: `{ version: number, trees: UpgradeTree[] }`

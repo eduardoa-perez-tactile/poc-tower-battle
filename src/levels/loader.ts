@@ -339,6 +339,7 @@ function parseMissions(value: unknown, fieldName: string): LevelMission[] {
       waveSetId: asString(entry.waveSetId, `${fieldName}[${index}].waveSetId`),
       objectiveText: asString(entry.objectiveText, `${fieldName}[${index}].objectiveText`),
       difficulty: asOptionalNumber(entry.difficulty, `${fieldName}[${index}].difficulty`) ?? 1,
+      tutorialId: asOptionalString(entry.tutorialId, `${fieldName}[${index}].tutorialId`),
     };
 
     return mission;

@@ -56,6 +56,7 @@ export interface CampaignLevelDefinition {
   id: string;
   displayName: string;
   mapId: string;
+  tutorialId?: string;
   difficulty: CampaignDifficultyRef;
   dynamic: CampaignDynamicId;
   teaches: string[];
@@ -134,6 +135,7 @@ export interface CampaignMissionRuntimeMeta {
   stageId: string;
   levelId: string;
   missionId: string;
+  tutorialId?: string;
   dynamic: CampaignDynamicId;
   teaches: string[];
   reinforces: string[];

@@ -63,6 +63,7 @@ export interface LevelMission {
   waveSetId: string;
   objectiveText: string;
   difficulty?: number;
+  tutorialId?: string;
 }
 
 export interface RuntimeLevelRulesPatch {
