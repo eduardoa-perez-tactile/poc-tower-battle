@@ -10,6 +10,8 @@ export interface DebugUiState {
   showOverlayClusterHighlight: boolean;
   showHitboxes: boolean;
   showGridLines: boolean;
+  renderArtMap: boolean;
+  showMapDebugOverlay: boolean;
 }
 
 type DebugUiListener = (state: DebugUiState) => void;
@@ -71,4 +73,6 @@ export const debugUiStore = new DebugUiStore({
   showOverlayClusterHighlight: true,
   showHitboxes: false,
   showGridLines: true,
+  renderArtMap: true,
+  showMapDebugOverlay: false,
 });

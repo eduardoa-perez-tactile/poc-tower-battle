@@ -2,6 +2,7 @@ import type { DifficultyTierId } from "../../../config/Difficulty";
 import { createButton } from "../../../components/ui/primitives";
 import type { CampaignSpecV2 } from "../../../campaign/CampaignTypes";
 import type { LevelJson } from "../../../levels/types";
+import { loadSpriteCatalog, type SpriteCatalog } from "../../../render/SpriteAtlas";
 import { toPrettyJson } from "../model/json";
 import type {
   LevelEditorIssue,
@@ -25,6 +26,7 @@ import {
 } from "../services/workspaceMutations";
 import { splitIssues, validateWorkspace } from "../services/validation";
 import { createEnemiesTab } from "./EnemiesTab";
+import { createLevelArtTab } from "./LevelArtTab";
 import { createTutorialTab } from "./TutorialTab";
 
 export interface LevelEditorScreenProps {
@@ -46,6 +48,8 @@ interface EditorUiState {
   runDifficultyScalar: number;
   issues: LevelEditorIssue[];
   infoMessage: string;
+  spriteCatalog: SpriteCatalog | null;
+  spriteCatalogError: string | null;
 }
 
 interface EditablePreviewNode {
@@ -89,6 +93,8 @@ export function renderLevelEditorScreen(props: LevelEditorScreenProps): HTMLDivE
     runDifficultyScalar: 1,
     issues: [],
     infoMessage: "",
+    spriteCatalog: null,
+    spriteCatalogError: null,
   };
 
   const header = createHeader();
@@ -194,11 +200,19 @@ export function renderLevelEditorScreen(props: LevelEditorScreenProps): HTMLDivE
 
   async function initialize(): Promise<void> {
     try {
+      const [loadedWorkspace, spriteCatalog] = await Promise.all([
+        loadLevelEditorWorkspace(),
+        loadSpriteCatalog().catch((error) => {
+          state.spriteCatalogError = error instanceof Error ? error.message : "Failed to load sprite catalog";
+          return null;
+        }),
+      ]);
       const workspace = applyWorkspaceSnapshot(
-        await loadLevelEditorWorkspace(),
+        loadedWorkspace,
         loadWorkspaceSnapshot(),
       );
       state.workspace = workspace;
+      state.spriteCatalog = spriteCatalog;
       state.issues = validateWorkspace(workspace);
       state.loading = false;
       state.selection = findFirstSelection(workspace);
@@ -727,9 +741,16 @@ export function renderLevelEditorScreen(props: LevelEditorScreenProps): HTMLDivE
       return;
     }
 
-    renderTypedForm(inspectorPanel.body, state.workspace, state.selection, (nextWorkspace) => {
+    renderTypedForm(
+      inspectorPanel.body,
+      state.workspace,
+      state.selection,
+      state.spriteCatalog,
+      state.spriteCatalogError,
+      (nextWorkspace) => {
       setWorkspace(nextWorkspace);
-    });
+      },
+    );
 
     const rawLabel = document.createElement("p");
     rawLabel.className = "campaign-progress-title";
@@ -1082,6 +1103,8 @@ function renderTypedForm(
   container: HTMLElement,
   workspace: LevelEditorWorkspace,
   selection: LevelEditorSelection,
+  spriteCatalog: SpriteCatalog | null,
+  spriteCatalogError: string | null,
   onWorkspaceChange: (workspace: LevelEditorWorkspace) => void,
 ): void {
   const campaignLevel = getSelectedCampaignLevel(workspace, selection);
@@ -1097,7 +1120,7 @@ function renderTypedForm(
 
   const level = getSelectedLevel(workspace, selection);
   if (level && selection.type === "file") {
-    container.appendChild(renderLevelForm(workspace, selection, onWorkspaceChange));
+    container.appendChild(renderLevelForm(workspace, selection, spriteCatalog, spriteCatalogError, onWorkspaceChange));
     return;
   }
 
@@ -1306,6 +1329,8 @@ function renderPresetForm(
 function renderLevelForm(
   workspace: LevelEditorWorkspace,
   selection: Extract<LevelEditorSelection, { type: "file" }>,
+  spriteCatalog: SpriteCatalog | null,
+  spriteCatalogError: string | null,
   onWorkspaceChange: (workspace: LevelEditorWorkspace) => void,
 ): HTMLElement {
   const level = getSelectedLevel(workspace, selection);
@@ -1363,6 +1388,18 @@ function renderLevelForm(
           },
         })),
       );
+    }),
+  );
+
+  form.appendChild(
+    createLevelArtTab({
+      level,
+      spriteCatalog,
+      spriteCatalogError,
+      onCommit: (nextLevel, infoMessage) => {
+        void infoMessage;
+        onWorkspaceChange(setDocumentData(workspace, selection.docId, nextLevel));
+      },
     }),
   );
 

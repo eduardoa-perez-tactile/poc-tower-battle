@@ -1,6 +1,7 @@
 import { parseTowerArchetype } from "../sim/DepthConfig";
 import { TowerArchetype } from "../sim/DepthTypes";
 import type { Tower } from "../sim/World";
+import { cloneOptionalTerrain, cloneOptionalVisuals } from "./LevelVisuals";
 import { createGridWorldTransform, gridBoundsWorld, gridToWorld, type ViewportSize } from "./grid";
 import type { LoadedLevel } from "./runtime";
 import type { LevelJson, LevelNode } from "./types";
@@ -59,6 +60,7 @@ export function buildRuntimeLevelFromLevel(
   options: BuildRuntimeLevelOptions,
 ): LoadedLevel {
   const transform = createGridWorldTransform(level.grid, options.viewport);
+  const worldBounds = gridBoundsWorld(transform);
   const nodesById = new Map<string, LevelNode>();
 
   const towers: Tower[] = level.nodes.map((node) => {
@@ -202,9 +204,35 @@ export function buildRuntimeLevelFromLevel(
       cellSize: transform.cellSize,
       originX: transform.originX,
       originY: transform.originY,
-      bounds: gridBoundsWorld(transform),
+      bounds: worldBounds,
       nodes: renderNodes,
       edges: renderEdges,
+    },
+    terrain: projectTerrainToWorld(cloneOptionalTerrain(level.terrain), transform.cellSize, worldBounds.minX, worldBounds.minY),
+    visuals: cloneOptionalVisuals(level.visuals),
+  };
+}
+
+function projectTerrainToWorld(
+  terrain: LoadedLevel["terrain"],
+  worldCellSize: number,
+  worldOriginX: number,
+  worldOriginY: number,
+): LoadedLevel["terrain"] {
+  if (!terrain) {
+    return undefined;
+  }
+
+  const sourceTileSize = Math.max(1, terrain.tileSize);
+  const scale = worldCellSize / sourceTileSize;
+  return {
+    ...terrain,
+    tileSize: sourceTileSize * scale,
+    originX: worldOriginX + terrain.originX * scale,
+    originY: worldOriginY + terrain.originY * scale,
+    layers: {
+      ground: terrain.layers.ground.slice(),
+      deco: terrain.layers.deco.slice(),
     },
   };
 }

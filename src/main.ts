@@ -13,6 +13,7 @@ import {
 import { loadLevel, type LoadedLevel } from "./game/LevelLoader";
 import { InputController } from "./input/InputController";
 import { buildRuntimeLevelFromLevel } from "./levels/adapter";
+import { cloneOptionalTerrain, cloneOptionalVisuals } from "./levels/LevelVisuals";
 import { findLevelById, findStageById, loadLevelRegistry } from "./levels/registry";
 import type { StageRegistryEntry } from "./levels/types";
 import type { CampaignMissionRuntimeMeta } from "./campaign/CampaignTypes";
@@ -299,6 +300,10 @@ async function bootstrap(): Promise<void> {
     saveRunState(app.runState);
   }
 
+  if (app.runState && migrateLegacyRunMissionLevelPaths(app.runState)) {
+    saveRunState(app.runState);
+  }
+
   const gameplayHud = new GameplayHUD({
     canvas,
     onTogglePause: () => {
@@ -345,6 +350,8 @@ async function bootstrap(): Promise<void> {
   const render = (): void => {
     const debugState = debugUiStore.getState();
     renderer.setShowGridLines(debugState.showGridLines);
+    renderer.setRenderArtMap(debugState.renderArtMap);
+    renderer.setShowMapDebugOverlay(debugState.showMapDebugOverlay);
     gameplayHud.setOverlayToggles({
       regenNumbers: debugState.showOverlayRegenNumbers,
       captureRings: debugState.showOverlayCaptureRings,
@@ -716,6 +723,7 @@ async function bootstrap(): Promise<void> {
         (toast) => gameplayHud.pushToast(toast),
       );
       renderer.setMapRenderData(baseLevel.mapRenderData ?? null);
+      renderer.setMapArtData(baseLevel.terrain ?? null, baseLevel.visuals ?? null);
       app.screen = "mission";
       syncMissionInputEnabled();
       if (!ensureMissionOverlayDefaults() || isMissionStartBlocked()) {
@@ -823,6 +831,7 @@ async function bootstrap(): Promise<void> {
       (toast) => gameplayHud.pushToast(toast),
     );
     renderer.setMapRenderData(tunedLevel.mapRenderData ?? null);
+    renderer.setMapArtData(tunedLevel.terrain ?? null, tunedLevel.visuals ?? null);
     app.screen = "mission";
     syncMissionInputEnabled();
     saveRunState(app.runState);
@@ -1466,6 +1475,7 @@ async function bootstrap(): Promise<void> {
     resetMissionHudUiState(app);
     gameplayHud.reset();
     renderer.setMapRenderData(null);
+    renderer.setMapArtData(null, null);
     renderer.clear();
   };
 
@@ -2656,6 +2666,12 @@ function renderDebugPanel(
           panel.appendChild(createDebugToggle("Show Grid Lines", debugState.showGridLines, () => {
             debugUiStore.toggle("showGridLines");
           }));
+          panel.appendChild(createDebugToggle("Render Art Map", debugState.renderArtMap, () => {
+            debugUiStore.toggle("renderArtMap");
+          }));
+          panel.appendChild(createDebugToggle("Show Art Debug Overlay", debugState.showMapDebugOverlay, () => {
+            debugUiStore.toggle("showMapDebugOverlay");
+          }));
           return panel;
         },
       },
@@ -2911,6 +2927,8 @@ function cloneLoadedLevel(level: LoadedLevel): LoadedLevel {
           edges: level.mapRenderData.edges.map((edge) => ({ ...edge })),
         }
       : undefined,
+    terrain: cloneOptionalTerrain(level.terrain),
+    visuals: cloneOptionalVisuals(level.visuals),
   };
 }
 
@@ -3201,6 +3219,29 @@ function getCurrentMission(runState: RunState): RunMissionNode | null {
     return null;
   }
   return runState.missions[runState.currentMissionIndex];
+}
+
+function migrateLegacyRunMissionLevelPaths(runState: RunState): boolean {
+  const LEGACY_PATH = "/levels/level01.json";
+  const levelPathByTemplateId: Record<string, string> = {
+    "border-pass": "/levels/stage01/level01.json",
+    "river-fort": "/levels/stage01/level02.json",
+    "dust-front": "/levels/stage02/level01.json",
+    "sunken-ridge": "/levels/stage01/level01.json",
+    "iron-gate": "/levels/stage01/level02.json",
+    "crown-bastion": "/levels/stage02/level01.json",
+  };
+
+  let changed = false;
+  for (const mission of runState.missions) {
+    if (mission.levelPath !== LEGACY_PATH) {
+      continue;
+    }
+
+    mission.levelPath = levelPathByTemplateId[mission.templateId] ?? "/levels/stage01/level01.json";
+    changed = true;
+  }
+  return changed;
 }
 
 function clamp(value: number, min: number, max: number): number {

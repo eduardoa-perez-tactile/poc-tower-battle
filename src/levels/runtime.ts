@@ -1,5 +1,7 @@
 import type { LinkSeed, Tower } from "../sim/World";
 import type { SimulationRules } from "../sim/Simulation";
+import type { TerrainData } from "../types/Terrain";
+import type { LevelVisualsData } from "../types/Visuals";
 
 export interface AiRules {
   aiThinkIntervalSec: number;
@@ -55,4 +57,6 @@ export interface LoadedLevel {
   ai: AiRules;
   graphEdges?: TowerGraphEdge[];
   mapRenderData?: GridRenderData;
+  terrain?: TerrainData;
+  visuals?: LevelVisualsData;
 }

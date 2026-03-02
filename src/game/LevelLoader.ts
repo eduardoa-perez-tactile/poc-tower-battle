@@ -1,4 +1,5 @@
 import { buildRuntimeLevelFromLevel } from "../levels/adapter";
+import { parseOptionalTerrain, parseOptionalVisuals } from "../levels/LevelVisuals";
 import { parseLevelJson } from "../levels/loader";
 import type { LoadedLevel } from "../levels/runtime";
 import { parseTowerArchetype } from "../sim/DepthConfig";
@@ -52,6 +53,8 @@ function parseLegacyLevel(data: unknown): LoadedLevel {
     initialLinks,
     rules: parseRules(data.rules),
     ai: parseAi(data.ai),
+    terrain: parseOptionalTerrain(data.terrain, "terrain"),
+    visuals: parseOptionalVisuals(data.visuals, "visuals"),
   };
 }
 
