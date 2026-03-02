@@ -1,4 +1,4 @@
-import { createButton, createIconButton } from "../../components/ui/primitives";
+import { createButton } from "../../components/ui/primitives";
 import type { TutorialController } from "../../tutorial/TutorialController";
 
 export interface TutorialModalOptions {
@@ -19,24 +19,49 @@ export function createTutorialModal(options: TutorialModalOptions): HTMLDivEleme
   const header = document.createElement("div");
   header.className = "tutorial-modal-header";
 
-  const headerText = document.createElement("div");
+  const statusWrap = document.createElement("div");
+  statusWrap.className = "tutorial-modal-status";
+
   const overline = document.createElement("p");
-  overline.className = "tutorial-modal-overline";
-  overline.textContent = "Tutorial";
+  overline.className = "tutorial-modal-status-overline";
+  overline.textContent = "Tutorial Active";
 
-  const title = document.createElement("h3");
-  title.className = "tutorial-modal-title";
-  title.textContent = state.tutorialTitle ?? "Mission Tutorial";
+  const statusText = document.createElement("p");
+  statusText.className = "tutorial-modal-status-text";
+  statusText.textContent = state.tutorialTitle ?? "Mission Tutorial";
+  statusWrap.append(overline, statusText);
 
-  headerText.append(overline, title);
-
-  const closeBtn = createIconButton("×", "Close", options.onClose, { variant: "ghost" });
+  const closeBtn = createButton("Close", options.onClose, { variant: "ghost" });
   closeBtn.classList.add("tutorial-modal-close");
 
-  header.append(headerText, closeBtn);
+  header.append(statusWrap, closeBtn);
+
+  const card = document.createElement("div");
+  card.className = "tutorial-modal-card";
+
+  const cardBar = document.createElement("div");
+  cardBar.className = "tutorial-modal-card-bar";
+  card.appendChild(cardBar);
+
+  const visual = document.createElement("div");
+  visual.className = "tutorial-modal-visual";
+  const visualRingOuter = document.createElement("div");
+  visualRingOuter.className = "tutorial-modal-ring tutorial-modal-ring-outer";
+  const visualRingMid = document.createElement("div");
+  visualRingMid.className = "tutorial-modal-ring tutorial-modal-ring-mid";
+  const visualRingInner = document.createElement("div");
+  visualRingInner.className = "tutorial-modal-ring tutorial-modal-ring-inner";
+  const visualTarget = document.createElement("div");
+  visualTarget.className = "tutorial-modal-target";
+  visual.append(visualRingOuter, visualRingMid, visualRingInner, visualTarget);
+  card.appendChild(visual);
 
   const body = document.createElement("div");
   body.className = "tutorial-modal-body";
+
+  const sectionLabel = document.createElement("p");
+  sectionLabel.className = "tutorial-modal-section-label";
+  sectionLabel.textContent = "Mission Briefing";
 
   const heading = document.createElement("p");
   heading.className = "tutorial-modal-step-heading";
@@ -46,7 +71,7 @@ export function createTutorialModal(options: TutorialModalOptions): HTMLDivEleme
   description.className = "tutorial-modal-step-body";
   description.textContent = state.currentStep.body;
 
-  body.append(heading, description);
+  body.append(sectionLabel, heading, description);
 
   if (state.currentStep.image) {
     const image = document.createElement("img");
@@ -65,17 +90,34 @@ export function createTutorialModal(options: TutorialModalOptions): HTMLDivEleme
   goals.className = "tutorial-modal-goals";
   for (const goal of state.currentStep.goals) {
     const item = document.createElement("li");
-    item.textContent = goal;
+    item.className = "tutorial-modal-goal-item";
+    const marker = document.createElement("span");
+    marker.className = "tutorial-modal-goal-marker";
+    const text = document.createElement("span");
+    text.textContent = goal;
+    item.append(marker, text);
     goals.appendChild(item);
   }
   body.appendChild(goals);
+  card.appendChild(body);
 
   const footer = document.createElement("div");
   footer.className = "tutorial-modal-footer";
 
-  const stepIndicator = document.createElement("span");
+  const progressWrap = document.createElement("div");
+  progressWrap.className = "tutorial-modal-progress";
+  for (let index = 0; index < state.stepCount; index += 1) {
+    const pip = document.createElement("div");
+    pip.className = "tutorial-modal-progress-pip";
+    if (index === state.stepIndex) {
+      pip.classList.add("is-active");
+    }
+    progressWrap.appendChild(pip);
+  }
+
+  const stepIndicator = document.createElement("p");
   stepIndicator.className = "tutorial-modal-step-indicator";
-  stepIndicator.textContent = `${state.stepIndex + 1}/${state.stepCount}`;
+  stepIndicator.textContent = `Step ${state.stepIndex + 1} of ${state.stepCount}`;
 
   const actions = document.createElement("div");
   actions.className = "tutorial-modal-actions";
@@ -87,7 +129,7 @@ export function createTutorialModal(options: TutorialModalOptions): HTMLDivEleme
       primaryAction: true,
       hotkey: "Enter",
     });
-    nextBtn.classList.add("tutorial-modal-action");
+    nextBtn.classList.add("tutorial-modal-action", "tutorial-modal-action-primary");
     actions.appendChild(nextBtn);
   } else {
     const startBtn = createButton("Start Mission", options.onClose, {
@@ -95,12 +137,12 @@ export function createTutorialModal(options: TutorialModalOptions): HTMLDivEleme
       primaryAction: true,
       hotkey: "Enter",
     });
-    startBtn.classList.add("tutorial-modal-action");
+    startBtn.classList.add("tutorial-modal-action", "tutorial-modal-action-primary");
     actions.appendChild(startBtn);
   }
 
-  footer.append(stepIndicator, actions);
+  footer.append(progressWrap, stepIndicator, actions);
 
-  panel.append(header, body, footer);
+  panel.append(header, card, footer);
   return panel;
 }
