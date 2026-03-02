@@ -68,9 +68,8 @@ export class MapRenderer {
       }
 
       const frameCount = atlas.getBuildingFrameCount(resolved.spriteKey);
-      const clampedFrame = frameCount === null
-        ? Math.max(0, resolved.frameIndex)
-        : Math.max(0, Math.min(frameCount - 1, resolved.frameIndex));
+      // Building strips contain variants stacked vertically; gameplay uses the top variant.
+      const clampedFrame = frameCount === null ? 0 : Math.max(0, Math.min(frameCount - 1, 0));
 
       const drawParams: DrawBuildingFrameParams = {
         spriteKey: resolved.spriteKey,

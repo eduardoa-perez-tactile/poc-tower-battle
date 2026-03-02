@@ -109,8 +109,9 @@ export class Renderer2D {
     const viewport = this.getViewportSize();
     const hasArtContent = this.mapTerrain !== null || this.mapVisuals !== null;
     const shouldRenderArt = this.renderArtMap && hasArtContent;
+    const shouldRenderTerrainArt = true;
     if (shouldRenderArt) {
-      if (this.mapTerrain) {
+      if (shouldRenderTerrainArt && this.mapTerrain) {
         this.mapRenderer.renderTerrain(this.ctx, this.mapTerrain, this.spriteAtlas, {
           x: 0,
           y: 0,
@@ -123,9 +124,13 @@ export class Renderer2D {
       this.spriteDrawnTowerIds.clear();
     }
 
-    const showDebugMapOverlay = !shouldRenderArt || this.showMapDebugOverlay || this.mapTerrain === null;
-    if (showDebugMapOverlay) {
+    const showGroundOverlay = !shouldRenderArt || !shouldRenderTerrainArt || this.mapTerrain === null;
+    if (showGroundOverlay) {
       this.drawGroundAndGrid();
+    }
+
+    const showDebugMapOverlay = !shouldRenderArt || this.showMapDebugOverlay;
+    if (showDebugMapOverlay) {
       this.drawStaticGraphEdges();
     }
 
@@ -159,7 +164,8 @@ export class Renderer2D {
       const candidateState = dragOverlay?.candidateStateByTowerId[tower.id] ?? null;
       const isDragSource = dragOverlay?.sourceTowerId === tower.id;
       const renderedBySprite = shouldRenderArt && this.spriteDrawnTowerIds.has(tower.id);
-      if (!renderedBySprite || showDebugMapOverlay) {
+      const showTowerDebugOverlay = !shouldRenderArt || this.showMapDebugOverlay;
+      if (!renderedBySprite || showTowerDebugOverlay) {
         this.drawTower(tower, candidateState, isDragSource);
         continue;
       }
