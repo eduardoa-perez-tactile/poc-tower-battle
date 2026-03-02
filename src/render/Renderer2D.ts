@@ -107,26 +107,23 @@ export class Renderer2D {
     this.clear();
 
     const viewport = this.getViewportSize();
-    const shouldRenderArt = this.renderArtMap && this.mapTerrain !== null;
-    if (shouldRenderArt && this.mapTerrain) {
-      this.mapRenderer.renderTerrain(this.ctx, this.mapTerrain, this.spriteAtlas, {
-        x: 0,
-        y: 0,
-        width: viewport.width,
-        height: viewport.height,
-      });
-      this.mapRenderer.renderTowerSprites(
-        this.ctx,
-        world.towers,
-        this.mapVisuals ?? undefined,
-        this.spriteAtlas,
-        this.spriteDrawnTowerIds,
-      );
+    const hasArtContent = this.mapTerrain !== null || this.mapVisuals !== null;
+    const shouldRenderArt = this.renderArtMap && hasArtContent;
+    if (shouldRenderArt) {
+      if (this.mapTerrain) {
+        this.mapRenderer.renderTerrain(this.ctx, this.mapTerrain, this.spriteAtlas, {
+          x: 0,
+          y: 0,
+          width: viewport.width,
+          height: viewport.height,
+        });
+      }
+      this.mapRenderer.renderTowerSprites(this.ctx, world.towers, this.mapVisuals ?? undefined, this.spriteAtlas, this.spriteDrawnTowerIds);
     } else {
       this.spriteDrawnTowerIds.clear();
     }
 
-    const showDebugMapOverlay = !shouldRenderArt || this.showMapDebugOverlay;
+    const showDebugMapOverlay = !shouldRenderArt || this.showMapDebugOverlay || this.mapTerrain === null;
     if (showDebugMapOverlay) {
       this.drawGroundAndGrid();
       this.drawStaticGraphEdges();

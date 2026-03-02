@@ -300,6 +300,10 @@ async function bootstrap(): Promise<void> {
     saveRunState(app.runState);
   }
 
+  if (app.runState && migrateLegacyRunMissionLevelPaths(app.runState)) {
+    saveRunState(app.runState);
+  }
+
   const gameplayHud = new GameplayHUD({
     canvas,
     onTogglePause: () => {
@@ -3215,6 +3219,29 @@ function getCurrentMission(runState: RunState): RunMissionNode | null {
     return null;
   }
   return runState.missions[runState.currentMissionIndex];
+}
+
+function migrateLegacyRunMissionLevelPaths(runState: RunState): boolean {
+  const LEGACY_PATH = "/levels/level01.json";
+  const levelPathByTemplateId: Record<string, string> = {
+    "border-pass": "/levels/stage01/level01.json",
+    "river-fort": "/levels/stage01/level02.json",
+    "dust-front": "/levels/stage02/level01.json",
+    "sunken-ridge": "/levels/stage01/level01.json",
+    "iron-gate": "/levels/stage01/level02.json",
+    "crown-bastion": "/levels/stage02/level01.json",
+  };
+
+  let changed = false;
+  for (const mission of runState.missions) {
+    if (mission.levelPath !== LEGACY_PATH) {
+      continue;
+    }
+
+    mission.levelPath = levelPathByTemplateId[mission.templateId] ?? "/levels/stage01/level01.json";
+    changed = true;
+  }
+  return changed;
 }
 
 function clamp(value: number, min: number, max: number): number {
