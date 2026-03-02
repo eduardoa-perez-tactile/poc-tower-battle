@@ -3,7 +3,6 @@ import type {
   CampaignSpecV2,
   CampaignWavePresetCatalog,
 } from "../../../campaign/CampaignTypes";
-import type { LevelMission, LevelJson } from "../../../levels/types";
 import { ensureTrailingNewline, parseJsonSafe, toPrettyJson } from "../model/json";
 import type {
   LevelEditorDocument,
@@ -151,87 +150,6 @@ export function mutatePreset(
   return setDocumentData(workspace, docId, nextCatalog);
 }
 
-export function mutateLevel(
-  workspace: LevelEditorWorkspace,
-  docId: string,
-  mutator: (level: LevelJson) => LevelJson,
-): LevelEditorWorkspace {
-  const document = workspace.docs[docId];
-  if (!document || !isLevelJson(document.currentData)) {
-    return workspace;
-  }
-  return setDocumentData(workspace, docId, mutator(document.currentData));
-}
-
-export function mutateLevelMission(
-  workspace: LevelEditorWorkspace,
-  docId: string,
-  missionIndex: number,
-  mutator: (mission: LevelMission) => LevelMission,
-): LevelEditorWorkspace {
-  return mutateLevel(workspace, docId, (level) => {
-    const mission = level.missions[missionIndex];
-    if (!mission) {
-      return level;
-    }
-    return {
-      ...level,
-      missions: level.missions.map((entry, index) => (index === missionIndex ? mutator(entry) : entry)),
-    };
-  });
-}
-
-export function duplicateLevel(
-  workspace: LevelEditorWorkspace,
-  docId: string,
-): LevelEditorWorkspace {
-  const document = workspace.docs[docId];
-  if (!document || !isLevelJson(document.currentData)) {
-    return workspace;
-  }
-
-  const baseLevel = document.currentData;
-  const existingLevelIds = new Set(
-    Object.values(workspace.docs)
-      .map((doc) => doc.currentData)
-      .filter(isLevelJson)
-      .map((level) => `${level.stageId}:${level.levelId}`),
-  );
-
-  const nextLevelId = uniquifyId(`${baseLevel.levelId}_copy`, existingLevelIds, `${baseLevel.stageId}:`);
-  const duplicatedLevel: LevelJson = {
-    ...baseLevel,
-    levelId: nextLevelId,
-    name: `${baseLevel.name} Copy`,
-  };
-  const nextPath = `/levels/${baseLevel.stageId}/${nextLevelId}.json`;
-
-  const nextDoc: LevelEditorDocument = {
-    id: nextPath,
-    path: nextPath,
-    label: `${nextLevelId}.json`,
-    kind: "level-json",
-    group: "levels",
-    originalRaw: "",
-    currentRaw: ensureTrailingNewline(toPrettyJson(duplicatedLevel)),
-    originalData: null,
-    currentData: duplicatedLevel,
-    parseError: null,
-    loadError: null,
-    isSynthetic: true,
-  };
-
-  return {
-    ...workspace,
-    updatedAt: Date.now(),
-    order: [...workspace.order, nextDoc.id],
-    docs: {
-      ...workspace.docs,
-      [nextDoc.id]: nextDoc,
-    },
-  };
-}
-
 export function selectionToOwningDocId(selection: LevelEditorSelection): string {
   return selection.docId;
 }
@@ -294,16 +212,5 @@ function isWavePresetCatalog(value: unknown): value is CampaignWavePresetCatalog
     value !== null &&
     (value as { version?: number }).version === 1 &&
     typeof (value as { presets?: unknown }).presets === "object"
-  );
-}
-
-function isLevelJson(value: unknown): value is LevelJson {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    (value as { version?: number }).version === 1 &&
-    typeof (value as { stageId?: unknown }).stageId === "string" &&
-    typeof (value as { levelId?: unknown }).levelId === "string" &&
-    Array.isArray((value as { nodes?: unknown[] }).nodes)
   );
 }

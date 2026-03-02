@@ -27,10 +27,6 @@ export function buildMapPreviewModel(
     return buildFileMapPreview(workspace, selection.docId);
   }
 
-  if (selection.type === "level-mission") {
-    return buildFileMapPreview(workspace, selection.docId);
-  }
-
   if (selection.type === "campaign-level" || selection.type === "campaign-stage") {
     return null;
   }

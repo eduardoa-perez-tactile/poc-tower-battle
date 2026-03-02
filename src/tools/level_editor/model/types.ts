@@ -81,8 +81,7 @@ export type LevelEditorSelection =
   | { type: "campaign-stage"; docId: string; stageIndex: number }
   | { type: "campaign-level"; docId: string; stageIndex: number; levelIndex: number }
   | { type: "campaign-mission"; docId: string; stageIndex: number; levelIndex: number }
-  | { type: "preset"; docId: string; presetId: string }
-  | { type: "level-mission"; docId: string; missionIndex: number };
+  | { type: "preset"; docId: string; presetId: string };
 
 export interface LevelEditorLibraryNode {
   id: string;

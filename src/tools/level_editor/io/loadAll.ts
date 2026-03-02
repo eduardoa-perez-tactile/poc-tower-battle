@@ -3,7 +3,6 @@ import type {
   CampaignSpecV2,
   CampaignWavePresetCatalog,
 } from "../../../campaign/CampaignTypes";
-import type { MissionCatalog } from "../../../run/RunGeneration";
 import { isObject, parseJsonSafe } from "../model/json";
 import { CORE_LEVEL_EDITOR_PATHS, isCampaignMapPath } from "../model/pathCatalog";
 import {
@@ -25,8 +24,7 @@ export async function loadLevelEditorWorkspace(): Promise<LevelEditorWorkspace> 
   const initialLoads = await Promise.all(initialPaths.map((path) => fetchRaw(path)));
 
   const campaignLoad = initialLoads.find((entry) => entry.path === "/data/campaign/campaign_v2.json") ?? null;
-  const missionCatalogLoad = initialLoads.find((entry) => entry.path === "/data/missions.json") ?? null;
-  const discoveredPaths = discoverAdditionalPaths(campaignLoad, missionCatalogLoad);
+  const discoveredPaths = discoverAdditionalPaths(campaignLoad);
 
   const discoveredLoads = await Promise.all(
     discoveredPaths
@@ -54,7 +52,7 @@ export async function loadLevelEditorWorkspace(): Promise<LevelEditorWorkspace> 
   };
 }
 
-function discoverAdditionalPaths(campaignLoad: LoadedRaw | null, missionCatalogLoad: LoadedRaw | null): string[] {
+function discoverAdditionalPaths(campaignLoad: LoadedRaw | null): string[] {
   const discovered = new Set<string>();
 
   if (campaignLoad?.raw) {
@@ -64,15 +62,6 @@ function discoverAdditionalPaths(campaignLoad: LoadedRaw | null, missionCatalogL
         for (const level of stage.levels) {
           discovered.add(`/levels/v2/${level.mapId}.json`);
         }
-      }
-    }
-  }
-
-  if (missionCatalogLoad?.raw) {
-    const parsed = parseJsonSafe(missionCatalogLoad.raw);
-    if (!parsed.error && isMissionCatalog(parsed.data)) {
-      for (const template of parsed.data.templates) {
-        discovered.add(template.levelPath);
       }
     }
   }
@@ -228,14 +217,6 @@ function isCampaignSpec(value: unknown): value is CampaignSpecV2 {
     value.version === 2 &&
     Array.isArray(value.stages) &&
     value.stages.every((stage) => isObject(stage) && Array.isArray(stage.levels))
-  );
-}
-
-function isMissionCatalog(value: unknown): value is MissionCatalog {
-  return (
-    isObject(value) &&
-    Array.isArray(value.templates) &&
-    value.templates.every((template) => isObject(template) && typeof template.levelPath === "string")
   );
 }
 

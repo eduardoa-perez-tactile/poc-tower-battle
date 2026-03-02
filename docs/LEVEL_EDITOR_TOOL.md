@@ -1,9 +1,9 @@
 # Level Editor Tool (Dev-Only)
 
 ## Overview
-The Level Editor is a DEV-only tooling screen for editing campaign/level data with:
-- Project-wide JSON library browsing (campaign, levels, presets, wave configs, maps).
-- Editable inspectors for missions, presets, and level mission metadata.
+The Level Editor is a DEV-only tooling screen for editing campaign and wave data with:
+- Project-wide JSON library browsing (campaign, presets, wave configs, maps).
+- Editable inspectors for campaign missions and presets.
 - Read-only **Resolved Mission** view that applies campaign overrides and runtime wave resolution.
 - Validation (errors vs warnings), JSON diff, changed-file tracking, and browser-safe export.
 - Local workspace autosave to prevent accidental data loss.
@@ -39,7 +39,6 @@ The editor loads and tracks these assets:
 - `/data/waves-handcrafted.json`
 - `/data/wavePacingTargets.json`
 - `/data/missions.json`
-- `/levels/*.json` known level files
 - `/levels/v2/map_tXX.json` campaign maps
 
 ## Resolved Mission Model
@@ -73,7 +72,6 @@ Because browser runtime cannot write into repo paths:
 - `Revert` restores the selected owner document to its original loaded content.
 - `Duplicate` supports:
   - Campaign mission duplication (cloned level entry in campaign file).
-  - Level file duplication (new synthetic workspace file path).
 
 ## Map Preview Editing
 For mission selections, the preview map is editable:

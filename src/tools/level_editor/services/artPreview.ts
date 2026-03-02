@@ -129,14 +129,6 @@ function resolveLevelFromSelection(
     return buildCampaignMissionLevel(workspace, selection.docId, selection.stageIndex, selection.levelIndex);
   }
 
-  if (selection.type === "level-mission") {
-    const doc = workspace.docs[selection.docId];
-    if (!doc || !isLevelJson(doc.currentData)) {
-      return null;
-    }
-    return doc.currentData;
-  }
-
   if (selection.type !== "file") {
     return null;
   }
@@ -277,7 +269,7 @@ function buildCompilationKey(
     return keyParts.join("|");
   }
 
-  if (selection.type === "level-mission" || selection.type === "file") {
+  if (selection.type === "file") {
     const doc = workspace.docs[selection.docId];
     if (!doc) {
       return null;

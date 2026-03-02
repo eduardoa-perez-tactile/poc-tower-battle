@@ -1,7 +1,6 @@
 import type { DifficultyTierId } from "../../../config/Difficulty";
 import { createButton } from "../../../components/ui/primitives";
 import type { CampaignSpecV2 } from "../../../campaign/CampaignTypes";
-import type { LevelJson } from "../../../levels/types";
 import { loadSpriteCatalog, type SpriteCatalog } from "../../../render/SpriteAtlas";
 import { toPrettyJson } from "../model/json";
 import type {
@@ -15,11 +14,9 @@ import { applyWorkspaceSnapshot, loadWorkspaceSnapshot, saveWorkspaceSnapshot } 
 import { buildMapPreviewModel, type MapPreviewModel } from "../services/preview";
 import { resolveMissionForSelection } from "../services/resolver";
 import { LevelEditorArtPreviewCompiler } from "../services/artPreview";
-import { getSelectedCampaignLevel, getSelectedDoc, getSelectedLevel, getSelectedLevelMission, getSelectedPreset } from "../services/selection";
+import { getSelectedCampaignLevel, getSelectedDoc, getSelectedPreset } from "../services/selection";
 import {
   mutateCampaignMission,
-  mutateLevel,
-  mutateLevelMission,
   mutatePreset,
   setDocumentData,
   selectionToOwningDocId,
@@ -27,7 +24,6 @@ import {
 } from "../services/workspaceMutations";
 import { splitIssues, validateWorkspace } from "../services/validation";
 import { createEnemiesTab } from "./EnemiesTab";
-import { createLevelArtTab } from "./LevelArtTab";
 import { createTutorialTab } from "./TutorialTab";
 import { ArtPreviewAssetManager, ArtPreviewRenderer } from "./ArtPreviewRenderer";
 
@@ -41,7 +37,7 @@ interface EditorUiState {
   workspace: LevelEditorWorkspace | null;
   selection: LevelEditorSelection | null;
   activeTab: "levels" | "enemies" | "tutorial";
-  libraryScope: "campaign" | "levels" | "presets" | "globals";
+  libraryScope: "campaign" | "presets" | "globals";
   campaignStageIndex: number;
   campaignLevelIndex: number;
   search: string;
@@ -62,7 +58,7 @@ interface EditablePreviewNode {
 }
 
 interface EditablePreviewMap {
-  kind: "campaign-map" | "level-json";
+  kind: "campaign-map";
   docId: string;
   width: number;
   height: number;
@@ -271,7 +267,6 @@ export function renderLevelEditorScreen(props: LevelEditorScreenProps): HTMLDivE
 
     const scopes: Array<{ id: EditorUiState["libraryScope"]; label: string }> = [
       { id: "campaign", label: "Campaign" },
-      { id: "levels", label: "Standalone Levels" },
       { id: "presets", label: "Presets" },
       { id: "globals", label: "Global Config" },
     ];
@@ -339,8 +334,6 @@ export function renderLevelEditorScreen(props: LevelEditorScreenProps): HTMLDivE
 
     if (state.libraryScope === "campaign") {
       renderCampaignDrilldown(state.workspace, pickerWrap);
-    } else if (state.libraryScope === "levels") {
-      renderStandaloneLevelPicker(state.workspace, pickerWrap);
     } else if (state.libraryScope === "presets") {
       renderPresetPicker(state.workspace, pickerWrap);
     } else {
@@ -547,72 +540,6 @@ export function renderLevelEditorScreen(props: LevelEditorScreenProps): HTMLDivE
     selectBlock.appendChild(hint);
 
     container.appendChild(selectBlock);
-  }
-
-  function renderStandaloneLevelPicker(workspace: LevelEditorWorkspace, container: HTMLElement): void {
-    const levelDocs = workspace.order
-      .map((docId) => workspace.docs[docId])
-      .filter((doc) => doc && (doc.kind === "level-json" || doc.kind === "legacy-level"))
-      .filter((doc) => {
-        if (!doc) {
-          return false;
-        }
-        if (!state.search.trim()) {
-          return true;
-        }
-        return `${doc.label} ${doc.path}`.toLowerCase().includes(state.search.trim().toLowerCase());
-      });
-
-    if (levelDocs.length === 0) {
-      container.appendChild(createInfoText("No standalone levels match the filter."));
-      return;
-    }
-
-    const levelsBlock = createPickerBlock("1) Select Level File");
-    for (const doc of levelDocs) {
-      if (!doc) {
-        continue;
-      }
-      const selected = state.selection?.type === "file" && state.selection.docId === doc.id;
-      levelsBlock.list.appendChild(
-        createPickerButton(`${doc.label}${doc.isSynthetic ? " (workspace)" : ""}`, selected, () => {
-          state.selection = {
-            type: "file",
-            docId: doc.id,
-          };
-          renderAll();
-        }),
-      );
-    }
-    container.appendChild(levelsBlock.root);
-
-    if (state.selection?.type !== "file" && state.selection?.type !== "level-mission") {
-      return;
-    }
-
-    const selectedDoc = workspace.docs[state.selection.docId];
-    if (!selectedDoc || !isLevelJsonData(selectedDoc.currentData)) {
-      return;
-    }
-
-    const missionsBlock = createPickerBlock("2) Select Mission");
-    selectedDoc.currentData.missions.forEach((mission, missionIndex) => {
-      const selected =
-        state.selection?.type === "level-mission" &&
-        state.selection.docId === selectedDoc.id &&
-        state.selection.missionIndex === missionIndex;
-      missionsBlock.list.appendChild(
-        createPickerButton(`${mission.name} (${mission.missionId})`, selected, () => {
-          state.selection = {
-            type: "level-mission",
-            docId: selectedDoc.id,
-            missionIndex,
-          };
-          renderAll();
-        }),
-      );
-    });
-    container.appendChild(missionsBlock.root);
   }
 
   function renderPresetPicker(workspace: LevelEditorWorkspace, container: HTMLElement): void {
@@ -1308,8 +1235,8 @@ function renderTypedForm(
   container: HTMLElement,
   workspace: LevelEditorWorkspace,
   selection: LevelEditorSelection,
-  spriteCatalog: SpriteCatalog | null,
-  spriteCatalogError: string | null,
+  _spriteCatalog: SpriteCatalog | null,
+  _spriteCatalogError: string | null,
   onWorkspaceChange: (workspace: LevelEditorWorkspace) => void,
 ): void {
   const campaignLevel = getSelectedCampaignLevel(workspace, selection);
@@ -1320,17 +1247,6 @@ function renderTypedForm(
 
   if (selection.type === "preset") {
     container.appendChild(renderPresetForm(workspace, selection, onWorkspaceChange));
-    return;
-  }
-
-  const level = getSelectedLevel(workspace, selection);
-  if (level && selection.type === "file") {
-    container.appendChild(renderLevelForm(workspace, selection, spriteCatalog, spriteCatalogError, onWorkspaceChange));
-    return;
-  }
-
-  if (level && selection.type === "level-mission") {
-    container.appendChild(renderLevelMissionForm(workspace, selection, onWorkspaceChange));
     return;
   }
 
@@ -1531,155 +1447,6 @@ function renderPresetForm(
   return form;
 }
 
-function renderLevelForm(
-  workspace: LevelEditorWorkspace,
-  selection: Extract<LevelEditorSelection, { type: "file" }>,
-  spriteCatalog: SpriteCatalog | null,
-  spriteCatalogError: string | null,
-  onWorkspaceChange: (workspace: LevelEditorWorkspace) => void,
-): HTMLElement {
-  const level = getSelectedLevel(workspace, selection);
-  const form = document.createElement("div");
-  form.style.display = "grid";
-  form.style.gap = "8px";
-  if (!level) {
-    form.appendChild(createInfoText("Level form not available for this file."));
-    return form;
-  }
-
-  form.append(
-    makeTextField("Stage ID", level.stageId, "stageId", (value) => {
-      onWorkspaceChange(
-        mutateLevel(workspace, selection.docId, (entry) => ({
-          ...entry,
-          stageId: value,
-        })),
-      );
-    }),
-    makeTextField("Level ID", level.levelId, "levelId", (value) => {
-      onWorkspaceChange(
-        mutateLevel(workspace, selection.docId, (entry) => ({
-          ...entry,
-          levelId: value,
-        })),
-      );
-    }),
-    makeTextField("Name", level.name, "name", (value) => {
-      onWorkspaceChange(
-        mutateLevel(workspace, selection.docId, (entry) => ({
-          ...entry,
-          name: value,
-        })),
-      );
-    }),
-    makeNumberField("Grid Width", level.grid.width, "grid.width", (value) => {
-      onWorkspaceChange(
-        mutateLevel(workspace, selection.docId, (entry) => ({
-          ...entry,
-          grid: {
-            ...entry.grid,
-            width: Math.max(8, Math.floor(value)),
-          },
-        })),
-      );
-    }),
-    makeNumberField("Grid Height", level.grid.height, "grid.height", (value) => {
-      onWorkspaceChange(
-        mutateLevel(workspace, selection.docId, (entry) => ({
-          ...entry,
-          grid: {
-            ...entry.grid,
-            height: Math.max(8, Math.floor(value)),
-          },
-        })),
-      );
-    }),
-  );
-
-  form.appendChild(
-    createLevelArtTab({
-      level,
-      spriteCatalog,
-      spriteCatalogError,
-      onCommit: (nextLevel, infoMessage) => {
-        void infoMessage;
-        onWorkspaceChange(setDocumentData(workspace, selection.docId, nextLevel));
-      },
-    }),
-  );
-
-  return form;
-}
-
-function renderLevelMissionForm(
-  workspace: LevelEditorWorkspace,
-  selection: Extract<LevelEditorSelection, { type: "level-mission" }>,
-  onWorkspaceChange: (workspace: LevelEditorWorkspace) => void,
-): HTMLElement {
-  const mission = getSelectedLevelMission(workspace, selection);
-  const form = document.createElement("div");
-  form.style.display = "grid";
-  form.style.gap = "8px";
-  if (!mission) {
-    form.appendChild(createInfoText("Mission not found."));
-    return form;
-  }
-
-  form.append(
-    makeTextField("Mission Name", mission.name, `missions[${selection.missionIndex}].name`, (value) => {
-      onWorkspaceChange(
-        mutateLevelMission(workspace, selection.docId, selection.missionIndex, (entry) => ({
-          ...entry,
-          name: value,
-        })),
-      );
-    }),
-    makeTextField("Wave Set ID", mission.waveSetId, `missions[${selection.missionIndex}].waveSetId`, (value) => {
-      onWorkspaceChange(
-        mutateLevelMission(workspace, selection.docId, selection.missionIndex, (entry) => ({
-          ...entry,
-          waveSetId: value,
-        })),
-      );
-    }),
-    makeNumberField("Seed", mission.seed, `missions[${selection.missionIndex}].seed`, (value) => {
-      onWorkspaceChange(
-        mutateLevelMission(workspace, selection.docId, selection.missionIndex, (entry) => ({
-          ...entry,
-          seed: Math.max(0, Math.floor(value)),
-        })),
-      );
-    }),
-    makeNumberField("Difficulty", mission.difficulty ?? 1, `missions[${selection.missionIndex}].difficulty`, (value) => {
-      onWorkspaceChange(
-        mutateLevelMission(workspace, selection.docId, selection.missionIndex, (entry) => ({
-          ...entry,
-          difficulty: value,
-        })),
-      );
-    }),
-    makeTextField("Objective", mission.objectiveText, `missions[${selection.missionIndex}].objectiveText`, (value) => {
-      onWorkspaceChange(
-        mutateLevelMission(workspace, selection.docId, selection.missionIndex, (entry) => ({
-          ...entry,
-          objectiveText: value,
-        })),
-      );
-    }),
-    makeTextField("Tutorial ID (optional)", mission.tutorialId ?? "", `missions[${selection.missionIndex}].tutorialId`, (value) => {
-      const nextId = value.trim();
-      onWorkspaceChange(
-        mutateLevelMission(workspace, selection.docId, selection.missionIndex, (entry) => ({
-          ...entry,
-          tutorialId: nextId.length > 0 ? nextId : undefined,
-        })),
-      );
-    }),
-  );
-
-  return form;
-}
-
 function makeTextField(
   label: string,
   value: string,
@@ -1804,26 +1571,6 @@ function resolveEditableMissionMap(
     };
   }
 
-  if (selection.type === "level-mission") {
-    const level = getSelectedLevel(workspace, selection);
-    if (!level) {
-      return null;
-    }
-    return {
-      kind: "level-json",
-      docId: selection.docId,
-      width: Math.max(1, level.grid.width),
-      height: Math.max(1, level.grid.height),
-      nodes: level.nodes.map((node) => ({
-        id: node.id,
-        x: node.x,
-        y: node.y,
-        owner: node.owner,
-      })),
-      edges: level.edges.map((edge) => ({ fromId: edge.from, toId: edge.to })),
-    };
-  }
-
   return null;
 }
 
@@ -1863,32 +1610,6 @@ function applyEditedMissionNodes(
     };
 
     return changed ? setDocumentData(workspace, mapDoc.id, nextMap) : workspace;
-  }
-
-  if (selection.type === "level-mission") {
-    const levelDoc = workspace.docs[selection.docId];
-    if (!levelDoc || !isLevelJsonData(levelDoc.currentData)) {
-      return workspace;
-    }
-
-    let changed = false;
-    const nextLevel: LevelJson = {
-      ...levelDoc.currentData,
-      nodes: levelDoc.currentData.nodes.map((node) => {
-        const edited = positionById.get(node.id);
-        if (!edited || (node.x === edited.x && node.y === edited.y)) {
-          return node;
-        }
-        changed = true;
-        return {
-          ...node,
-          x: edited.x,
-          y: edited.y,
-        };
-      }),
-    };
-
-    return changed ? setDocumentData(workspace, levelDoc.id, nextLevel) : workspace;
   }
 
   return workspace;
@@ -2326,16 +2047,6 @@ function isCampaignSpecData(value: unknown): value is CampaignSpecV2 {
     value !== null &&
     (value as { version?: number }).version === 2 &&
     Array.isArray((value as { stages?: unknown[] }).stages)
-  );
-}
-
-function isLevelJsonData(value: unknown): value is LevelJson {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    (value as { version?: number }).version === 1 &&
-    Array.isArray((value as { missions?: unknown[] }).missions) &&
-    Array.isArray((value as { nodes?: unknown[] }).nodes)
   );
 }
 
