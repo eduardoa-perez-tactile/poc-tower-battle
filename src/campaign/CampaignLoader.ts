@@ -78,7 +78,7 @@ export async function loadCampaignRegistryV2(
 
       const resolvedWavePlan = resolveWavePlan(level.wavePlan, wavePresets.presets[level.wavePlan.preset]);
       const missionId = "m01";
-      const levelJson = mapToLevelJson(
+      const levelJson = buildLevelJsonFromCampaignMap(
         stage.id,
         level.id,
         level.displayName,
@@ -134,7 +134,7 @@ export async function loadCampaignRegistryV2(
   };
 }
 
-function mapToLevelJson(
+export function buildLevelJsonFromCampaignMap(
   stageId: string,
   levelId: string,
   displayName: string,
