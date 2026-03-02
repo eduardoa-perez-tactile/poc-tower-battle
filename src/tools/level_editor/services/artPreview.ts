@@ -11,7 +11,17 @@ import type { GridRenderData } from "../../../levels/runtime";
 import type { LevelJson } from "../../../levels/types";
 import type { TerrainData } from "../../../types/Terrain";
 import type { LevelVisualsData } from "../../../types/Visuals";
+import { parseTowerDictionaryFromRaw } from "../data/TowerDictionaryStore";
 import type { LevelEditorSelection, LevelEditorWorkspace } from "../model/types";
+
+export interface LevelEditorTowerArtPreview {
+  atlasId: string;
+  spriteKey: string;
+  frameIndex: number;
+  scale?: number;
+  offsetX?: number;
+  offsetY?: number;
+}
 
 export interface LevelEditorArtPreviewPayload {
   mapRenderData: GridRenderData;
@@ -21,7 +31,9 @@ export interface LevelEditorArtPreviewPayload {
     id: string;
     x: number;
     y: number;
+    archetype: string;
   }>;
+  towerArtByArchetype: Record<string, LevelEditorTowerArtPreview>;
 }
 
 export interface LevelEditorArtPreviewCompileResult {
@@ -109,7 +121,9 @@ function compileArtPreviewPayload(
           id: tower.id,
           x: tower.x,
           y: tower.y,
+          archetype: tower.archetype,
         })),
+        towerArtByArchetype: readTowerArtByArchetype(workspace),
       },
       error: null,
     };
@@ -243,6 +257,8 @@ function buildCompilationKey(
   const width = clampInt(viewport.width, 1, 8192);
   const height = clampInt(viewport.height, 1, 8192);
   const keyParts = [`${width}x${height}`, selection.type];
+  const towerDictionaryDoc = workspace.docs["/data/towerArchetypes.json"];
+  const towerDictionaryHash = hashText(towerDictionaryDoc?.currentRaw ?? "");
 
   if (selection.type === "campaign-mission") {
     const campaignDoc = workspace.docs[selection.docId];
@@ -265,6 +281,7 @@ function buildCompilationKey(
       hashText(campaignDoc.currentRaw),
       hashText(mapDoc.currentRaw),
       hashText(presetsDoc?.currentRaw ?? ""),
+      towerDictionaryHash,
     );
     return keyParts.join("|");
   }
@@ -278,7 +295,7 @@ function buildCompilationKey(
     if (!includesDoc) {
       return null;
     }
-    keyParts.push(selection.docId, hashText(doc.currentRaw));
+    keyParts.push(selection.docId, hashText(doc.currentRaw), towerDictionaryHash);
     return keyParts.join("|");
   }
 
@@ -320,4 +337,29 @@ function clamp(value: number, min: number, max: number): number {
 
 function clampInt(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, Math.floor(value)));
+}
+
+function readTowerArtByArchetype(workspace: LevelEditorWorkspace): Record<string, LevelEditorTowerArtPreview> {
+  const doc = workspace.docs["/data/towerArchetypes.json"];
+  if (!doc || !doc.currentData) {
+    return {};
+  }
+
+  try {
+    const dictionary = parseTowerDictionaryFromRaw(doc.currentData);
+    const mapping: Record<string, LevelEditorTowerArtPreview> = {};
+    for (const [towerId, tower] of Object.entries(dictionary.towers)) {
+      mapping[towerId] = {
+        atlasId: tower.art.atlasId,
+        spriteKey: tower.art.spriteKey,
+        frameIndex: tower.art.frameIndex,
+        scale: tower.art.scale,
+        offsetX: tower.art.offsetX,
+        offsetY: tower.art.offsetY,
+      };
+    }
+    return mapping;
+  } catch {
+    return {};
+  }
 }

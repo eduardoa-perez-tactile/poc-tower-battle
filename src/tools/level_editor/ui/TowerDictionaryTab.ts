@@ -563,7 +563,7 @@ export function createTowerDictionaryTab(options: TowerDictionaryTabOptions): To
     revertBtn.disabled = state.busy || !state.selectedTowerId;
 
     const applyBtn = createButton("Apply", () => {
-      onApplyDraft();
+      void onApplyDraft();
     }, { variant: "secondary" });
     applyBtn.disabled = state.busy;
 
@@ -709,7 +709,7 @@ export function createTowerDictionaryTab(options: TowerDictionaryTabOptions): To
     render();
   }
 
-  function onApplyDraft(): void {
+  async function onApplyDraft(): Promise<void> {
     if (!state.draftDictionary) {
       return;
     }
@@ -720,10 +720,22 @@ export function createTowerDictionaryTab(options: TowerDictionaryTabOptions): To
       return;
     }
 
-    state.appliedDictionary = cloneTowerDictionary(state.draftDictionary);
-    state.message = "Applied tower draft changes.";
-    options.onInfoMessage(state.message);
+    state.busy = true;
     render();
+    try {
+      const payload = cloneTowerDictionary(state.draftDictionary);
+      await store.saveTowerDictionary(payload);
+      state.appliedDictionary = cloneTowerDictionary(payload);
+      state.draftDictionary = cloneTowerDictionary(payload);
+      state.validationErrors = validateCurrentDraft();
+      state.message = "Applied tower changes to workspace.";
+      options.onInfoMessage(state.message);
+    } catch (error) {
+      state.error = error instanceof Error ? error.message : "Failed to apply tower dictionary changes.";
+    } finally {
+      state.busy = false;
+      render();
+    }
   }
 
   async function onSaveAll(): Promise<void> {
