@@ -2222,7 +2222,9 @@ function renderCurrentScreen(
       : null;
     const tutorialBlocking = tutorialModal !== null;
     if (tutorialModal) {
-      screenRoot.appendChild(wrapCenteredModal(tutorialModal));
+      const tutorialWrapper = wrapCenteredModal(tutorialModal);
+      tutorialWrapper.classList.add("tutorial-modal-backdrop");
+      screenRoot.appendChild(tutorialWrapper);
     }
 
     if (app.missionPaused && app.missionResult === null && !tutorialBlocking) {
