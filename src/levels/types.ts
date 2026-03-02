@@ -112,7 +112,7 @@ export interface StageJson {
 }
 
 export interface LevelSourceEntry {
-  source: "bundled" | "user";
+  source: "bundled";
   path: string;
   level: LevelJson;
 }
@@ -121,6 +121,6 @@ export interface StageRegistryEntry {
   stageId: string;
   name: string;
   order: number;
-  source: "bundled" | "user" | "mixed";
+  source: "bundled";
   levels: LevelSourceEntry[];
 }

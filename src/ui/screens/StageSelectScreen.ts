@@ -73,7 +73,7 @@ export function renderStageSelectScreen(props: StageSelectScreenProps): HTMLDivE
 
     const subtitle = document.createElement("p");
     subtitle.className = "campaign-stage-subtitle";
-    subtitle.textContent = `Levels: ${stage.levels.length} • ${formatStageSource(stage.source)}`;
+    subtitle.textContent = `Levels: ${stage.levels.length}`;
 
     preview.append(statusPill, title, subtitle);
     card.appendChild(preview);
@@ -167,14 +167,4 @@ function createProgressCard(input: {
   track.appendChild(fill);
   card.appendChild(track);
   return card;
-}
-
-function formatStageSource(source: StageRegistryEntry["source"]): string {
-  if (source === "user") {
-    return "User Generated";
-  }
-  if (source === "mixed") {
-    return "Bundled + User";
-  }
-  return "Bundled";
 }

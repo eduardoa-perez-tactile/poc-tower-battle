@@ -110,8 +110,7 @@ export function computeUnlocks(
 
   for (const stage of stages) {
     const stageKey = stage.stageId;
-    const isCustomStage = stage.stageId === "user";
-    const stageUnlocked = isCustomStage || previousOrderedStageCompleted;
+    const stageUnlocked = previousOrderedStageCompleted;
 
     let previousLevelCompleted = false;
     let stageCompleted = stage.levels.length > 0;
@@ -119,7 +118,7 @@ export function computeUnlocks(
     for (let levelIndex = 0; levelIndex < stage.levels.length; levelIndex += 1) {
       const level = stage.levels[levelIndex].level;
       const levelKey = toLevelKey(stage.stageId, level.levelId);
-      const levelUnlocked = stageUnlocked && (levelIndex === 0 || previousLevelCompleted || isCustomStage);
+      const levelUnlocked = stageUnlocked && (levelIndex === 0 || previousLevelCompleted);
 
       let levelCompleted = level.missions.length > 0;
       let previousMissionCompleted = false;
@@ -153,9 +152,7 @@ export function computeUnlocks(
       completed: stageCompleted,
     };
 
-    if (!isCustomStage) {
-      previousOrderedStageCompleted = stageCompleted;
-    }
+    previousOrderedStageCompleted = stageCompleted;
   }
 
   return unlocks;
