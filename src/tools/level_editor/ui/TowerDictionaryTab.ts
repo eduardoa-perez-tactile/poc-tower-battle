@@ -366,6 +366,27 @@ export function createTowerDictionaryTab(options: TowerDictionaryTabOptions): To
     const previewStatus = spritePreview.update(atlasReady ? atlas : null, tower);
     pane.body.appendChild(previewCard);
 
+    const previewActions = document.createElement("div");
+    previewActions.style.display = "flex";
+    previewActions.style.alignItems = "center";
+    previewActions.style.gap = "8px";
+
+    const pickArtBtn = createButton("Pick Building Art", () => {
+      openBuildingSpritePicker(tower.id);
+    }, { variant: "ghost" });
+    pickArtBtn.disabled = state.busy || !atlasReady;
+    previewActions.appendChild(pickArtBtn);
+
+    if (!atlasReady) {
+      const hint = document.createElement("span");
+      hint.style.fontSize = "11px";
+      hint.style.color = "#89aedb";
+      hint.textContent = "Atlas loading...";
+      previewActions.appendChild(hint);
+    }
+
+    pane.body.appendChild(previewActions);
+
     if (atlasError) {
       pane.body.appendChild(createError(`Sprite atlas warning: ${atlasError}`));
     }
@@ -752,6 +773,204 @@ export function createTowerDictionaryTab(options: TowerDictionaryTabOptions): To
     render();
   }
 
+  function openBuildingSpritePicker(targetTowerId: string): void {
+    if (!atlasReady) {
+      state.message = "Sprite atlas is still loading.";
+      render();
+      return;
+    }
+
+    const keys = atlas.getBuildingKeys();
+    if (keys.length === 0) {
+      state.message = "No building sprites available in atlas.";
+      render();
+      return;
+    }
+
+    const currentTower = state.draftDictionary?.towers[targetTowerId];
+    let selectedKey = currentTower?.art.spriteKey && keys.includes(currentTower.art.spriteKey)
+      ? currentTower.art.spriteKey
+      : keys[0];
+    let searchText = "";
+
+    const overlay = document.createElement("div");
+    overlay.className = "centered centered-modal tutorial-modal-backdrop";
+    overlay.style.position = "fixed";
+    overlay.style.inset = "0";
+    overlay.style.zIndex = "130";
+    overlay.style.padding = "16px";
+    overlay.style.pointerEvents = "auto";
+
+    const shell = document.createElement("div");
+    shell.className = "panel ui-panel campaign-shell";
+    shell.style.width = "min(92vw, 860px)";
+    shell.style.maxHeight = "min(88vh, 760px)";
+    shell.style.display = "grid";
+    shell.style.gridTemplateRows = "auto auto minmax(0, 1fr) auto";
+    shell.style.gap = "10px";
+    shell.style.overflow = "hidden";
+
+    const header = document.createElement("div");
+    header.style.display = "flex";
+    header.style.alignItems = "center";
+    header.style.justifyContent = "space-between";
+    header.style.gap = "10px";
+
+    const title = document.createElement("p");
+    title.className = "campaign-progress-title";
+    title.style.margin = "0";
+    title.textContent = `Pick Building Art (${targetTowerId})`;
+
+    const closeBtn = createButton("Close", () => closePicker(), { variant: "ghost", escapeAction: true });
+    header.append(title, closeBtn);
+
+    const search = document.createElement("input");
+    search.type = "search";
+    search.placeholder = "Search building sprites...";
+    styleInput(search);
+    search.oninput = () => {
+      searchText = search.value;
+      renderGrid();
+    };
+
+    const grid = document.createElement("div");
+    grid.style.display = "grid";
+    grid.style.gridTemplateColumns = "repeat(auto-fill, minmax(140px, 1fr))";
+    grid.style.gap = "8px";
+    grid.style.overflowY = "auto";
+    grid.style.padding = "6px";
+    grid.style.border = "1px solid rgba(117, 157, 220, 0.26)";
+    grid.style.borderRadius = "10px";
+    grid.style.background = "rgba(8, 16, 30, 0.66)";
+
+    const footer = document.createElement("div");
+    footer.style.display = "flex";
+    footer.style.alignItems = "center";
+    footer.style.justifyContent = "space-between";
+    footer.style.gap = "10px";
+
+    const selectionLabel = document.createElement("p");
+    selectionLabel.className = "campaign-progress-subtitle";
+    selectionLabel.style.margin = "0";
+    selectionLabel.style.color = "#b8d8ff";
+
+    const footerActions = document.createElement("div");
+    footerActions.style.display = "flex";
+    footerActions.style.gap = "8px";
+
+    const assignBtn = createButton("Assign Sprite", () => {
+      if (state.selectedTowerId !== targetTowerId) {
+        state.message = "Selected tower changed. Reopen picker to assign art.";
+        closePicker();
+        render();
+        return;
+      }
+      updateSelectedTower((tower) => {
+        const frameCount = atlas.getBuildingFrameCount(selectedKey);
+        const clampedFrame = frameCount && frameCount > 0
+          ? Math.max(0, Math.min(frameCount - 1, Math.floor(tower.art.frameIndex)))
+          : 0;
+        return {
+          ...tower,
+          art: {
+            ...tower.art,
+            atlasId: "buildings",
+            spriteKey: selectedKey,
+            frameIndex: clampedFrame,
+          },
+        };
+      });
+      state.message = `Assigned sprite ${selectedKey} to ${targetTowerId}.`;
+      options.onInfoMessage(state.message);
+      closePicker();
+    }, { variant: "secondary" });
+
+    const cancelBtn = createButton("Cancel", () => closePicker(), { variant: "ghost" });
+
+    footerActions.append(cancelBtn, assignBtn);
+    footer.append(selectionLabel, footerActions);
+
+    shell.append(header, search, grid, footer);
+    overlay.appendChild(shell);
+    document.body.appendChild(overlay);
+
+    overlay.addEventListener("click", (event) => {
+      if (event.target === overlay) {
+        closePicker();
+      }
+    });
+
+    const onWindowKeyDown = (event: KeyboardEvent): void => {
+      if (event.key === "Escape") {
+        closePicker();
+      }
+    };
+    window.addEventListener("keydown", onWindowKeyDown);
+
+    renderGrid();
+
+    function closePicker(): void {
+      window.removeEventListener("keydown", onWindowKeyDown);
+      overlay.remove();
+    }
+
+    function renderGrid(): void {
+      grid.replaceChildren();
+      const query = searchText.trim().toLowerCase();
+      const filtered = query.length > 0
+        ? keys.filter((key) => key.toLowerCase().includes(query))
+        : keys;
+
+      for (const key of filtered) {
+        const card = document.createElement("button");
+        card.type = "button";
+        card.style.display = "grid";
+        card.style.gap = "4px";
+        card.style.padding = "6px";
+        card.style.borderRadius = "8px";
+        card.style.border = key === selectedKey
+          ? "1px solid rgba(118, 177, 255, 0.85)"
+          : "1px solid rgba(117, 157, 220, 0.3)";
+        card.style.background = key === selectedKey
+          ? "rgba(35, 57, 90, 0.9)"
+          : "rgba(14, 26, 42, 0.82)";
+        card.style.color = "#dce9ff";
+        card.style.cursor = "pointer";
+        card.style.textAlign = "left";
+        card.onclick = () => {
+          selectedKey = key;
+          renderGrid();
+        };
+        card.ondblclick = () => {
+          selectedKey = key;
+          assignBtn.click();
+        };
+
+        const canvas = document.createElement("canvas");
+        canvas.width = 120;
+        canvas.height = 84;
+        canvas.style.width = "100%";
+        canvas.style.height = "auto";
+        canvas.style.border = "1px solid rgba(117, 157, 220, 0.25)";
+        canvas.style.borderRadius = "6px";
+        drawPickerThumbnail(canvas, key);
+
+        const name = document.createElement("span");
+        name.style.fontSize = "12px";
+        name.textContent = key;
+
+        card.append(canvas, name);
+        grid.appendChild(card);
+      }
+
+      if (filtered.length === 0) {
+        grid.appendChild(createInfo("No building sprites match this search."));
+      }
+
+      selectionLabel.textContent = `Selected: ${selectedKey}`;
+    }
+  }
+
   function validateCurrentDraft(): TowerDictionaryValidationIssue[] {
     if (!state.draftDictionary) {
       return [];
@@ -951,5 +1170,34 @@ export function createTowerDictionaryTab(options: TowerDictionaryTabOptions): To
     const paragraph = createInfo(message);
     paragraph.style.color = "#ffb0b0";
     return paragraph;
+  }
+
+  function drawPickerThumbnail(canvas: HTMLCanvasElement, spriteKey: string): void {
+    const ctx = canvas.getContext("2d");
+    if (!ctx) {
+      return;
+    }
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = "#111f35";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    const drawn = atlas.drawBuildingFrame(ctx, {
+      spriteKey,
+      frameIndex: 0,
+      worldX: Math.floor(canvas.width / 2),
+      worldY: Math.floor(canvas.height * 0.82),
+      scale: 0.85,
+      offsetX: 0,
+      offsetY: 0,
+    });
+
+    if (!drawn) {
+      ctx.fillStyle = "#9ebde5";
+      ctx.font = "11px monospace";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText("preview unavailable", canvas.width / 2, canvas.height / 2);
+    }
   }
 }

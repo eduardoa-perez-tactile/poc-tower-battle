@@ -14,10 +14,10 @@ export interface SpritePreviewController {
 export function createSpritePreview(): SpritePreviewController {
   const root = document.createElement("div");
   root.style.display = "grid";
-  root.style.gap = "8px";
+  root.style.gap = "6px";
   root.style.border = "1px solid rgba(117, 157, 220, 0.24)";
   root.style.borderRadius = "8px";
-  root.style.padding = "8px";
+  root.style.padding = "6px";
   root.style.background = "rgba(8, 16, 28, 0.54)";
 
   const title = document.createElement("p");
@@ -25,14 +25,7 @@ export function createSpritePreview(): SpritePreviewController {
   title.textContent = "Art Preview";
   title.style.margin = "0";
 
-  const canvasRow = document.createElement("div");
-  canvasRow.style.display = "grid";
-  canvasRow.style.gridTemplateColumns = "repeat(2, minmax(120px, 1fr))";
-  canvasRow.style.gap = "8px";
-
-  const canvas1x = createCanvas(140, 140, "1x");
-  const canvas2x = createCanvas(220, 140, "2x");
-  canvasRow.append(canvas1x.wrap, canvas2x.wrap);
+  const canvas1x = createCanvas(120, 96);
 
   const meta = document.createElement("p");
   meta.className = "campaign-progress-subtitle";
@@ -44,13 +37,12 @@ export function createSpritePreview(): SpritePreviewController {
   error.style.color = "#ffb0b0";
   error.style.display = "none";
 
-  root.append(title, canvasRow, meta, error);
+  root.append(title, canvas1x.wrap, meta, error);
 
   return {
     root,
     update(atlas: SpriteAtlas | null, tower: TowerDefinition | null): SpritePreviewRenderStatus {
       clearCanvas(canvas1x.canvas, "#111f35");
-      clearCanvas(canvas2x.canvas, "#111f35");
 
       if (!tower) {
         meta.textContent = "Select a tower.";
@@ -62,7 +54,6 @@ export function createSpritePreview(): SpritePreviewController {
 
       if (!atlas) {
         drawPlaceholder(canvas1x.canvas, "Loading atlas");
-        drawPlaceholder(canvas2x.canvas, "Loading atlas");
         error.style.display = "none";
         return { error: null, frameCount: null };
       }
@@ -71,7 +62,6 @@ export function createSpritePreview(): SpritePreviewController {
         const message = `Unsupported atlasId \"${tower.art.atlasId}\". Expected \"buildings\".`;
         showError(error, message);
         drawPlaceholder(canvas1x.canvas, "Bad atlas");
-        drawPlaceholder(canvas2x.canvas, "Bad atlas");
         return { error: message, frameCount: null };
       }
 
@@ -80,7 +70,6 @@ export function createSpritePreview(): SpritePreviewController {
         const message = `Sprite \"${tower.art.spriteKey}\" is not registered.`;
         showError(error, message);
         drawPlaceholder(canvas1x.canvas, "Missing sprite");
-        drawPlaceholder(canvas2x.canvas, "Missing sprite");
         return { error: message, frameCount: null };
       }
 
@@ -95,17 +84,8 @@ export function createSpritePreview(): SpritePreviewController {
         tower.art.offsetX ?? 0,
         tower.art.offsetY ?? 0,
       );
-      const drawn2x = drawTower(
-        canvas2x.canvas,
-        atlas,
-        tower.art.spriteKey,
-        clampedFrame,
-        baseScale * 2,
-        tower.art.offsetX ?? 0,
-        tower.art.offsetY ?? 0,
-      );
 
-      if (!drawn1x || !drawn2x) {
+      if (!drawn1x) {
         const message = "Failed to draw sprite preview.";
         showError(error, message);
         return { error: message, frameCount };
@@ -117,25 +97,20 @@ export function createSpritePreview(): SpritePreviewController {
   };
 }
 
-function createCanvas(width: number, height: number, label: string): { wrap: HTMLDivElement; canvas: HTMLCanvasElement } {
+function createCanvas(width: number, height: number): { wrap: HTMLDivElement; canvas: HTMLCanvasElement } {
   const wrap = document.createElement("div");
-  wrap.style.display = "grid";
-  wrap.style.gap = "4px";
-
-  const text = document.createElement("span");
-  text.textContent = label;
-  text.style.fontSize = "11px";
-  text.style.color = "#8fb4e2";
+  wrap.style.display = "block";
+  wrap.style.maxWidth = "120px";
 
   const canvas = document.createElement("canvas");
   canvas.width = width;
   canvas.height = height;
-  canvas.style.width = "100%";
+  canvas.style.width = `${width}px`;
   canvas.style.height = "auto";
   canvas.style.border = "1px solid rgba(117, 157, 220, 0.28)";
   canvas.style.borderRadius = "8px";
 
-  wrap.append(text, canvas);
+  wrap.append(canvas);
   return { wrap, canvas };
 }
 
