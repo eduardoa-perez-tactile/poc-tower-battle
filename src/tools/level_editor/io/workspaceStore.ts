@@ -73,6 +73,9 @@ export function applyWorkspaceSnapshot(
     if (!entry.isSynthetic) {
       continue;
     }
+    if (entry.kind === "level-json" || entry.kind === "legacy-level") {
+      continue;
+    }
 
     const parsed = parseJsonSafe(entry.currentRaw);
     nextDocs[entry.path] = {

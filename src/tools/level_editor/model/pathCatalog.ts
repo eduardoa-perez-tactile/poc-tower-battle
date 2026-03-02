@@ -12,10 +12,6 @@ export const CORE_LEVEL_EDITOR_PATHS = [
   "/data/difficulty/ascensions.json",
   "/data/tutorials/tutorials.json",
   "/data/missions.json",
-  "/levels/stage01/level01.json",
-  "/levels/stage01/level02.json",
-  "/levels/stage02/level01.json",
-  "/levels/level01.json",
 ] as const;
 
 export function isCampaignMapPath(path: string): boolean {

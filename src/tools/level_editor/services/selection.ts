@@ -1,5 +1,4 @@
 import type { CampaignLevelDefinition, CampaignSpecV2, CampaignWavePresetCatalog } from "../../../campaign/CampaignTypes";
-import type { LevelMission, LevelJson } from "../../../levels/types";
 import { isObject } from "../model/json";
 import type { LevelEditorSelection, LevelEditorWorkspace } from "../model/types";
 
@@ -38,37 +37,6 @@ export function getSelectedPreset(
   return catalog.presets[selection.presetId] ?? null;
 }
 
-export function getSelectedLevel(
-  workspace: LevelEditorWorkspace,
-  selection: LevelEditorSelection,
-): LevelJson | null {
-  if (selection.type !== "file" && selection.type !== "level-mission") {
-    return null;
-  }
-  const doc = workspace.docs[selection.docId];
-  if (!doc) {
-    return null;
-  }
-  if (!isLevelJson(doc.currentData)) {
-    return null;
-  }
-  return doc.currentData;
-}
-
-export function getSelectedLevelMission(
-  workspace: LevelEditorWorkspace,
-  selection: LevelEditorSelection,
-): LevelMission | null {
-  if (selection.type !== "level-mission") {
-    return null;
-  }
-  const level = getSelectedLevel(workspace, selection);
-  if (!level) {
-    return null;
-  }
-  return level.missions[selection.missionIndex] ?? null;
-}
-
 function getCampaign(workspace: LevelEditorWorkspace, docId: string): CampaignSpecV2 | null {
   const doc = workspace.docs[docId];
   if (!doc || !isCampaignSpec(doc.currentData)) {
@@ -91,8 +59,4 @@ function isCampaignSpec(value: unknown): value is CampaignSpecV2 {
 
 function isPresetCatalog(value: unknown): value is CampaignWavePresetCatalog {
   return isObject(value) && value.version === 1 && isObject(value.presets);
-}
-
-function isLevelJson(value: unknown): value is LevelJson {
-  return isObject(value) && value.version === 1 && Array.isArray(value.missions) && Array.isArray(value.nodes);
 }

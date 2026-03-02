@@ -175,10 +175,6 @@ function toResolveInput(workspace: LevelEditorWorkspace, selection: LevelEditorS
     return buildCampaignResolveInput(workspace, selection.docId, selection.stageIndex, selection.levelIndex);
   }
 
-  if (selection.type === "level-mission") {
-    return buildLevelMissionResolveInput(workspace, selection.docId, selection.missionIndex);
-  }
-
   return null;
 }
 
@@ -225,50 +221,6 @@ function buildCampaignResolveInput(
       missionIndex: level.difficulty.missionIndex,
     },
     allowedEnemyIds: [...new Set(level.archetypeAllowlist)],
-  };
-}
-
-function buildLevelMissionResolveInput(
-  workspace: LevelEditorWorkspace,
-  docId: string,
-  missionIndex: number,
-): ResolveMissionInput | null {
-  const levelDoc = workspace.docs[docId];
-  if (!levelDoc || !isLevelJson(levelDoc.currentData)) {
-    return null;
-  }
-  const mission = levelDoc.currentData.missions[missionIndex];
-  if (!mission) {
-    return null;
-  }
-
-  const presetsDoc = workspace.docs["/data/waves/presets.json"];
-  const presetCatalog = presetsDoc && isPresetCatalog(presetsDoc.currentData) ? presetsDoc.currentData : null;
-  const fallbackPreset = presetCatalog ? firstPreset(presetCatalog) : null;
-  const selectedPreset = presetCatalog?.presets[mission.waveSetId] ?? fallbackPreset;
-  if (!selectedPreset) {
-    return null;
-  }
-
-  const resolvedWavePlan = {
-    preset: selectedPreset.id,
-    waves: selectedPreset.waves,
-    missionDifficultyScalar: mission.difficulty ?? selectedPreset.missionDifficultyScalar,
-    firstAppearanceWave: selectedPreset.firstAppearanceWave ?? 1,
-    minibossWave: selectedPreset.minibossWave ?? null,
-    bossEnabled: selectedPreset.bossEnabled ?? false,
-  };
-
-  return {
-    missionLabel: mission.name,
-    missionKey: `${levelDoc.currentData.stageId}:${levelDoc.currentData.levelId}:${mission.missionId}`,
-    baseLevel: levelDoc.currentData,
-    wavePlan: resolvedWavePlan,
-    difficulty: {
-      stageId: levelDoc.currentData.stageId,
-      missionIndex,
-    },
-    allowedEnemyIds: null,
   };
 }
 
@@ -425,18 +377,6 @@ function isPresetCatalog(value: unknown): value is CampaignWavePresetCatalog {
 
 function isCampaignMap(value: unknown): value is CampaignMapDefinition {
   return isObject(value) && typeof value.id === "string" && Array.isArray(value.nodes) && Array.isArray(value.links);
-}
-
-function isLevelJson(value: unknown): value is LevelJson {
-  return isObject(value) && value.version === 1 && Array.isArray(value.missions) && Array.isArray(value.nodes);
-}
-
-function firstPreset(catalog: CampaignWavePresetCatalog): CampaignWavePreset | null {
-  const ids = Object.keys(catalog.presets).sort((left, right) => left.localeCompare(right));
-  if (ids.length === 0) {
-    return null;
-  }
-  return catalog.presets[ids[0]] ?? null;
 }
 
 function deriveStageIndex(stageId: string): number {
