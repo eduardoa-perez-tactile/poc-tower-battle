@@ -11,6 +11,8 @@ import type { EnemyCatalog, HandcraftedWaveCatalog, WaveBalanceConfig, WaveModif
 import type { StageDifficultyCatalog } from "../../../waves/DifficultyTypes";
 import { isObject } from "../model/json";
 import type { LevelEditorIssue, LevelEditorWorkspace } from "../model/types";
+import { parseTowerDictionaryFromRaw } from "../data/TowerDictionaryStore";
+import { validateTowerDictionary } from "../domain/towerDictionaryValidation";
 
 export function validateWorkspace(workspace: LevelEditorWorkspace): LevelEditorIssue[] {
   const issues: LevelEditorIssue[] = [];
@@ -79,6 +81,7 @@ export function validateWorkspace(workspace: LevelEditorWorkspace): LevelEditorI
   const handcrafted = getHandcraftedCatalog(workspace);
   const waveBalance = getWaveBalance(workspace);
   const stageDifficulty = getStageDifficulty(workspace);
+  const towerDictionary = getTowerDictionary(workspace);
 
   if (enemies) {
     const seenEnemyIds = new Set<string>();
@@ -262,6 +265,18 @@ export function validateWorkspace(workspace: LevelEditorWorkspace): LevelEditorI
     }
   }
 
+  if (towerDictionary) {
+    const towerIssues = validateTowerDictionary(towerDictionary);
+    for (const issue of towerIssues) {
+      issues.push({
+        severity: issue.severity,
+        filePath: "/data/towerArchetypes.json",
+        message: `${issue.towerId}: ${issue.message}`,
+        fieldPath: issue.fieldPath,
+      });
+    }
+  }
+
   if (stageDifficulty) {
     stageDifficulty.stages.forEach((stage, stageIndex) => {
       stage.archetypeProgression.tiers.forEach((tier, tierIndex) => {
@@ -404,6 +419,18 @@ function getTutorialCatalog(workspace: LevelEditorWorkspace): TutorialCatalog | 
     return null;
   }
   return result.catalog;
+}
+
+function getTowerDictionary(workspace: LevelEditorWorkspace) {
+  const doc = workspace.docs["/data/towerArchetypes.json"];
+  if (!doc || !doc.currentData) {
+    return null;
+  }
+  try {
+    return parseTowerDictionaryFromRaw(doc.currentData);
+  } catch {
+    return null;
+  }
 }
 
 function getCampaignMapById(workspace: LevelEditorWorkspace): Map<string, CampaignMapDefinition> {

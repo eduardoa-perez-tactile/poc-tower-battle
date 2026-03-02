@@ -146,6 +146,7 @@ function appendGlobalNodes(nodes: LevelEditorLibraryNode[], workspace: LevelEdit
     "ascension-difficulty",
     "wave-modifiers",
     "enemy-archetypes",
+    "tower-archetypes",
     "waves-handcrafted",
     "wave-pacing-targets",
     "mission-catalog",

@@ -26,6 +26,7 @@ import { splitIssues, validateWorkspace } from "../services/validation";
 import { createEnemiesTab } from "./EnemiesTab";
 import { createTutorialTab } from "./TutorialTab";
 import { ArtPreviewAssetManager, ArtPreviewRenderer } from "./ArtPreviewRenderer";
+import { createTowerDictionaryTab } from "./TowerDictionaryTab";
 
 export interface LevelEditorScreenProps {
   onBack: () => void;
@@ -36,7 +37,7 @@ interface EditorUiState {
   loadError: string | null;
   workspace: LevelEditorWorkspace | null;
   selection: LevelEditorSelection | null;
-  activeTab: "levels" | "enemies" | "tutorial";
+  activeTab: "levels" | "enemies" | "tutorial" | "tower-dictionary";
   libraryScope: "campaign" | "presets" | "globals";
   campaignStageIndex: number;
   campaignLevelIndex: number;
@@ -135,7 +136,14 @@ export function renderLevelEditorScreen(props: LevelEditorScreenProps): HTMLDivE
     state.activeTab = "tutorial";
     renderAll();
   };
-  toolbar.append(levelsTabBtn, enemiesTabBtn, tutorialTabBtn);
+  const towerDictionaryTabBtn = document.createElement("button");
+  towerDictionaryTabBtn.type = "button";
+  towerDictionaryTabBtn.textContent = "Tower Dictionary";
+  towerDictionaryTabBtn.onclick = () => {
+    state.activeTab = "tower-dictionary";
+    renderAll();
+  };
+  toolbar.append(levelsTabBtn, enemiesTabBtn, tutorialTabBtn, towerDictionaryTabBtn);
 
   const layout = document.createElement("div");
   layout.style.display = "grid";
@@ -192,7 +200,26 @@ export function renderLevelEditorScreen(props: LevelEditorScreenProps): HTMLDivE
   });
   tutorialRoot.appendChild(tutorialTab.root);
 
-  panel.append(header, toolbar, layout, enemiesRoot, tutorialRoot, status);
+  const towerDictionaryRoot = document.createElement("div");
+  const towerDictionaryTab = createTowerDictionaryTab({
+    getWorkspace: () => state.workspace,
+    commitWorkspace: (updater) => {
+      if (!state.workspace) {
+        return;
+      }
+      const nextWorkspace = updater(state.workspace);
+      if (nextWorkspace !== state.workspace) {
+        setWorkspace(nextWorkspace);
+      }
+    },
+    onInfoMessage: (message) => {
+      state.infoMessage = message;
+      renderStatus();
+    },
+  });
+  towerDictionaryRoot.appendChild(towerDictionaryTab.root);
+
+  panel.append(header, toolbar, layout, enemiesRoot, tutorialRoot, towerDictionaryRoot, status);
 
   void initialize();
   renderAll();
@@ -231,14 +258,17 @@ export function renderLevelEditorScreen(props: LevelEditorScreenProps): HTMLDivE
     applyTabButtonStyle(levelsTabBtn, state.activeTab === "levels");
     applyTabButtonStyle(enemiesTabBtn, state.activeTab === "enemies");
     applyTabButtonStyle(tutorialTabBtn, state.activeTab === "tutorial");
+    applyTabButtonStyle(towerDictionaryTabBtn, state.activeTab === "tower-dictionary");
 
     const showLevels = state.activeTab === "levels";
     const showEnemies = state.activeTab === "enemies";
     const showTutorial = state.activeTab === "tutorial";
+    const showTowerDictionary = state.activeTab === "tower-dictionary";
     layout.style.display = showLevels ? "grid" : "none";
     status.style.display = showLevels ? "block" : "none";
     enemiesTab.setActive(showEnemies);
     tutorialTab.setActive(showTutorial);
+    towerDictionaryTab.setActive(showTowerDictionary);
 
     if (showLevels) {
       renderLibrary();

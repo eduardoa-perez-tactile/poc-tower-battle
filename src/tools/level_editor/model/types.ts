@@ -12,6 +12,7 @@ import type {
   WavePacingTargetCatalog,
 } from "../../../waves/Definitions";
 import type { AscensionDifficultyCatalog, StageDifficultyCatalog } from "../../../waves/DifficultyTypes";
+import type { TowerArchetypeCatalog } from "../../../sim/DepthTypes";
 
 export const LEVEL_EDITOR_WORKSPACE_VERSION = 1;
 export const LEVEL_EDITOR_WORKSPACE_STORAGE_KEY = "tower-battle.level-editor.workspace.v1";
@@ -30,6 +31,7 @@ export type LevelEditorKnownJson =
   | WavePacingTargetCatalog
   | StageDifficultyCatalog
   | AscensionDifficultyCatalog
+  | TowerArchetypeCatalog
   | TutorialCatalog
   | Record<string, unknown>
   | Array<unknown>;
@@ -44,6 +46,7 @@ export type LevelEditorDocKind =
   | "ascension-difficulty"
   | "wave-modifiers"
   | "enemy-archetypes"
+  | "tower-archetypes"
   | "waves-handcrafted"
   | "wave-pacing-targets"
   | "tutorial-catalog"

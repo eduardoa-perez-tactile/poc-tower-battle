@@ -158,6 +158,9 @@ function resolveKind(path: string, data: unknown | null): LevelEditorDocKind {
   if (path.endsWith("/enemyArchetypes.json")) {
     return "enemy-archetypes";
   }
+  if (path.endsWith("/towerArchetypes.json")) {
+    return "tower-archetypes";
+  }
   if (path.endsWith("/waves-handcrafted.json")) {
     return "waves-handcrafted";
   }
@@ -200,6 +203,7 @@ function resolveGroup(kind: LevelEditorDocKind): LevelEditorDocument["group"] {
     case "ascension-difficulty":
     case "wave-modifiers":
     case "enemy-archetypes":
+    case "tower-archetypes":
     case "waves-handcrafted":
     case "wave-pacing-targets":
     case "mission-catalog":
