@@ -14,6 +14,7 @@ import { loadLevelEditorWorkspace } from "../io/loadAll";
 import { applyWorkspaceSnapshot, loadWorkspaceSnapshot, saveWorkspaceSnapshot } from "../io/workspaceStore";
 import { buildMapPreviewModel, type MapPreviewModel } from "../services/preview";
 import { resolveMissionForSelection } from "../services/resolver";
+import { LevelEditorArtPreviewCompiler } from "../services/artPreview";
 import { getSelectedCampaignLevel, getSelectedDoc, getSelectedLevel, getSelectedLevelMission, getSelectedPreset } from "../services/selection";
 import {
   mutateCampaignMission,
@@ -28,6 +29,7 @@ import { splitIssues, validateWorkspace } from "../services/validation";
 import { createEnemiesTab } from "./EnemiesTab";
 import { createLevelArtTab } from "./LevelArtTab";
 import { createTutorialTab } from "./TutorialTab";
+import { ArtPreviewAssetManager, ArtPreviewRenderer } from "./ArtPreviewRenderer";
 
 export interface LevelEditorScreenProps {
   onBack: () => void;
@@ -50,6 +52,7 @@ interface EditorUiState {
   infoMessage: string;
   spriteCatalog: SpriteCatalog | null;
   spriteCatalogError: string | null;
+  artPreviewEnabled: boolean;
 }
 
 interface EditablePreviewNode {
@@ -95,7 +98,11 @@ export function renderLevelEditorScreen(props: LevelEditorScreenProps): HTMLDivE
     infoMessage: "",
     spriteCatalog: null,
     spriteCatalogError: null,
+    artPreviewEnabled: false,
   };
+  const artPreviewCompiler = new LevelEditorArtPreviewCompiler();
+  const artPreviewAssets = new ArtPreviewAssetManager();
+  const artPreviewRenderer = new ArtPreviewRenderer();
 
   const header = createHeader();
   const toolbar = document.createElement("div");
@@ -844,30 +851,69 @@ export function renderLevelEditorScreen(props: LevelEditorScreenProps): HTMLDivE
     const mapModel = buildMapPreviewModel(state.workspace, state.selection);
     const source = editableMap ?? mapModel;
     if (source) {
+      const mapHeader = document.createElement("div");
+      mapHeader.style.display = "flex";
+      mapHeader.style.alignItems = "center";
+      mapHeader.style.justifyContent = "space-between";
+      mapHeader.style.gap = "10px";
+      mapHeader.style.marginBottom = "6px";
+
       const mapTitle = document.createElement("p");
       mapTitle.className = "campaign-progress-title";
+      mapTitle.style.marginBottom = "0";
       mapTitle.textContent = `Map (${source.nodes.length} nodes / ${source.edges.length} edges)${
         editableMap ? " • Editable" : ""
       }`;
-      previewPanel.body.appendChild(mapTitle);
+      mapHeader.appendChild(mapTitle);
+
+      const mapControls = document.createElement("div");
+      mapControls.style.display = "flex";
+      mapControls.style.alignItems = "center";
+      mapControls.style.justifyContent = "flex-end";
+      mapControls.style.flexWrap = "wrap";
+      mapControls.style.gap = "8px";
+      mapHeader.appendChild(mapControls);
 
       let resetViewBtn: HTMLButtonElement | null = null;
       if (editableMap) {
-        const mapActions = document.createElement("div");
-        mapActions.style.display = "flex";
-        mapActions.style.justifyContent = "flex-end";
-        mapActions.style.marginBottom = "6px";
-        previewPanel.body.appendChild(mapActions);
-
         resetViewBtn = createButton("Reset View", () => undefined, { variant: "ghost" });
-        mapActions.appendChild(resetViewBtn);
+        mapControls.appendChild(resetViewBtn);
+      }
 
-        const mapHint = document.createElement("p");
-        mapHint.className = "campaign-progress-subtitle";
+      const artToggleWrap = document.createElement("label");
+      artToggleWrap.style.display = "inline-flex";
+      artToggleWrap.style.alignItems = "center";
+      artToggleWrap.style.gap = "6px";
+      artToggleWrap.style.fontSize = "12px";
+      artToggleWrap.style.color = "rgba(196, 220, 255, 0.9)";
+      const artToggle = document.createElement("input");
+      artToggle.type = "checkbox";
+      artToggle.checked = state.artPreviewEnabled;
+      artToggle.onchange = () => {
+        state.artPreviewEnabled = artToggle.checked;
+        renderPreview();
+      };
+      const artToggleLabel = document.createElement("span");
+      artToggleLabel.textContent = "Art Preview";
+      artToggleWrap.append(artToggle, artToggleLabel);
+      mapControls.appendChild(artToggleWrap);
+      previewPanel.body.appendChild(mapHeader);
+
+      const mapHint = document.createElement("p");
+      mapHint.className = "campaign-progress-subtitle";
+      mapHint.style.marginBottom = "6px";
+      if (editableMap) {
         mapHint.textContent = "Drag nodes to edit. Drag background to pan. Wheel to zoom.";
-        mapHint.style.marginBottom = "6px";
         previewPanel.body.appendChild(mapHint);
       }
+
+      const artWarning = document.createElement("p");
+      artWarning.className = "campaign-progress-subtitle";
+      artWarning.style.marginBottom = "6px";
+      artWarning.style.marginTop = "2px";
+      artWarning.style.color = "rgba(255, 206, 166, 0.9)";
+      artWarning.style.display = "none";
+      previewPanel.body.appendChild(artWarning);
 
       const canvas = document.createElement("canvas");
       canvas.width = 440;
@@ -878,21 +924,69 @@ export function renderLevelEditorScreen(props: LevelEditorScreenProps): HTMLDivE
       canvas.style.background = "rgba(8, 16, 30, 0.92)";
       canvas.style.touchAction = "none";
       previewPanel.body.appendChild(canvas);
-      if (editableMap) {
-        const controller = attachInteractiveMapPreview(canvas, editableMap, (editedNodes) => {
-          const nextWorkspace = applyEditedMissionNodes(state.workspace!, state.selection!, editedNodes);
-          if (nextWorkspace !== state.workspace) {
-            state.infoMessage = "Map nodes updated.";
-            setWorkspace(nextWorkspace);
-          }
-        });
-        if (resetViewBtn) {
-          resetViewBtn.onclick = () => {
-            controller.resetView();
-          };
+
+      let renderedArtPreview = false;
+      let artPreviewWarningText: string | null = null;
+      if (state.artPreviewEnabled) {
+        const assetSnapshot = artPreviewAssets.getSnapshot();
+        if (assetSnapshot.state === "idle" || assetSnapshot.state === "loading") {
+          void artPreviewAssets.ensureLoaded().then(
+            () => {
+              renderPreview();
+            },
+            () => {
+              renderPreview();
+            },
+          );
         }
-      } else if (mapModel) {
-        drawMapPreview(canvas, mapModel);
+
+        const compilation = artPreviewCompiler.compile(state.workspace, state.selection, {
+          width: canvas.width,
+          height: canvas.height,
+        });
+
+        if (assetSnapshot.state === "ready" && assetSnapshot.atlas && compilation.payload) {
+          renderedArtPreview = artPreviewRenderer.draw(canvas, compilation.payload, assetSnapshot.atlas);
+        }
+
+        if (!renderedArtPreview) {
+          if (assetSnapshot.state === "error") {
+            artPreviewWarningText = "Art assets not available—showing blueprint.";
+          } else if (compilation.error) {
+            artPreviewWarningText = compilation.error;
+          }
+        }
+      }
+
+      if (!renderedArtPreview) {
+        if (editableMap) {
+          const controller = attachInteractiveMapPreview(canvas, editableMap, (editedNodes) => {
+            const nextWorkspace = applyEditedMissionNodes(state.workspace!, state.selection!, editedNodes);
+            if (nextWorkspace !== state.workspace) {
+              state.infoMessage = "Map nodes updated.";
+              setWorkspace(nextWorkspace);
+            }
+          });
+          if (resetViewBtn) {
+            resetViewBtn.onclick = () => {
+              controller.resetView();
+            };
+          }
+        } else if (mapModel) {
+          drawMapPreview(canvas, mapModel);
+        }
+      } else {
+        if (editableMap) {
+          mapHint.textContent = "Art preview mode. Turn off Art Preview to drag nodes.";
+        }
+        if (resetViewBtn) {
+          resetViewBtn.disabled = true;
+        }
+      }
+
+      if (artPreviewWarningText) {
+        artWarning.textContent = artPreviewWarningText;
+        artWarning.style.display = "block";
       }
     }
 
