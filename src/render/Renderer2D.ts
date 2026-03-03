@@ -1,5 +1,4 @@
 import type {
-  DragCandidateOverlay,
   DragPreview,
   LinkCandidateState,
   PointerHint,
@@ -18,6 +17,7 @@ import {
 } from "../sim/World";
 import type { WaveRenderState } from "../waves/WaveDirector";
 import { MapRenderer, type TowerArchetypeVisualOverride } from "./MapRenderer";
+import { MapOverlay, type MapOverlayInteractionState } from "./overlay/MapOverlay";
 import { SpriteAtlas } from "./SpriteAtlas";
 
 const OWNER_COLORS: Record<Owner, string> = {
@@ -43,6 +43,7 @@ export class Renderer2D {
   private readonly ctx: CanvasRenderingContext2D;
   private readonly spriteAtlas: SpriteAtlas;
   private readonly mapRenderer: MapRenderer;
+  private readonly mapOverlay: MapOverlay;
   private readonly spriteDrawnTowerIds: Set<string>;
   private mapRenderData: GridRenderData | null;
   private mapTerrain: TerrainData | null;
@@ -51,12 +52,15 @@ export class Renderer2D {
   private showGridLines: boolean;
   private renderArtMap: boolean;
   private showMapDebugOverlay: boolean;
+  private showMapReadabilityOverlay: boolean;
+  private showMapOverlayLegend: boolean;
 
   constructor(canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D) {
     this.canvas = canvas;
     this.ctx = ctx;
     this.spriteAtlas = new SpriteAtlas();
     this.mapRenderer = new MapRenderer();
+    this.mapOverlay = new MapOverlay();
     this.spriteDrawnTowerIds = new Set<string>();
     this.mapRenderData = null;
     this.mapTerrain = null;
@@ -65,6 +69,8 @@ export class Renderer2D {
     this.showGridLines = true;
     this.renderArtMap = true;
     this.showMapDebugOverlay = false;
+    this.showMapReadabilityOverlay = true;
+    this.showMapOverlayLegend = false;
     void this.spriteAtlas.ensureLoaded().catch((error) => {
       console.error("Failed to load map art atlas", error);
     });
@@ -95,6 +101,14 @@ export class Renderer2D {
     this.showMapDebugOverlay = enabled;
   }
 
+  setShowMapReadabilityOverlay(enabled: boolean): void {
+    this.showMapReadabilityOverlay = enabled;
+  }
+
+  setShowMapOverlayLegend(enabled: boolean): void {
+    this.showMapOverlayLegend = enabled;
+  }
+
   clear(): void {
     const viewport = this.getViewportSize();
     this.ctx.clearRect(0, 0, viewport.width, viewport.height);
@@ -102,9 +116,7 @@ export class Renderer2D {
 
   render(
     world: World,
-    preview: DragPreview | null,
-    dragOverlay: DragCandidateOverlay | null,
-    pointerHint: PointerHint | null,
+    interaction: MapOverlayInteractionState,
     overlayText: string | null,
     waveRenderState: WaveRenderState | null,
     bossBar: { name: string; hp01: number } | null,
@@ -147,8 +159,11 @@ export class Renderer2D {
       this.drawStaticGraphEdges();
     }
 
-    for (const link of world.links) {
-      this.drawLink(link);
+    const shouldDrawLegacyOverlay = !this.showMapReadabilityOverlay;
+    if (shouldDrawLegacyOverlay) {
+      for (const link of world.links) {
+        this.drawLink(link);
+      }
     }
 
     this.drawLinkBreakBursts(linkBreakBursts);
@@ -174,23 +189,49 @@ export class Renderer2D {
     }
 
     for (const tower of world.towers) {
-      const candidateState = dragOverlay?.candidateStateByTowerId[tower.id] ?? null;
-      const isDragSource = dragOverlay?.sourceTowerId === tower.id;
+      const candidateState = interaction.dragOverlay?.candidateStateByTowerId[tower.id] ?? null;
+      const isDragSource = interaction.dragOverlay?.sourceTowerId === tower.id;
       const renderedBySprite = shouldRenderArt && this.spriteDrawnTowerIds.has(tower.id);
       const showTowerDebugOverlay = !shouldRenderArt || this.showMapDebugOverlay;
       if (!renderedBySprite || showTowerDebugOverlay) {
-        this.drawTower(tower, candidateState, isDragSource);
+        this.drawTower(
+          tower,
+          shouldDrawLegacyOverlay ? candidateState : null,
+          shouldDrawLegacyOverlay ? isDragSource : false,
+        );
         continue;
       }
-      this.drawTowerInteractionHints(tower, candidateState, isDragSource);
+      if (shouldDrawLegacyOverlay) {
+        this.drawTowerInteractionHints(tower, candidateState, isDragSource);
+      }
     }
 
-    if (preview) {
-      this.drawPreviewLink(preview);
+    if (this.showMapReadabilityOverlay) {
+      this.mapOverlay.draw(
+        this.ctx,
+        {
+          world,
+          interaction,
+          showLegend: this.showMapOverlayLegend,
+          showDebugIds: this.showMapDebugOverlay,
+          timeSec: performance.now() / 1000,
+        },
+        {
+          offsetX: 0,
+          offsetY: 0,
+          scale: 1,
+          viewportWidth: viewport.width,
+          viewportHeight: viewport.height,
+        },
+      );
     }
 
-    if (pointerHint) {
-      this.drawPointerHint(pointerHint);
+    if (shouldDrawLegacyOverlay && interaction.preview) {
+      this.drawPreviewLink(interaction.preview);
+    }
+
+    if (shouldDrawLegacyOverlay && interaction.pointerHint) {
+      this.drawPointerHint(interaction.pointerHint);
     }
 
     if (overlayText) {
