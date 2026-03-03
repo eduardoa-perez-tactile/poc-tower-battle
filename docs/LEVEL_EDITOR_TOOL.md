@@ -36,6 +36,7 @@ The editor loads and tracks these assets:
 - `/data/difficulty/ascensions.json`
 - `/data/wave-modifiers.json`
 - `/data/enemyArchetypes.json`
+- `/data/towerArchetypes.json` (Tower Dictionary)
 - `/data/waves-handcrafted.json`
 - `/data/wavePacingTargets.json`
 - `/data/missions.json`
@@ -67,6 +68,11 @@ Because browser runtime cannot write into repo paths:
 2. Run Validate + Diff.
 3. Click `Export Changed` to download changed JSON files.
 4. Apply exported files back into repo manually.
+
+## Tower Dictionary Runtime Sync
+- Tower Dictionary edits are persisted in the editor workspace snapshot (`localStorage`) until exported.
+- Mission start now resolves tower archetype art/modifier data from that snapshot first, then falls back to disk data.
+- Result: in DEV flow, sprite/art changes made in Tower Dictionary are reflected in gameplay on next mission start without app reload.
 
 ## Revert and Duplicate
 - `Revert` restores the selected owner document to its original loaded content.
