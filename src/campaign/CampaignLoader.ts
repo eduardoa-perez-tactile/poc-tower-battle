@@ -22,13 +22,15 @@ const TILE_GRASS_ALT_A = 323;
 const TILE_GRASS_ALT_B = 325;
 const GRASS_TILE_VARIANTS = [TILE_GRASS_PRIMARY, TILE_GRASS_ALT_A, TILE_GRASS_ALT_B] as const;
 const ROAD_TILE_VARIANTS = [432, 433, 434, 450, 451] as const;
-const ROAD_BORDER_TILE_VARIANTS = [342, 343, 344, 360] as const;
 const WATER_TILE_VARIANTS = [396, 397, 398, 399] as const;
 const TILE_SHORE_NORTH = 414;
-const TILE_SHORE_SOUTH = 415;
-const TILE_SHORE_WEST = 290;
-const TILE_SHORE_EAST = 289;
-const SHORE_CORNER_TILE_VARIANTS = [252, 253, 254, 255, 270, 271, 272, 273, 288, 291] as const;
+const TILE_SHORE_SOUTH = 384;
+const TILE_SHORE_WEST = 278;
+const TILE_SHORE_EAST = 288;
+const TILE_SHORE_CORNER_NW = 429;
+const TILE_SHORE_CORNER_NE = TILE_SHORE_NORTH;
+const TILE_SHORE_CORNER_SW = TILE_SHORE_SOUTH;
+const TILE_SHORE_CORNER_SE = 373;
 const TILE_FLOWER = 74;
 const NEUTRAL_SPRITE_CYCLE = [
   "barracks",
@@ -285,23 +287,22 @@ function createCampaignTerrain(map: CampaignMapDefinition): LevelJson["terrain"]
   const deco = new Array<number>(total).fill(TILE_EMPTY);
   const nodeById = new Map(map.nodes.map((node) => [node.id, node] as const));
   const seed = hashSeed(map.id);
-  const waterMask = new Array<boolean>(total).fill(false);
+  const waterMask = new Array<boolean>(total).fill(true);
   const roadMask = new Array<boolean>(total).fill(false);
-  const minDimension = Math.min(width, height);
-  const coastBaseDepth = clampInt(Math.floor(minDimension * 0.14), 2, 4);
-  const coastJitter = clampInt(Math.floor(minDimension * 0.08), 1, 3);
+  const centerX = (width - 1) * 0.5;
+  const centerY = (height - 1) * 0.5;
+  const radiusX = Math.max(3, Math.floor(width * 0.44));
+  const radiusY = Math.max(3, Math.floor(height * 0.4));
 
   for (let row = 0; row < height; row += 1) {
     for (let col = 0; col < width; col += 1) {
       const index = row * width + col;
-      const distanceToEdge = Math.min(col, row, width - 1 - col, height - 1 - row);
-      const coastNoise = hash2d(col, row, seed ^ 0x63c63cd9);
-      const jitter = (coastNoise % (coastJitter * 2 + 1)) - coastJitter;
-      const inletNoise = hash2d(col * 2 + 7, row * 2 + 11, seed ^ 0x9e3779b9);
-      const inletBonus = inletNoise % 9 === 0 ? 1 : 0;
-      const coastDepth = Math.max(1, coastBaseDepth + jitter + inletBonus);
-      if (distanceToEdge <= coastDepth) {
-        waterMask[index] = true;
+      const nx = (col - centerX) / radiusX;
+      const ny = (row - centerY) / radiusY;
+      const ellipse = nx * nx + ny * ny;
+      const contourNoise = ((hash2d(col, row, seed ^ 0x63c63cd9) % 1000) / 1000 - 0.5) * 0.08;
+      if (ellipse <= 1 + contourNoise) {
+        waterMask[index] = false;
       }
     }
   }
@@ -322,7 +323,7 @@ function createCampaignTerrain(map: CampaignMapDefinition): LevelJson["terrain"]
       Math.round(to.x),
       Math.round(to.y),
       (x, y) => {
-        paintDisk(waterMask, width, height, x, y, 1, false);
+        paintDisk(waterMask, width, height, x, y, 2, false);
         paintDisk(roadMask, width, height, x, y, 1, true);
       },
     );
@@ -337,6 +338,34 @@ function createCampaignTerrain(map: CampaignMapDefinition): LevelJson["terrain"]
       const index = row * width + col;
       if (roadMask[index]) {
         waterMask[index] = false;
+      }
+    }
+  }
+
+  // Keep an explicit ocean ring so every generated map reads as an island.
+  for (let row = 0; row < height; row += 1) {
+    for (let col = 0; col < width; col += 1) {
+      if (col <= 0 || row <= 0 || col >= width - 1 || row >= height - 1) {
+        const index = row * width + col;
+        waterMask[index] = true;
+        roadMask[index] = false;
+      }
+    }
+  }
+
+  // Keep roads away from immediate coast so shoreline tiles stay coherent.
+  for (let row = 0; row < height; row += 1) {
+    for (let col = 0; col < width; col += 1) {
+      const index = row * width + col;
+      if (!roadMask[index] || waterMask[index]) {
+        continue;
+      }
+      const northWater = row > 0 ? waterMask[(row - 1) * width + col] : false;
+      const southWater = row < height - 1 ? waterMask[(row + 1) * width + col] : false;
+      const westWater = col > 0 ? waterMask[row * width + (col - 1)] : false;
+      const eastWater = col < width - 1 ? waterMask[row * width + (col + 1)] : false;
+      if (northWater || southWater || westWater || eastWater) {
+        roadMask[index] = false;
       }
     }
   }
@@ -368,7 +397,7 @@ function createCampaignTerrain(map: CampaignMapDefinition): LevelJson["terrain"]
   for (let row = 0; row < height; row += 1) {
     for (let col = 0; col < width; col += 1) {
       const index = row * width + col;
-      if (waterMask[index] || roadMask[index]) {
+      if (waterMask[index]) {
         continue;
       }
 
@@ -391,34 +420,25 @@ function createCampaignTerrain(map: CampaignMapDefinition): LevelJson["terrain"]
         } else {
           ground[index] = TILE_SHORE_EAST;
         }
-      } else {
-        ground[index] = pickVariant(SHORE_CORNER_TILE_VARIANTS, col, row, seed ^ 0x27d4eb2f);
+        continue;
       }
-    }
-  }
 
-  for (let row = 0; row < height; row += 1) {
-    for (let col = 0; col < width; col += 1) {
-      const index = row * width + col;
-      if (waterMask[index] || roadMask[index]) {
-        continue;
-      }
-      const northRoad = row > 0 ? roadMask[(row - 1) * width + col] : false;
-      const southRoad = row < height - 1 ? roadMask[(row + 1) * width + col] : false;
-      const westRoad = col > 0 ? roadMask[row * width + (col - 1)] : false;
-      const eastRoad = col < width - 1 ? roadMask[row * width + (col + 1)] : false;
-      if (!northRoad && !southRoad && !westRoad && !eastRoad) {
-        continue;
-      }
-      const northWater = row > 0 ? waterMask[(row - 1) * width + col] : false;
-      const southWater = row < height - 1 ? waterMask[(row + 1) * width + col] : false;
-      const westWater = col > 0 ? waterMask[row * width + (col - 1)] : false;
-      const eastWater = col < width - 1 ? waterMask[row * width + (col + 1)] : false;
-      if (northWater || southWater || westWater || eastWater) {
-        continue;
-      }
-      if (hash2d(col, row, seed ^ 0x165667b1) % 3 === 0) {
-        ground[index] = pickVariant(ROAD_BORDER_TILE_VARIANTS, col, row, seed ^ 0x85ebca6b);
+      if (northWater && westWater && !eastWater && !southWater) {
+        ground[index] = TILE_SHORE_CORNER_NW;
+      } else if (northWater && eastWater && !westWater && !southWater) {
+        ground[index] = TILE_SHORE_CORNER_NE;
+      } else if (southWater && westWater && !northWater && !eastWater) {
+        ground[index] = TILE_SHORE_CORNER_SW;
+      } else if (southWater && eastWater && !northWater && !westWater) {
+        ground[index] = TILE_SHORE_CORNER_SE;
+      } else if (northWater) {
+        ground[index] = TILE_SHORE_NORTH;
+      } else if (southWater) {
+        ground[index] = TILE_SHORE_SOUTH;
+      } else if (westWater) {
+        ground[index] = TILE_SHORE_WEST;
+      } else if (eastWater) {
+        ground[index] = TILE_SHORE_EAST;
       }
     }
   }
