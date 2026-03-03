@@ -12,6 +12,7 @@ export interface DebugUiState {
   showGridLines: boolean;
   renderArtMap: boolean;
   showMapDebugOverlay: boolean;
+  showMapReadabilityOverlay: boolean;
 }
 
 type DebugUiListener = (state: DebugUiState) => void;
@@ -75,4 +76,5 @@ export const debugUiStore = new DebugUiStore({
   showGridLines: true,
   renderArtMap: true,
   showMapDebugOverlay: false,
+  showMapReadabilityOverlay: true,
 });

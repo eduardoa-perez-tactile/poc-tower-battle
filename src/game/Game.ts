@@ -1,5 +1,6 @@
 import { InputController } from "../input/InputController";
 import { Renderer2D } from "../render/Renderer2D";
+import type { MapOverlayInteractionState } from "../render/overlay/MapOverlay";
 import { canCreateLink, getNeighbors } from "../sim/LinkRules";
 import { updateWorld, type SimulationRules, type SimulationTemporaryModifiers } from "../sim/Simulation";
 import { World } from "../sim/World";
@@ -38,6 +39,7 @@ export class Game {
   private readonly waveDirector: WaveDirector | null;
   private readonly skillManager: SkillManager | null;
   private readonly linkBreakBursts: LinkBreakBurst[];
+  private readonly overlayInteractionState: MapOverlayInteractionState;
   private accumulatorSec: number;
   private aiAccumulatorSec: number;
   private matchResult: MatchResult;
@@ -59,6 +61,16 @@ export class Game {
     this.waveDirector = waveDirector;
     this.skillManager = skillManager;
     this.linkBreakBursts = [];
+    this.overlayInteractionState = {
+      hoveredTowerId: null,
+      selectedTowerId: null,
+      isDraggingLink: false,
+      dragSourceId: null,
+      currentMouseWorld: null,
+      preview: null,
+      dragOverlay: null,
+      pointerHint: null,
+    };
     this.accumulatorSec = 0;
     this.aiAccumulatorSec = 0;
     this.matchResult = null;
@@ -186,11 +198,18 @@ export class Game {
             hp01: waveTelemetry.bossHp01,
           }
         : null;
+    this.overlayInteractionState.hoveredTowerId = this.inputController.getHoveredTowerId();
+    this.overlayInteractionState.selectedTowerId = this.inputController.getSelectedTowerId();
+    this.overlayInteractionState.isDraggingLink = this.inputController.isDragging();
+    this.overlayInteractionState.dragSourceId = this.inputController.getDragSourceTowerId();
+    this.overlayInteractionState.currentMouseWorld = this.inputController.getCurrentPointer();
+    this.overlayInteractionState.preview = this.inputController.getPreviewLine();
+    this.overlayInteractionState.dragOverlay = this.inputController.getDragCandidateOverlay();
+    this.overlayInteractionState.pointerHint = this.inputController.getPointerHint();
+
     this.renderer.render(
       this.world,
-      this.inputController.getPreviewLine(),
-      this.inputController.getDragCandidateOverlay(),
-      this.inputController.getPointerHint(),
+      this.overlayInteractionState,
       null,
       this.waveDirector?.getRenderState() ?? null,
       bossBar,

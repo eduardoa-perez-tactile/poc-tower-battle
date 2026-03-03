@@ -190,6 +190,8 @@ interface AppState {
 
 const DEBUG_TOOLS_ENABLED = true;
 const LEVEL_EDITOR_ENABLED = import.meta.env.DEV;
+const MAP_READABILITY_OVERLAY_KEY = "tower-battle.map-readability-overlay.enabled";
+const MAP_READABILITY_LEGEND_KEY = "tower-battle.map-readability-overlay.legend";
 void bootstrap();
 
 async function bootstrap(): Promise<void> {
@@ -285,6 +287,12 @@ async function bootstrap(): Promise<void> {
     difficultyReportOutput: "",
     difficultyReportMissionIndex: null,
   };
+  const initialMapReadabilityOverlayEnabled = readStoredBoolean(MAP_READABILITY_OVERLAY_KEY, true);
+  let mapReadabilityLegendVisible = readStoredBoolean(MAP_READABILITY_LEGEND_KEY, false);
+  let lastMapReadabilityOverlayEnabled = initialMapReadabilityOverlayEnabled;
+  debugUiStore.setState({
+    showMapReadabilityOverlay: initialMapReadabilityOverlayEnabled,
+  });
 
   const initialUnlockEvaluation = evaluateUnlocks(
     app.metaProfile,
@@ -354,6 +362,10 @@ async function bootstrap(): Promise<void> {
     renderer.setShowGridLines(debugState.showGridLines);
     renderer.setRenderArtMap(debugState.renderArtMap);
     renderer.setShowMapDebugOverlay(debugState.showMapDebugOverlay);
+    renderer.setShowMapReadabilityOverlay(debugState.showMapReadabilityOverlay);
+    renderer.setShowMapOverlayLegend(
+      debugState.showMapReadabilityOverlay && mapReadabilityLegendVisible,
+    );
     gameplayHud.setOverlayToggles({
       regenNumbers: debugState.showOverlayRegenNumbers,
       captureRings: debugState.showOverlayCaptureRings,
@@ -413,7 +425,11 @@ async function bootstrap(): Promise<void> {
     syncDebugIndicator(debugIndicator, DEBUG_TOOLS_ENABLED, debugState);
   };
 
-  debugUiStore.subscribe(() => {
+  debugUiStore.subscribe((state) => {
+    if (state.showMapReadabilityOverlay !== lastMapReadabilityOverlayEnabled) {
+      lastMapReadabilityOverlayEnabled = state.showMapReadabilityOverlay;
+      writeStoredBoolean(MAP_READABILITY_OVERLAY_KEY, state.showMapReadabilityOverlay);
+    }
     render();
   });
 
@@ -1535,6 +1551,20 @@ async function bootstrap(): Promise<void> {
 
     if ((key === "r" || key === "R") && !isTyping) {
       restartCurrentMission();
+    }
+
+    if (!isTyping && app.screen === "mission" && (key === "o" || key === "O")) {
+      debugUiStore.toggle("showMapReadabilityOverlay");
+      event.preventDefault();
+      return;
+    }
+
+    if (!isTyping && app.screen === "mission" && (key === "h" || key === "H")) {
+      mapReadabilityLegendVisible = !mapReadabilityLegendVisible;
+      writeStoredBoolean(MAP_READABILITY_LEGEND_KEY, mapReadabilityLegendVisible);
+      render();
+      event.preventDefault();
+      return;
     }
 
     if (!DEBUG_TOOLS_ENABLED || isTyping) {
@@ -2671,6 +2701,9 @@ function renderDebugPanel(
           panel.appendChild(createDebugToggle("Render Art Map", debugState.renderArtMap, () => {
             debugUiStore.toggle("renderArtMap");
           }));
+          panel.appendChild(createDebugToggle("Map Readability Overlay", debugState.showMapReadabilityOverlay, () => {
+            debugUiStore.toggle("showMapReadabilityOverlay");
+          }));
           panel.appendChild(createDebugToggle("Show Art Debug Overlay", debugState.showMapDebugOverlay, () => {
             debugUiStore.toggle("showMapDebugOverlay");
           }));
@@ -3669,6 +3702,29 @@ function isTypingTarget(target: EventTarget | null): boolean {
     return true;
   }
   return target.isContentEditable;
+}
+
+function readStoredBoolean(key: string, fallback: boolean): boolean {
+  try {
+    const raw = localStorage.getItem(key);
+    if (raw === "true") {
+      return true;
+    }
+    if (raw === "false") {
+      return false;
+    }
+  } catch {
+    // Ignore storage read failures and use fallback.
+  }
+  return fallback;
+}
+
+function writeStoredBoolean(key: string, value: boolean): void {
+  try {
+    localStorage.setItem(key, value ? "true" : "false");
+  } catch {
+    // Ignore storage write failures.
+  }
 }
 
 function syncDebugIndicator(

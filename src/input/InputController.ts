@@ -30,7 +30,7 @@ interface DragState {
 interface ActivePointerHint {
   text: string;
   position: Vec2;
-  mode: "drag" | "transient";
+  mode: "drag" | "transient" | "hover";
   expiresAtSec: number | null;
 }
 
@@ -39,6 +39,8 @@ export class InputController {
   private readonly world: World;
   private dragState: DragState | null;
   private selectedTowerId: string | null;
+  private hoveredTowerId: string | null;
+  private currentPointer: Vec2 | null;
   private enabled: boolean;
   private pointerHint: ActivePointerHint | null;
   private readonly feedbackQueue: string[];
@@ -48,6 +50,8 @@ export class InputController {
     this.world = world;
     this.dragState = null;
     this.selectedTowerId = null;
+    this.hoveredTowerId = null;
+    this.currentPointer = null;
     this.enabled = true;
     this.pointerHint = null;
     this.feedbackQueue = [];
@@ -72,6 +76,9 @@ export class InputController {
     this.enabled = enabled;
     if (!enabled) {
       this.cancelDrag();
+      this.hoveredTowerId = null;
+      this.currentPointer = null;
+      this.pointerHint = null;
     }
   }
 
@@ -117,8 +124,12 @@ export class InputController {
     if (this.pointerHint.mode === "transient" && this.pointerHint.expiresAtSec !== null) {
       if (nowSec() >= this.pointerHint.expiresAtSec) {
         this.pointerHint = null;
-        return null;
+        this.restoreHoverHintIfPossible();
       }
+    }
+
+    if (!this.pointerHint) {
+      return null;
     }
 
     return {
@@ -145,6 +156,18 @@ export class InputController {
     return this.selectedTowerId;
   }
 
+  getHoveredTowerId(): string | null {
+    return this.enabled ? this.hoveredTowerId : null;
+  }
+
+  getCurrentPointer(): Vec2 | null {
+    return this.enabled ? this.currentPointer : null;
+  }
+
+  getDragSourceTowerId(): string | null {
+    return this.enabled ? this.dragState?.sourceTowerId ?? null : null;
+  }
+
   private readonly onMouseDown = (event: MouseEvent): void => {
     if (!this.enabled) {
       return;
@@ -161,7 +184,9 @@ export class InputController {
     }
 
     const pointer = this.toCanvasPoint(event);
+    this.currentPointer = pointer;
     const tower = this.world.getTowerAtPoint(pointer.x, pointer.y);
+    this.hoveredTowerId = tower?.id ?? null;
     if (!tower) {
       this.selectedTowerId = null;
       return;
@@ -187,18 +212,22 @@ export class InputController {
       return;
     }
 
+    const pointer = this.toCanvasPoint(event);
+    this.currentPointer = pointer;
+    const hoveredTower = this.world.getTowerAtPoint(pointer.x, pointer.y);
+    this.hoveredTowerId = hoveredTower?.id ?? null;
+
     if (!this.dragState) {
+      this.updateHoverHint(pointer, hoveredTower !== null);
       return;
     }
 
-    const pointer = this.toCanvasPoint(event);
     this.dragState.cursor = pointer;
 
-    const targetTower = this.world.getTowerAtPoint(pointer.x, pointer.y);
     if (
-      targetTower &&
-      targetTower.id !== this.dragState.sourceTowerId &&
-      !areNeighbors(this.world, this.dragState.sourceTowerId, targetTower.id)
+      hoveredTower &&
+      hoveredTower.id !== this.dragState.sourceTowerId &&
+      !areNeighbors(this.world, this.dragState.sourceTowerId, hoveredTower.id)
     ) {
       this.pointerHint = {
         text: "Too far — adjacent towers only.",
@@ -229,7 +258,9 @@ export class InputController {
 
     const dragState = this.dragState;
     const pointer = this.toCanvasPoint(event);
+    this.currentPointer = pointer;
     const targetTower = this.world.getTowerAtPoint(pointer.x, pointer.y);
+    this.hoveredTowerId = targetTower?.id ?? null;
 
     this.dragState = null;
     this.clearDragHint();
@@ -280,6 +311,43 @@ export class InputController {
     if (this.pointerHint?.mode === "drag") {
       this.pointerHint = null;
     }
+  }
+
+  private clearHoverHint(): void {
+    if (this.pointerHint?.mode === "hover") {
+      this.pointerHint = null;
+    }
+  }
+
+  private updateHoverHint(pointer: Vec2, hasHoverTarget: boolean): void {
+    if (!hasHoverTarget) {
+      this.clearHoverHint();
+      return;
+    }
+    if (this.pointerHint?.mode === "transient") {
+      if (this.pointerHint.expiresAtSec !== null && nowSec() < this.pointerHint.expiresAtSec) {
+        return;
+      }
+      this.pointerHint = null;
+    }
+    this.pointerHint = {
+      text: "Drag from owned tower to connect",
+      position: pointer,
+      mode: "hover",
+      expiresAtSec: null,
+    };
+  }
+
+  private restoreHoverHintIfPossible(): void {
+    if (!this.currentPointer || !this.hoveredTowerId || this.dragState) {
+      return;
+    }
+    this.pointerHint = {
+      text: "Drag from owned tower to connect",
+      position: this.currentPointer,
+      mode: "hover",
+      expiresAtSec: null,
+    };
   }
 
   private cancelDrag(): void {
