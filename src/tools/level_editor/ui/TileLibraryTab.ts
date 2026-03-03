@@ -13,7 +13,7 @@ import { mutateCampaignStage } from "../services/workspaceMutations";
 
 const CAMPAIGN_DOC_ID = "/data/campaign/campaign_v2.json";
 const TILE_CANVAS_SIZE = 34;
-const PALETTE_TILE_SIZE = 20;
+const PALETTE_TILE_SIZE = 40;
 const MASK_KEYS = [...REQUIRED_SHORELINE_MASK_KEYS];
 
 type TileFieldId =
@@ -58,11 +58,21 @@ interface TileLibraryState {
   searchText: string;
   selectedStageIndex: number;
   selectedFieldId: TileFieldId;
+  pickerOpen: boolean;
+  pickerDraftTileIndex: number | undefined;
+  pickerAnchor: PickerAnchor | null;
   infoMessage: string;
   loadingTilesheet: boolean;
   tilesheetPath: string | null;
   tilesheetImage: HTMLImageElement | null;
   tilesheetError: string | null;
+}
+
+interface PickerAnchor {
+  left: number;
+  right: number;
+  top: number;
+  bottom: number;
 }
 
 interface FlatStageRef {
@@ -108,6 +118,9 @@ export function createTileLibraryTab(options: TileLibraryTabOptions): TileLibrar
     searchText: "",
     selectedStageIndex: 0,
     selectedFieldId: "waterBase",
+    pickerOpen: false,
+    pickerDraftTileIndex: undefined,
+    pickerAnchor: null,
     infoMessage: "",
     loadingTilesheet: false,
     tilesheetPath: null,
@@ -200,6 +213,7 @@ export function createTileLibraryTab(options: TileLibraryTabOptions): TileLibrar
         delete next.tilePalette;
         return next;
       });
+      closeTilePicker(false);
       state.infoMessage = "Cleared world tile overrides for selected stage.";
       options.onInfoMessage(state.infoMessage);
       render();
@@ -227,6 +241,10 @@ export function createTileLibraryTab(options: TileLibraryTabOptions): TileLibrar
       const message = createInfo(state.infoMessage);
       message.style.marginTop = "8px";
       root.appendChild(message);
+    }
+
+    if (state.pickerOpen && selectedStage) {
+      root.appendChild(renderAtlasPickerModal(cloneTilePalette(selectedStage.tilePalette) ?? {}));
     }
   }
 
@@ -355,6 +373,7 @@ export function createTileLibraryTab(options: TileLibraryTabOptions): TileLibrar
           delete next.tilePalette;
           return next;
         });
+        closeTilePicker(false);
         state.infoMessage = `Disabled world tile overrides for ${entryLabel(stage)}.`;
       }
       options.onInfoMessage(state.infoMessage);
@@ -469,73 +488,108 @@ export function createTileLibraryTab(options: TileLibraryTabOptions): TileLibrar
     sectionsWrap.appendChild(shorelineSection.root);
 
     pane.body.appendChild(sectionsWrap);
-    pane.body.appendChild(renderAtlasPicker(palette));
     return pane.root;
   }
 
-  function renderAtlasPicker(palette: LevelTilePalette): HTMLElement {
-    const wrap = document.createElement("div");
-    wrap.style.marginTop = "10px";
-    wrap.style.border = "1px solid rgba(117, 157, 220, 0.26)";
-    wrap.style.borderRadius = "10px";
-    wrap.style.padding = "8px";
-    wrap.style.background = "rgba(8, 17, 30, 0.66)";
-    wrap.style.display = "grid";
-    wrap.style.gap = "8px";
+  function renderAtlasPickerModal(palette: LevelTilePalette): HTMLElement {
+    const overlay = document.createElement("div");
+    overlay.style.position = "fixed";
+    overlay.style.inset = "0";
+    overlay.style.background = "rgba(6, 10, 18, 0.7)";
+    overlay.style.pointerEvents = "auto";
+    overlay.style.zIndex = "1200";
+    overlay.onclick = (event) => {
+      if (event.target === overlay) {
+        closeTilePicker();
+      }
+    };
 
+    const geometry = computePickerModalGeometry(state.pickerAnchor);
+    const modal = document.createElement("div");
+    modal.style.position = "fixed";
+    modal.style.left = `${geometry.left}px`;
+    modal.style.top = `${geometry.top}px`;
+    modal.style.width = `${geometry.width}px`;
+    modal.style.maxHeight = `${geometry.maxHeight}px`;
+    modal.style.overflow = "hidden";
+    modal.style.border = "1px solid rgba(117, 157, 220, 0.3)";
+    modal.style.borderRadius = "12px";
+    modal.style.background = "rgba(9, 18, 32, 0.98)";
+    modal.style.display = "grid";
+    modal.style.gridTemplateRows = "auto 1fr auto";
+    modal.style.gap = "10px";
+    modal.style.padding = "10px";
+    overlay.appendChild(modal);
+
+    const heading = document.createElement("div");
+    heading.style.display = "flex";
+    heading.style.justifyContent = "space-between";
+    heading.style.alignItems = "center";
+    heading.style.gap = "10px";
     const title = document.createElement("p");
     title.className = "campaign-progress-title";
     title.style.margin = "0";
-    title.textContent = "Atlas Picker";
-    wrap.appendChild(title);
+    title.textContent = `Pick Tile • ${fieldLabelForField(state.selectedFieldId)}`;
+    heading.appendChild(title);
+    const cancelTop = createButton("Cancel", () => {
+      closeTilePicker();
+    }, { variant: "ghost" });
+    heading.appendChild(cancelTop);
+    modal.appendChild(heading);
 
-    const catalog = options.getSpriteCatalog();
-    if (!catalog) {
-      wrap.appendChild(createInfo(options.getSpriteCatalogError() ?? "Sprite catalog unavailable."));
-      return wrap;
-    }
+    const content = document.createElement("div");
+    content.style.display = "grid";
+    content.style.gap = "10px";
+    content.style.overflow = "auto";
+    modal.appendChild(content);
 
-    const fieldSelect = document.createElement("select");
-    fieldSelect.className = "campaign-generator-size-select";
-    fieldSelect.style.width = "100%";
-    for (const field of TILE_FIELDS) {
-      const option = document.createElement("option");
-      option.value = field.id;
-      option.textContent = field.label;
-      option.selected = field.id === state.selectedFieldId;
-      fieldSelect.appendChild(option);
-    }
-    fieldSelect.onchange = () => {
-      state.selectedFieldId = fieldSelect.value as TileFieldId;
-      render();
-    };
-    wrap.appendChild(labelWith("Target Field", fieldSelect));
+    const currentValue = getTileFieldValue(palette, state.selectedFieldId);
+    const statusRow = document.createElement("div");
+    statusRow.style.display = "grid";
+    statusRow.style.gridTemplateColumns = "auto auto auto auto";
+    statusRow.style.gap = "8px";
+    statusRow.style.alignItems = "center";
+    const currentLabel = document.createElement("span");
+    currentLabel.style.fontSize = "12px";
+    currentLabel.textContent = `Current: ${currentValue ?? "unset"}`;
+    statusRow.appendChild(currentLabel);
+    statusRow.appendChild(createTileThumbnail(currentValue));
+    const draftLabel = document.createElement("span");
+    draftLabel.style.fontSize = "12px";
+    draftLabel.textContent = `Selected: ${state.pickerDraftTileIndex ?? "unset"}`;
+    statusRow.appendChild(draftLabel);
+    statusRow.appendChild(createTileThumbnail(state.pickerDraftTileIndex));
+    content.appendChild(statusRow);
 
-    const selectedValue = getTileFieldValue(palette, state.selectedFieldId);
     const selectedInput = document.createElement("input");
     selectedInput.type = "number";
     selectedInput.min = "0";
     selectedInput.step = "1";
     selectedInput.className = "campaign-generator-size-select";
-    selectedInput.value = selectedValue !== undefined ? `${selectedValue}` : "";
+    selectedInput.value = state.pickerDraftTileIndex !== undefined ? `${state.pickerDraftTileIndex}` : "";
     selectedInput.onchange = () => {
-      const parsed = parseTileInput(selectedInput.value);
-      setTileFieldValue(state.selectedFieldId, parsed);
+      state.pickerDraftTileIndex = parseTileInput(selectedInput.value);
       render();
     };
-    wrap.appendChild(labelWith("Numeric Index", selectedInput));
+    content.appendChild(labelWith("Selected Tile Index", selectedInput));
+
+    const catalog = options.getSpriteCatalog();
+    if (!catalog) {
+      content.appendChild(createInfo(options.getSpriteCatalogError() ?? "Sprite catalog unavailable."));
+      return overlay;
+    }
 
     if (state.loadingTilesheet) {
-      wrap.appendChild(createInfo("Loading tilesheet image..."));
-      return wrap;
+      content.appendChild(createInfo("Loading tilesheet image..."));
+      return overlay;
     }
     if (state.tilesheetError) {
-      wrap.appendChild(createInfo(`Tilesheet error: ${state.tilesheetError}`));
-      return wrap;
+      content.appendChild(createInfo(`Tilesheet error: ${state.tilesheetError}`));
+      return overlay;
     }
     if (!state.tilesheetImage) {
-      wrap.appendChild(createInfo("Tilesheet image unavailable."));
-      return wrap;
+      content.appendChild(createInfo("Tilesheet image unavailable."));
+      return overlay;
     }
 
     const cols = Math.max(1, catalog.tilesheet.cols);
@@ -551,7 +605,7 @@ export function createTileLibraryTab(options: TileLibraryTabOptions): TileLibrar
     canvas.style.background = "rgba(7, 12, 22, 0.95)";
     canvas.style.cursor = "crosshair";
 
-    drawAtlasPalette(canvas, catalog, state.tilesheetImage, selectedValue);
+    drawAtlasPalette(canvas, catalog, state.tilesheetImage, state.pickerDraftTileIndex);
     canvas.addEventListener("click", (event) => {
       const rect = canvas.getBoundingClientRect();
       const localX = Math.floor((event.clientX - rect.left) * (canvas.width / Math.max(1, rect.width)));
@@ -559,23 +613,52 @@ export function createTileLibraryTab(options: TileLibraryTabOptions): TileLibrar
       const col = clampInt(Math.floor(localX / PALETTE_TILE_SIZE), 0, cols - 1);
       const row = clampInt(Math.floor(localY / PALETTE_TILE_SIZE), 0, rows - 1);
       const tileIndex = row * cols + col;
-      setTileFieldValue(state.selectedFieldId, tileIndex);
+      state.pickerDraftTileIndex = tileIndex;
       render();
     });
 
     const scroller = document.createElement("div");
-    scroller.style.maxHeight = "280px";
+    scroller.style.maxHeight = "52vh";
     scroller.style.overflow = "auto";
     scroller.appendChild(canvas);
-    wrap.appendChild(scroller);
+    content.appendChild(scroller);
 
     const hint = document.createElement("p");
     hint.className = "campaign-progress-subtitle";
     hint.style.margin = "0";
-    hint.textContent = "Click atlas tile to assign it to the selected field.";
-    wrap.appendChild(hint);
+    hint.textContent = "Click atlas tile to set the selection, then click Apply.";
+    content.appendChild(hint);
 
-    return wrap;
+    const actions = document.createElement("div");
+    actions.style.display = "flex";
+    actions.style.justifyContent = "flex-end";
+    actions.style.gap = "8px";
+
+    const clearButton = createButton("Clear", () => {
+      state.pickerDraftTileIndex = undefined;
+      render();
+    }, { variant: "ghost" });
+    actions.appendChild(clearButton);
+
+    const cancelButton = createButton("Cancel", () => {
+      closeTilePicker();
+    }, { variant: "ghost" });
+    actions.appendChild(cancelButton);
+
+    const applyButton = createButton("Apply", () => {
+      const appliedTile = state.pickerDraftTileIndex;
+      setTileFieldValue(state.selectedFieldId, appliedTile);
+      closeTilePicker(false);
+      state.infoMessage = `Assigned ${fieldLabelForField(state.selectedFieldId)} to ${
+        appliedTile !== undefined ? appliedTile : "unset"
+      }.`;
+      options.onInfoMessage(state.infoMessage);
+      render();
+    });
+    actions.appendChild(applyButton);
+    modal.appendChild(actions);
+
+    return overlay;
   }
 
   function renderIssueList(issues: readonly TilePaletteValidationIssue[]): HTMLElement {
@@ -676,14 +759,13 @@ export function createTileLibraryTab(options: TileLibraryTabOptions): TileLibrar
     row.appendChild(input);
 
     const pickButton = createButton(
-      state.selectedFieldId === fieldId ? "Picking" : "Pick",
+      state.pickerOpen && state.selectedFieldId === fieldId ? "Picking..." : "Pick",
       () => {
-        state.selectedFieldId = fieldId;
-        render();
+        openTilePicker(fieldId, value, pickButton.getBoundingClientRect());
       },
       { variant: "ghost" },
     );
-    if (state.selectedFieldId === fieldId) {
+    if (state.pickerOpen && state.selectedFieldId === fieldId) {
       pickButton.style.borderColor = "rgba(115, 170, 255, 0.8)";
     }
     row.appendChild(pickButton);
@@ -745,6 +827,29 @@ export function createTileLibraryTab(options: TileLibraryTabOptions): TileLibrar
         state.selectedStageIndex,
         mutator,
       ));
+  }
+
+  function openTilePicker(fieldId: TileFieldId, currentValue: number | undefined, anchorRect: DOMRect): void {
+    state.selectedFieldId = fieldId;
+    state.pickerDraftTileIndex = currentValue;
+    state.pickerAnchor = {
+      left: anchorRect.left,
+      right: anchorRect.right,
+      top: anchorRect.top,
+      bottom: anchorRect.bottom,
+    };
+    state.pickerOpen = true;
+    void ensureTilesheetLoaded();
+    render();
+  }
+
+  function closeTilePicker(shouldRender = true): void {
+    state.pickerOpen = false;
+    state.pickerDraftTileIndex = undefined;
+    state.pickerAnchor = null;
+    if (shouldRender) {
+      render();
+    }
   }
 
   function setTileFieldValue(fieldId: TileFieldId, nextValue: number | undefined): void {
@@ -881,6 +986,49 @@ function buildEntries(campaign: CampaignSpecV2): FlatStageRef[] {
 
 function fieldPathForField(fieldId: TileFieldId): string {
   return TILE_FIELDS.find((field) => field.id === fieldId)?.path ?? "";
+}
+
+function fieldLabelForField(fieldId: TileFieldId): string {
+  return TILE_FIELDS.find((field) => field.id === fieldId)?.label ?? fieldId;
+}
+
+function computePickerModalGeometry(anchor: PickerAnchor | null): {
+  left: number;
+  top: number;
+  width: number;
+  maxHeight: number;
+} {
+  const viewportW = window.innerWidth;
+  const viewportH = window.innerHeight;
+  const margin = 12;
+  const availableWidth = Math.max(220, viewportW - margin * 2);
+  const width = Math.min(980, availableWidth);
+  const maxHeight = Math.max(360, Math.min(Math.floor(viewportH * 0.86), 760));
+
+  if (!anchor) {
+    return {
+      left: clampInt(Math.floor((viewportW - width) * 0.5), margin, viewportW - width - margin),
+      top: clampInt(Math.floor((viewportH - maxHeight) * 0.5), margin, viewportH - maxHeight - margin),
+      width,
+      maxHeight,
+    };
+  }
+
+  let left = anchor.right + 12;
+  if (left + width + margin > viewportW) {
+    left = anchor.left - width - 12;
+  }
+  left = clampInt(Math.floor(left), margin, viewportW - width - margin);
+
+  const preferredTop = anchor.top - 28;
+  const top = clampInt(Math.floor(preferredTop), margin, viewportH - maxHeight - margin);
+
+  return {
+    left,
+    top,
+    width,
+    maxHeight,
+  };
 }
 
 function assignOptionalNumber<T extends object, K extends keyof T>(
