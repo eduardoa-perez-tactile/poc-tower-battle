@@ -14,6 +14,15 @@ export interface TowerVisualAnchor {
   id: string;
   x: number;
   y: number;
+  archetype?: string;
+}
+
+export interface TowerArchetypeVisualOverride {
+  spriteKey: string;
+  frameIndex: number;
+  scale?: number;
+  offsetX?: number;
+  offsetY?: number;
 }
 
 export class MapRenderer {
@@ -43,6 +52,7 @@ export class MapRenderer {
     visuals: LevelVisualsData | undefined,
     atlas: SpriteAtlas,
     outDrawnTowerIds: Set<string>,
+    towerArchetypeVisuals?: Record<string, TowerArchetypeVisualOverride>,
   ): void {
     outDrawnTowerIds.clear();
     if (!atlas.isReady()) {
@@ -62,7 +72,19 @@ export class MapRenderer {
     });
 
     for (const tower of this.drawBuffer) {
-      const resolved = resolveTowerVisual(visuals, tower.id);
+      const fromArchetype = tower.archetype
+        ? towerArchetypeVisuals?.[tower.archetype]
+        : undefined;
+      const fromVisuals = resolveTowerVisual(visuals, tower.id);
+      const resolved = fromArchetype
+        ? {
+            spriteKey: fromArchetype.spriteKey,
+            frameIndex: fromArchetype.frameIndex,
+            offsetX: fromArchetype.offsetX ?? 0,
+            offsetY: fromArchetype.offsetY ?? 0,
+            scale: fromArchetype.scale ?? 1,
+          }
+        : fromVisuals;
       if (!resolved) {
         continue;
       }

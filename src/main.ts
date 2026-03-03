@@ -57,7 +57,7 @@ import {
   saveMetaProfile,
   saveRunState,
 } from "./save/Storage";
-import { applyTowerArchetypeModifiers, loadDepthContent } from "./sim/DepthConfig";
+import { applyTowerArchetypeModifiers, buildTowerArchetypeArtMap, loadDepthContent } from "./sim/DepthConfig";
 import { canCreateLink, getNeighbors, validateNonScriptedLinksAdjacency } from "./sim/LinkRules";
 import { updateWorld as updateQuickSimWorld } from "./sim/Simulation";
 import { World, type Owner } from "./sim/World";
@@ -237,6 +237,8 @@ async function bootstrap(): Promise<void> {
     loadLevelRegistry(),
     tutorialRegistryPromise,
   ]);
+
+  renderer.setTowerArchetypeArt(buildTowerArchetypeArtMap(depthContent.towerArchetypes));
 
   const knownNodeIds = new Set(getUpgradeNodes(upgradeCatalog).map((node) => node.id));
   validateUnlockCatalog(unlockCatalog, {
