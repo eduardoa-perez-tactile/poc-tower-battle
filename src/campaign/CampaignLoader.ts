@@ -20,7 +20,17 @@ const TILE_EMPTY = -1;
 const TILE_GRASS_PRIMARY = 324;
 const TILE_GRASS_ALT_A = 323;
 const TILE_GRASS_ALT_B = 325;
-const TILE_PATH = 252;
+const GRASS_TILE_VARIANTS = [TILE_GRASS_PRIMARY, TILE_GRASS_ALT_A, TILE_GRASS_ALT_B] as const;
+const ROAD_TILE_VARIANTS = [432, 433, 434, 450, 451] as const;
+const WATER_TILE_VARIANTS = [396, 397, 398, 399] as const;
+const TILE_SHORE_NORTH = 414;
+const TILE_SHORE_SOUTH = 384;
+const TILE_SHORE_WEST = 278;
+const TILE_SHORE_EAST = 288;
+const TILE_SHORE_CORNER_NW = 429;
+const TILE_SHORE_CORNER_NE = TILE_SHORE_NORTH;
+const TILE_SHORE_CORNER_SW = TILE_SHORE_SOUTH;
+const TILE_SHORE_CORNER_SE = 373;
 const TILE_FLOWER = 74;
 const NEUTRAL_SPRITE_CYCLE = [
   "barracks",
@@ -277,20 +287,28 @@ function createCampaignTerrain(map: CampaignMapDefinition): LevelJson["terrain"]
   const deco = new Array<number>(total).fill(TILE_EMPTY);
   const nodeById = new Map(map.nodes.map((node) => [node.id, node] as const));
   const seed = hashSeed(map.id);
+  const waterMask = new Array<boolean>(total).fill(true);
+  const roadMask = new Array<boolean>(total).fill(false);
+  const centerX = (width - 1) * 0.5;
+  const centerY = (height - 1) * 0.5;
+  const radiusX = Math.max(3, Math.floor(width * 0.44));
+  const radiusY = Math.max(3, Math.floor(height * 0.4));
 
   for (let row = 0; row < height; row += 1) {
     for (let col = 0; col < width; col += 1) {
       const index = row * width + col;
-      const noise = hash2d(col, row, seed);
-      if (noise % 17 === 0) {
-        ground[index] = TILE_GRASS_ALT_A;
-      } else if (noise % 23 === 0) {
-        ground[index] = TILE_GRASS_ALT_B;
-      }
-      if (noise % 37 === 0) {
-        deco[index] = TILE_FLOWER;
+      const nx = (col - centerX) / radiusX;
+      const ny = (row - centerY) / radiusY;
+      const ellipse = nx * nx + ny * ny;
+      const contourNoise = ((hash2d(col, row, seed ^ 0x63c63cd9) % 1000) / 1000 - 0.5) * 0.08;
+      if (ellipse <= 1 + contourNoise) {
+        waterMask[index] = false;
       }
     }
+  }
+
+  for (const node of map.nodes) {
+    paintDisk(waterMask, width, height, Math.round(node.x), Math.round(node.y), 2, false);
   }
 
   for (const link of map.links) {
@@ -299,7 +317,146 @@ function createCampaignTerrain(map: CampaignMapDefinition): LevelJson["terrain"]
     if (!from || !to) {
       continue;
     }
-    stampLine(ground, width, height, Math.round(from.x), Math.round(from.y), Math.round(to.x), Math.round(to.y), TILE_PATH);
+    stampLineCells(
+      Math.round(from.x),
+      Math.round(from.y),
+      Math.round(to.x),
+      Math.round(to.y),
+      (x, y) => {
+        paintDisk(waterMask, width, height, x, y, 2, false);
+        paintDisk(roadMask, width, height, x, y, 1, true);
+      },
+    );
+  }
+
+  for (const node of map.nodes) {
+    paintDisk(roadMask, width, height, Math.round(node.x), Math.round(node.y), 1, true);
+  }
+
+  for (let row = 0; row < height; row += 1) {
+    for (let col = 0; col < width; col += 1) {
+      const index = row * width + col;
+      if (roadMask[index]) {
+        waterMask[index] = false;
+      }
+    }
+  }
+
+  // Keep an explicit ocean ring so every generated map reads as an island.
+  for (let row = 0; row < height; row += 1) {
+    for (let col = 0; col < width; col += 1) {
+      if (col <= 0 || row <= 0 || col >= width - 1 || row >= height - 1) {
+        const index = row * width + col;
+        waterMask[index] = true;
+        roadMask[index] = false;
+      }
+    }
+  }
+
+  // Keep roads away from immediate coast so shoreline tiles stay coherent.
+  for (let row = 0; row < height; row += 1) {
+    for (let col = 0; col < width; col += 1) {
+      const index = row * width + col;
+      if (!roadMask[index] || waterMask[index]) {
+        continue;
+      }
+      const northWater = row > 0 ? waterMask[(row - 1) * width + col] : false;
+      const southWater = row < height - 1 ? waterMask[(row + 1) * width + col] : false;
+      const westWater = col > 0 ? waterMask[row * width + (col - 1)] : false;
+      const eastWater = col < width - 1 ? waterMask[row * width + (col + 1)] : false;
+      if (northWater || southWater || westWater || eastWater) {
+        roadMask[index] = false;
+      }
+    }
+  }
+
+  for (let row = 0; row < height; row += 1) {
+    for (let col = 0; col < width; col += 1) {
+      const index = row * width + col;
+      if (waterMask[index]) {
+        ground[index] = pickVariant(WATER_TILE_VARIANTS, col, row, seed ^ 0x5bf03635);
+        continue;
+      }
+
+      if (roadMask[index]) {
+        ground[index] = pickVariant(ROAD_TILE_VARIANTS, col, row, seed ^ 0xc2b2ae35);
+        continue;
+      }
+
+      const noise = hash2d(col, row, seed);
+      if (noise % 17 === 0) {
+        ground[index] = TILE_GRASS_ALT_A;
+      } else if (noise % 23 === 0) {
+        ground[index] = TILE_GRASS_ALT_B;
+      } else {
+        ground[index] = TILE_GRASS_PRIMARY;
+      }
+    }
+  }
+
+  for (let row = 0; row < height; row += 1) {
+    for (let col = 0; col < width; col += 1) {
+      const index = row * width + col;
+      if (waterMask[index]) {
+        continue;
+      }
+
+      const northWater = row > 0 ? waterMask[(row - 1) * width + col] : false;
+      const southWater = row < height - 1 ? waterMask[(row + 1) * width + col] : false;
+      const westWater = col > 0 ? waterMask[row * width + (col - 1)] : false;
+      const eastWater = col < width - 1 ? waterMask[row * width + (col + 1)] : false;
+      const waterSides = Number(northWater) + Number(southWater) + Number(westWater) + Number(eastWater);
+      if (waterSides === 0) {
+        continue;
+      }
+
+      if (waterSides === 1) {
+        if (northWater) {
+          ground[index] = TILE_SHORE_NORTH;
+        } else if (southWater) {
+          ground[index] = TILE_SHORE_SOUTH;
+        } else if (westWater) {
+          ground[index] = TILE_SHORE_WEST;
+        } else {
+          ground[index] = TILE_SHORE_EAST;
+        }
+        continue;
+      }
+
+      if (northWater && westWater && !eastWater && !southWater) {
+        ground[index] = TILE_SHORE_CORNER_NW;
+      } else if (northWater && eastWater && !westWater && !southWater) {
+        ground[index] = TILE_SHORE_CORNER_NE;
+      } else if (southWater && westWater && !northWater && !eastWater) {
+        ground[index] = TILE_SHORE_CORNER_SW;
+      } else if (southWater && eastWater && !northWater && !westWater) {
+        ground[index] = TILE_SHORE_CORNER_SE;
+      } else if (northWater) {
+        ground[index] = TILE_SHORE_NORTH;
+      } else if (southWater) {
+        ground[index] = TILE_SHORE_SOUTH;
+      } else if (westWater) {
+        ground[index] = TILE_SHORE_WEST;
+      } else if (eastWater) {
+        ground[index] = TILE_SHORE_EAST;
+      }
+    }
+  }
+
+  for (let row = 0; row < height; row += 1) {
+    for (let col = 0; col < width; col += 1) {
+      const index = row * width + col;
+      if (waterMask[index] || roadMask[index]) {
+        continue;
+      }
+      if (!GRASS_TILE_VARIANTS.includes(ground[index] as (typeof GRASS_TILE_VARIANTS)[number])) {
+        continue;
+      }
+      const flowerNoise = hash2d(col, row, seed ^ 0xa54ff53a);
+      if (flowerNoise % 43 === 0) {
+        deco[index] = TILE_FLOWER;
+      }
+    }
   }
 
   return {
@@ -362,34 +519,55 @@ function resolveSpriteKey(
   return NEUTRAL_SPRITE_CYCLE[hashSeed(node.id) % NEUTRAL_SPRITE_CYCLE.length];
 }
 
-function stampLine(
-  layer: number[],
-  width: number,
-  height: number,
+function stampLineCells(
   x0: number,
   y0: number,
   x1: number,
   y1: number,
-  tile: number,
+  visit: (x: number, y: number) => void,
 ): void {
   const dx = x1 - x0;
   const dy = y1 - y0;
   const steps = Math.max(Math.abs(dx), Math.abs(dy));
   if (steps === 0) {
-    paint(layer, width, height, x0, y0, tile);
+    visit(x0, y0);
     return;
   }
   for (let i = 0; i <= steps; i += 1) {
     const t = i / steps;
-    paint(layer, width, height, Math.round(x0 + dx * t), Math.round(y0 + dy * t), tile);
+    visit(Math.round(x0 + dx * t), Math.round(y0 + dy * t));
   }
 }
 
-function paint(layer: number[], width: number, height: number, x: number, y: number, tile: number): void {
-  if (x < 0 || y < 0 || x >= width || y >= height) {
-    return;
+function paintDisk(
+  layer: boolean[],
+  width: number,
+  height: number,
+  cx: number,
+  cy: number,
+  radius: number,
+  value: boolean,
+): void {
+  const clampedRadius = Math.max(0, Math.floor(radius));
+  const radiusSq = clampedRadius * clampedRadius;
+  for (let dy = -clampedRadius; dy <= clampedRadius; dy += 1) {
+    for (let dx = -clampedRadius; dx <= clampedRadius; dx += 1) {
+      if (dx * dx + dy * dy > radiusSq) {
+        continue;
+      }
+      const x = cx + dx;
+      const y = cy + dy;
+      if (x < 0 || y < 0 || x >= width || y >= height) {
+        continue;
+      }
+      layer[y * width + x] = value;
+    }
   }
-  layer[y * width + x] = tile;
+}
+
+function pickVariant(tiles: readonly number[], col: number, row: number, seed: number): number {
+  const variant = hash2d(col, row, seed) % tiles.length;
+  return tiles[variant];
 }
 
 function hash2d(x: number, y: number, seed: number): number {

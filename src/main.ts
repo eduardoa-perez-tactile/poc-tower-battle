@@ -192,6 +192,8 @@ const DEBUG_TOOLS_ENABLED = true;
 const LEVEL_EDITOR_ENABLED = import.meta.env.DEV;
 const MAP_READABILITY_OVERLAY_KEY = "tower-battle.map-readability-overlay.enabled";
 const MAP_READABILITY_LEGEND_KEY = "tower-battle.map-readability-overlay.legend";
+const LEVEL_EDITOR_WORKSPACE_STORAGE_KEY = "tower-battle.level-editor.workspace.v1";
+const TOWER_ARCHETYPE_DOC_PATH = "/data/towerArchetypes.json";
 void bootstrap();
 
 async function bootstrap(): Promise<void> {
@@ -240,7 +242,8 @@ async function bootstrap(): Promise<void> {
     tutorialRegistryPromise,
   ]);
 
-  renderer.setTowerArchetypeArt(buildTowerArchetypeArtMap(depthContent.towerArchetypes));
+  let activeTowerArchetypes = resolveTowerArchetypesFromEditorSnapshot(depthContent.towerArchetypes);
+  renderer.setTowerArchetypeArt(buildTowerArchetypeArtMap(activeTowerArchetypes));
 
   const knownNodeIds = new Set(getUpgradeNodes(upgradeCatalog).map((node) => node.id));
   validateUnlockCatalog(unlockCatalog, {
@@ -683,10 +686,12 @@ async function bootstrap(): Promise<void> {
         missionSeed: mission.seed,
       });
       const missionModifiers = difficultyContext.appliedMetaModifiers;
+      activeTowerArchetypes = resolveTowerArchetypesFromEditorSnapshot(depthContent.towerArchetypes);
+      renderer.setTowerArchetypeArt(buildTowerArchetypeArtMap(activeTowerArchetypes));
       const tunedLevel = createMissionLevel(
         baseLevel,
         difficultyContext,
-        depthContent.towerArchetypes,
+        activeTowerArchetypes,
         waveContent.balanceBaselines,
         Object.values(TowerArchetype),
       );
@@ -799,10 +804,12 @@ async function bootstrap(): Promise<void> {
       runSeed,
     });
     const missionModifiers = difficultyContext.appliedMetaModifiers;
+    activeTowerArchetypes = resolveTowerArchetypesFromEditorSnapshot(depthContent.towerArchetypes);
+    renderer.setTowerArchetypeArt(buildTowerArchetypeArtMap(activeTowerArchetypes));
     const tunedLevel = createMissionLevel(
       baseLevel,
       difficultyContext,
-      depthContent.towerArchetypes,
+      activeTowerArchetypes,
       waveContent.balanceBaselines,
       app.runState.runUnlockSnapshot.towerTypes,
     );
@@ -1232,10 +1239,12 @@ async function bootstrap(): Promise<void> {
           runSeed,
         });
         const missionModifiers = difficultyContext.appliedMetaModifiers;
+        activeTowerArchetypes = resolveTowerArchetypesFromEditorSnapshot(depthContent.towerArchetypes);
+        renderer.setTowerArchetypeArt(buildTowerArchetypeArtMap(activeTowerArchetypes));
         const level = createMissionLevel(
           baseLevel,
           difficultyContext,
-          depthContent.towerArchetypes,
+          activeTowerArchetypes,
           waveContent.balanceBaselines,
           app.runState.runUnlockSnapshot.towerTypes,
         );
@@ -1392,10 +1401,11 @@ async function bootstrap(): Promise<void> {
         runSeed,
       });
       const quickSimModifiers = difficultyContext.appliedMetaModifiers;
+      activeTowerArchetypes = resolveTowerArchetypesFromEditorSnapshot(depthContent.towerArchetypes);
       const level = createMissionLevel(
         baseLevel,
         difficultyContext,
-        depthContent.towerArchetypes,
+        activeTowerArchetypes,
         waveContent.balanceBaselines,
         app.runState.runUnlockSnapshot.towerTypes,
       );
@@ -2926,6 +2936,68 @@ function createDebugLabeledControl(label: string, control: HTMLElement): HTMLDiv
 
   row.append(left, right);
   return row;
+}
+
+function resolveTowerArchetypesFromEditorSnapshot(defaultCatalog: TowerArchetypeCatalog): TowerArchetypeCatalog {
+  const override = parseTowerArchetypeCatalogFromEditorSnapshot();
+  if (!override) {
+    return defaultCatalog;
+  }
+  return override;
+}
+
+function parseTowerArchetypeCatalogFromEditorSnapshot(): TowerArchetypeCatalog | null {
+  if (typeof localStorage === "undefined") {
+    return null;
+  }
+
+  const rawSnapshot = localStorage.getItem(LEVEL_EDITOR_WORKSPACE_STORAGE_KEY);
+  if (!rawSnapshot) {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(rawSnapshot) as unknown;
+    if (!isObject(parsed) || !Array.isArray(parsed.docs)) {
+      return null;
+    }
+    const towerDoc = parsed.docs.find((entry) =>
+      isObject(entry) &&
+      entry.path === TOWER_ARCHETYPE_DOC_PATH &&
+      typeof entry.currentRaw === "string",
+    ) as { currentRaw: string } | undefined;
+    if (!towerDoc) {
+      return null;
+    }
+    const catalog = JSON.parse(towerDoc.currentRaw) as unknown;
+    if (!isTowerArchetypeCatalogShape(catalog)) {
+      return null;
+    }
+    return catalog as TowerArchetypeCatalog;
+  } catch {
+    return null;
+  }
+}
+
+function isTowerArchetypeCatalogShape(value: unknown): value is TowerArchetypeCatalog {
+  if (!isObject(value)) {
+    return false;
+  }
+  if (!isObject(value.baseline) || !isObject(value.archetypes)) {
+    return false;
+  }
+  return (
+    isObject(value.archetypes.STRONGHOLD) &&
+    isObject(value.archetypes.BARRACKS) &&
+    isObject(value.archetypes.FORTRESS) &&
+    isObject(value.archetypes.RELAY) &&
+    isObject(value.archetypes.BANK) &&
+    isObject(value.archetypes.OBELISK)
+  );
+}
+
+function isObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
 }
 
 async function getLevelByPath(path: string, cache: Map<string, LoadedLevel>): Promise<LoadedLevel> {
