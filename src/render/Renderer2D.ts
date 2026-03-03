@@ -17,7 +17,7 @@ import {
   type World,
 } from "../sim/World";
 import type { WaveRenderState } from "../waves/WaveDirector";
-import { MapRenderer } from "./MapRenderer";
+import { MapRenderer, type TowerArchetypeVisualOverride } from "./MapRenderer";
 import { SpriteAtlas } from "./SpriteAtlas";
 
 const OWNER_COLORS: Record<Owner, string> = {
@@ -47,6 +47,7 @@ export class Renderer2D {
   private mapRenderData: GridRenderData | null;
   private mapTerrain: TerrainData | null;
   private mapVisuals: LevelVisualsData | null;
+  private towerArchetypeVisuals: Record<string, TowerArchetypeVisualOverride> | null;
   private showGridLines: boolean;
   private renderArtMap: boolean;
   private showMapDebugOverlay: boolean;
@@ -60,6 +61,7 @@ export class Renderer2D {
     this.mapRenderData = null;
     this.mapTerrain = null;
     this.mapVisuals = null;
+    this.towerArchetypeVisuals = null;
     this.showGridLines = true;
     this.renderArtMap = true;
     this.showMapDebugOverlay = false;
@@ -75,6 +77,10 @@ export class Renderer2D {
   setMapArtData(terrain: TerrainData | null, visuals: LevelVisualsData | null): void {
     this.mapTerrain = terrain;
     this.mapVisuals = visuals;
+  }
+
+  setTowerArchetypeArt(visuals: Record<string, TowerArchetypeVisualOverride> | null): void {
+    this.towerArchetypeVisuals = visuals;
   }
 
   setShowGridLines(enabled: boolean): void {
@@ -119,7 +125,14 @@ export class Renderer2D {
           height: viewport.height,
         });
       }
-      this.mapRenderer.renderTowerSprites(this.ctx, world.towers, this.mapVisuals ?? undefined, this.spriteAtlas, this.spriteDrawnTowerIds);
+      this.mapRenderer.renderTowerSprites(
+        this.ctx,
+        world.towers,
+        this.mapVisuals ?? undefined,
+        this.spriteAtlas,
+        this.spriteDrawnTowerIds,
+        this.towerArchetypeVisuals ?? undefined,
+      );
     } else {
       this.spriteDrawnTowerIds.clear();
     }

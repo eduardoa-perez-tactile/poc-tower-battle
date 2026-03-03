@@ -9,6 +9,24 @@ export const TowerArchetype = {
 
 export type TowerArchetype = (typeof TowerArchetype)[keyof typeof TowerArchetype];
 
+export interface TowerArchetypeArtMeta {
+  atlasId?: string;
+  spriteKey?: string;
+  frameIndex?: number;
+  scale?: number;
+  offsetX?: number;
+  offsetY?: number;
+}
+
+export interface TowerArchetypeArtResolved {
+  atlasId: string;
+  spriteKey: string;
+  frameIndex: number;
+  scale: number;
+  offsetX: number;
+  offsetY: number;
+}
+
 export interface TowerArchetypeModifier {
   icon: string;
   regenRateBonusPct: number;
@@ -22,6 +40,7 @@ export interface TowerArchetypeModifier {
   captureSpeedTakenMultiplierAdd: number;
   goldPerSecond: number;
   recaptureBonusGold: number;
+  art?: TowerArchetypeArtMeta;
 }
 
 export interface TowerArchetypeCatalog {

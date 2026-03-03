@@ -1,4 +1,5 @@
 import type {
+  TowerArchetypeArtResolved,
   LinkLevelCatalog,
   LinkLevelDefinition,
   LoadedDepthContent,
@@ -79,6 +80,80 @@ export function parseTowerArchetype(value: unknown, fallback: TowerArchetype): T
   return fallback;
 }
 
+export function buildTowerArchetypeArtMap(
+  catalog: TowerArchetypeCatalog,
+): Record<TowerArchetype, TowerArchetypeArtResolved> {
+  const defaults: Record<TowerArchetype, TowerArchetypeArtResolved> = {
+    STRONGHOLD: {
+      atlasId: "buildings",
+      spriteKey: "keep",
+      frameIndex: 0,
+      scale: 1,
+      offsetX: 0,
+      offsetY: 0,
+    },
+    BARRACKS: {
+      atlasId: "buildings",
+      spriteKey: "barracks",
+      frameIndex: 0,
+      scale: 1,
+      offsetX: 0,
+      offsetY: 0,
+    },
+    FORTRESS: {
+      atlasId: "buildings",
+      spriteKey: "guard_tower",
+      frameIndex: 0,
+      scale: 1,
+      offsetX: 0,
+      offsetY: 0,
+    },
+    RELAY: {
+      atlasId: "buildings",
+      spriteKey: "scout_tower",
+      frameIndex: 0,
+      scale: 1,
+      offsetX: 0,
+      offsetY: 0,
+    },
+    BANK: {
+      atlasId: "buildings",
+      spriteKey: "foundry",
+      frameIndex: 0,
+      scale: 1,
+      offsetX: 0,
+      offsetY: 0,
+    },
+    OBELISK: {
+      atlasId: "buildings",
+      spriteKey: "mage_tower",
+      frameIndex: 0,
+      scale: 1,
+      offsetX: 0,
+      offsetY: 0,
+    },
+  };
+
+  const resolved = { ...defaults };
+  for (const archetype of ARCHETYPE_ORDER) {
+    const modifier = catalog.archetypes[archetype];
+    const art = modifier?.art;
+    if (!art || typeof art.spriteKey !== "string" || art.spriteKey.trim().length === 0) {
+      continue;
+    }
+    resolved[archetype] = {
+      atlasId: typeof art.atlasId === "string" && art.atlasId.trim().length > 0 ? art.atlasId : "buildings",
+      spriteKey: art.spriteKey.trim(),
+      frameIndex: typeof art.frameIndex === "number" && Number.isFinite(art.frameIndex) ? Math.max(0, Math.floor(art.frameIndex)) : 0,
+      scale: typeof art.scale === "number" && Number.isFinite(art.scale) && art.scale > 0 ? art.scale : 1,
+      offsetX: typeof art.offsetX === "number" && Number.isFinite(art.offsetX) ? art.offsetX : 0,
+      offsetY: typeof art.offsetY === "number" && Number.isFinite(art.offsetY) ? art.offsetY : 0,
+    };
+  }
+
+  return resolved;
+}
+
 function applyBonusPct(value: number, bonusPct: number): number {
   return Math.max(0, value + value * bonusPct);
 }
@@ -107,6 +182,30 @@ function assertModifier(value: TowerArchetypeModifier, path: string): void {
   assertNumber(value.captureSpeedTakenMultiplierAdd, `${path}.captureSpeedTakenMultiplierAdd`);
   assertNumber(value.goldPerSecond, `${path}.goldPerSecond`);
   assertNumber(value.recaptureBonusGold, `${path}.recaptureBonusGold`);
+  if (value.art !== undefined) {
+    assertArtMeta(value.art, `${path}.art`);
+  }
+}
+
+function assertArtMeta(value: NonNullable<TowerArchetypeModifier["art"]>, path: string): void {
+  if (value.atlasId !== undefined) {
+    assertString(value.atlasId, `${path}.atlasId`);
+  }
+  if (value.spriteKey !== undefined) {
+    assertString(value.spriteKey, `${path}.spriteKey`);
+  }
+  if (value.frameIndex !== undefined) {
+    assertNumber(value.frameIndex, `${path}.frameIndex`);
+  }
+  if (value.scale !== undefined) {
+    assertNumber(value.scale, `${path}.scale`);
+  }
+  if (value.offsetX !== undefined) {
+    assertNumber(value.offsetX, `${path}.offsetX`);
+  }
+  if (value.offsetY !== undefined) {
+    assertNumber(value.offsetY, `${path}.offsetY`);
+  }
 }
 
 function validateAndIndexLinkLevels(catalog: LinkLevelCatalog): Map<number, LinkLevelDefinition> {

@@ -7,10 +7,12 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "build:campaign": "node --experimental-strip-types scripts/build_campaign_v2.ts"
+    "build:campaign": "node --experimental-strip-types scripts/build_campaign_v2.ts",
+    "test": "vitest run"
   },
   "devDependencies": {
     "typescript": "~5.9.3",
-    "vite": "^7.3.1"
+    "vite": "^7.3.1",
+    "vitest": "^3.2.4"
   }
 }

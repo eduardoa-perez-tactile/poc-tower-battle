@@ -96,6 +96,7 @@ export class ArtPreviewRenderer {
       payload.visuals ?? undefined,
       atlas,
       this.spriteDrawnTowerIds,
+      payload.towerArtByArchetype,
     );
 
     return true;
