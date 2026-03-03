@@ -99,7 +99,7 @@ export async function loadCampaignRegistryV2(
         resolvedWavePlan,
         missionId,
         level.tutorialId,
-        level.tilePalette,
+        stage.tilePalette ?? level.tilePalette,
       );
 
       levels.push({

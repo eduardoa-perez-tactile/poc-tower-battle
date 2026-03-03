@@ -58,6 +58,7 @@ export interface CampaignLevelDefinition {
   id: string;
   displayName: string;
   mapId: string;
+  // Legacy per-mission override. Stage-level palette is preferred.
   tilePalette?: LevelTilePalette;
   tutorialId?: string;
   difficulty: CampaignDifficultyRef;
@@ -73,6 +74,7 @@ export interface CampaignLevelDefinition {
 export interface CampaignStageDefinition {
   id: string;
   displayName: string;
+  tilePalette?: LevelTilePalette;
   levels: CampaignLevelDefinition[];
 }
 

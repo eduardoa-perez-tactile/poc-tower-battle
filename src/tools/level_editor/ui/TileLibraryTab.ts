@@ -1,4 +1,4 @@
-import type { CampaignLevelDefinition, CampaignSpecV2 } from "../../../campaign/CampaignTypes";
+import type { CampaignSpecV2, CampaignStageDefinition } from "../../../campaign/CampaignTypes";
 import { createButton } from "../../../components/ui/primitives";
 import {
   REQUIRED_SHORELINE_MASK_KEYS,
@@ -9,7 +9,7 @@ import {
 import type { LevelTilePalette } from "../../../levels/types";
 import type { SpriteCatalog } from "../../../render/SpriteAtlas";
 import type { LevelEditorWorkspace } from "../model/types";
-import { mutateCampaignMission } from "../services/workspaceMutations";
+import { mutateCampaignStage } from "../services/workspaceMutations";
 
 const CAMPAIGN_DOC_ID = "/data/campaign/campaign_v2.json";
 const TILE_CANVAS_SIZE = 34;
@@ -57,7 +57,6 @@ interface TileLibraryState {
   active: boolean;
   searchText: string;
   selectedStageIndex: number;
-  selectedLevelIndex: number;
   selectedFieldId: TileFieldId;
   infoMessage: string;
   loadingTilesheet: boolean;
@@ -66,9 +65,8 @@ interface TileLibraryState {
   tilesheetError: string | null;
 }
 
-interface FlatLevelRef {
+interface FlatStageRef {
   stageIndex: number;
-  levelIndex: number;
   label: string;
   subtitle: string;
 }
@@ -109,7 +107,6 @@ export function createTileLibraryTab(options: TileLibraryTabOptions): TileLibrar
     active: false,
     searchText: "",
     selectedStageIndex: 0,
-    selectedLevelIndex: 0,
     selectedFieldId: "waterBase",
     infoMessage: "",
     loadingTilesheet: false,
@@ -164,17 +161,14 @@ export function createTileLibraryTab(options: TileLibraryTabOptions): TileLibrar
     });
 
     if (filteredEntries.length > 0) {
-      const selectedExists = filteredEntries.some(
-        (entry) => entry.stageIndex === state.selectedStageIndex && entry.levelIndex === state.selectedLevelIndex,
-      );
+      const selectedExists = filteredEntries.some((entry) => entry.stageIndex === state.selectedStageIndex);
       if (!selectedExists) {
         state.selectedStageIndex = filteredEntries[0].stageIndex;
-        state.selectedLevelIndex = filteredEntries[0].levelIndex;
       }
     }
 
-    const selectedLevel = campaign.stages[state.selectedStageIndex]?.levels[state.selectedLevelIndex] ?? null;
-    const palette = selectedLevel?.tilePalette;
+    const selectedStage = campaign.stages[state.selectedStageIndex] ?? null;
+    const palette = selectedStage?.tilePalette;
     const overridesEnabled = palette !== undefined;
     const validationIssues = overridesEnabled ? validateTilePaletteWhenEnabled(palette) : [];
     const invalidPaths = new Set(validationIssues.map((issue) => issue.fieldPath));
@@ -201,18 +195,16 @@ export function createTileLibraryTab(options: TileLibraryTabOptions): TileLibrar
     actions.style.alignItems = "center";
 
     const resetButton = createButton("Reset to Default", () => {
-      updateSelectedLevel((level) => {
-        const next: CampaignLevelDefinition = {
-          ...level,
-        };
+      updateSelectedStage((stage) => {
+        const next: CampaignStageDefinition = { ...stage };
         delete next.tilePalette;
         return next;
       });
-      state.infoMessage = "Cleared tile overrides for selected level.";
+      state.infoMessage = "Cleared world tile overrides for selected stage.";
       options.onInfoMessage(state.infoMessage);
       render();
     }, { variant: "ghost" });
-    resetButton.disabled = !selectedLevel || !overridesEnabled;
+    resetButton.disabled = !selectedStage || !overridesEnabled;
     actions.appendChild(resetButton);
 
     summaryRow.appendChild(actions);
@@ -225,10 +217,10 @@ export function createTileLibraryTab(options: TileLibraryTabOptions): TileLibrar
     root.appendChild(shell);
 
     shell.appendChild(renderLeftPane(filteredEntries, campaign));
-    if (!selectedLevel) {
-      shell.appendChild(createInfo("Select a campaign level to edit tile overrides."));
+    if (!selectedStage) {
+      shell.appendChild(createInfo("Select a campaign stage to edit world tile overrides."));
     } else {
-      shell.appendChild(renderRightPane(selectedLevel, overridesEnabled, invalidPaths, validationIssues));
+      shell.appendChild(renderRightPane(selectedStage, overridesEnabled, invalidPaths, validationIssues));
     }
 
     if (state.infoMessage.trim().length > 0) {
@@ -239,14 +231,14 @@ export function createTileLibraryTab(options: TileLibraryTabOptions): TileLibrar
   }
 
   function renderLeftPane(
-    entries: FlatLevelRef[],
+    entries: FlatStageRef[],
     campaign: CampaignSpecV2,
   ): HTMLElement {
-    const pane = createPane("Level List");
+    const pane = createPane("World List");
 
     const search = document.createElement("input");
     search.type = "search";
-    search.placeholder = "Search levels...";
+    search.placeholder = "Search worlds...";
     search.value = state.searchText;
     styleInput(search);
     search.oninput = () => {
@@ -264,13 +256,13 @@ export function createTileLibraryTab(options: TileLibraryTabOptions): TileLibrar
     list.style.paddingRight = "4px";
 
     for (const entry of entries) {
-      const level = campaign.stages[entry.stageIndex]?.levels[entry.levelIndex];
-      if (!level) {
+      const stage = campaign.stages[entry.stageIndex];
+      if (!stage) {
         continue;
       }
-      const selected = entry.stageIndex === state.selectedStageIndex && entry.levelIndex === state.selectedLevelIndex;
-      const overridesEnabled = level.tilePalette !== undefined;
-      const issues = overridesEnabled ? validateTilePaletteWhenEnabled(level.tilePalette) : [];
+      const selected = entry.stageIndex === state.selectedStageIndex;
+      const overridesEnabled = stage.tilePalette !== undefined;
+      const issues = overridesEnabled ? validateTilePaletteWhenEnabled(stage.tilePalette) : [];
 
       const button = document.createElement("button");
       button.type = "button";
@@ -283,7 +275,6 @@ export function createTileLibraryTab(options: TileLibraryTabOptions): TileLibrar
       button.style.cursor = "pointer";
       button.onclick = () => {
         state.selectedStageIndex = entry.stageIndex;
-        state.selectedLevelIndex = entry.levelIndex;
         render();
       };
 
@@ -317,14 +308,14 @@ export function createTileLibraryTab(options: TileLibraryTabOptions): TileLibrar
     }
 
     if (entries.length === 0) {
-      list.appendChild(createInfo("No levels match this search."));
+      list.appendChild(createInfo("No worlds match this search."));
     }
     pane.body.appendChild(list);
     return pane.root;
   }
 
   function renderRightPane(
-    level: CampaignLevelDefinition,
+    stage: CampaignStageDefinition,
     overridesEnabled: boolean,
     invalidPaths: ReadonlySet<string>,
     validationIssues: readonly TilePaletteValidationIssue[],
@@ -334,13 +325,13 @@ export function createTileLibraryTab(options: TileLibraryTabOptions): TileLibrar
     const title = document.createElement("p");
     title.className = "campaign-progress-title";
     title.style.margin = "0";
-    title.textContent = `${level.displayName} (${level.id})`;
+    title.textContent = `${stage.displayName} (${stage.id})`;
     pane.body.appendChild(title);
 
     const subtitle = document.createElement("p");
     subtitle.className = "campaign-progress-subtitle";
     subtitle.style.marginTop = "2px";
-    subtitle.textContent = `Map: ${level.mapId}`;
+    subtitle.textContent = `Applies to ${stage.levels.length} mission${stage.levels.length === 1 ? "" : "s"}.`;
     pane.body.appendChild(subtitle);
 
     const enableRow = document.createElement("label");
@@ -353,18 +344,18 @@ export function createTileLibraryTab(options: TileLibraryTabOptions): TileLibrar
     enableToggle.checked = overridesEnabled;
     enableToggle.onchange = () => {
       if (enableToggle.checked) {
-        updateSelectedLevel((entry) => ({
+        updateSelectedStage((entry) => ({
           ...entry,
           tilePalette: cloneTilePalette(entry.tilePalette) ?? {},
         }));
-        state.infoMessage = `Enabled tile overrides for ${entryLabel(level)}.`;
+        state.infoMessage = `Enabled world tile overrides for ${entryLabel(stage)}.`;
       } else {
-        updateSelectedLevel((entry) => {
-          const next: CampaignLevelDefinition = { ...entry };
+        updateSelectedStage((entry) => {
+          const next: CampaignStageDefinition = { ...entry };
           delete next.tilePalette;
           return next;
         });
-        state.infoMessage = `Disabled tile overrides for ${entryLabel(level)}.`;
+        state.infoMessage = `Disabled world tile overrides for ${entryLabel(stage)}.`;
       }
       options.onInfoMessage(state.infoMessage);
       render();
@@ -375,7 +366,7 @@ export function createTileLibraryTab(options: TileLibraryTabOptions): TileLibrar
     pane.body.appendChild(enableRow);
 
     if (!overridesEnabled) {
-      pane.body.appendChild(createInfo("Override toggle is off. CampaignLoader will use default deterministic tile selection."));
+      pane.body.appendChild(createInfo("Override toggle is off. CampaignLoader will use default deterministic tile selection for this world."));
       return pane.root;
     }
 
@@ -389,7 +380,7 @@ export function createTileLibraryTab(options: TileLibraryTabOptions): TileLibrar
       pane.body.appendChild(ok);
     }
 
-    const palette = cloneTilePalette(level.tilePalette) ?? {};
+    const palette = cloneTilePalette(stage.tilePalette) ?? {};
     const shoreline = palette.shoreline ?? {};
     const shorelineMaskMode = shoreline.maskToTileIndex !== undefined;
 
@@ -423,7 +414,7 @@ export function createTileLibraryTab(options: TileLibraryTabOptions): TileLibrar
     shorelineModeToggle.type = "checkbox";
     shorelineModeToggle.checked = shorelineMaskMode;
     shorelineModeToggle.onchange = () => {
-      updateSelectedLevel((entry) => {
+      updateSelectedStage((entry) => {
         const nextPalette = cloneTilePalette(entry.tilePalette) ?? {};
         const nextShoreline = { ...(nextPalette.shoreline ?? {}) };
         if (shorelineModeToggle.checked) {
@@ -746,23 +737,22 @@ export function createTileLibraryTab(options: TileLibraryTabOptions): TileLibrar
     return thumb;
   }
 
-  function updateSelectedLevel(mutator: (level: CampaignLevelDefinition) => CampaignLevelDefinition): void {
+  function updateSelectedStage(mutator: (stage: CampaignStageDefinition) => CampaignStageDefinition): void {
     options.commitWorkspace((workspace) =>
-      mutateCampaignMission(
+      mutateCampaignStage(
         workspace,
         CAMPAIGN_DOC_ID,
         state.selectedStageIndex,
-        state.selectedLevelIndex,
         mutator,
       ));
   }
 
   function setTileFieldValue(fieldId: TileFieldId, nextValue: number | undefined): void {
-    updateSelectedLevel((level) => {
-      const nextPalette = cloneTilePalette(level.tilePalette) ?? {};
+    updateSelectedStage((stage) => {
+      const nextPalette = cloneTilePalette(stage.tilePalette) ?? {};
       applyFieldValue(nextPalette, fieldId, nextValue);
       return {
-        ...level,
+        ...stage,
         tilePalette: nextPalette,
       };
     });
@@ -876,19 +866,15 @@ export function createTileLibraryTab(options: TileLibraryTabOptions): TileLibrar
   }
 }
 
-function buildEntries(campaign: CampaignSpecV2): FlatLevelRef[] {
-  const entries: FlatLevelRef[] = [];
+function buildEntries(campaign: CampaignSpecV2): FlatStageRef[] {
+  const entries: FlatStageRef[] = [];
   for (let stageIndex = 0; stageIndex < campaign.stages.length; stageIndex += 1) {
     const stage = campaign.stages[stageIndex];
-    for (let levelIndex = 0; levelIndex < stage.levels.length; levelIndex += 1) {
-      const level = stage.levels[levelIndex];
-      entries.push({
-        stageIndex,
-        levelIndex,
-        label: `${stage.displayName} • ${level.displayName}`,
-        subtitle: `${level.id} | map=${level.mapId}`,
-      });
-    }
+    entries.push({
+      stageIndex,
+      label: stage.displayName,
+      subtitle: `${stage.id} | ${stage.levels.length} mission${stage.levels.length === 1 ? "" : "s"}`,
+    });
   }
   return entries;
 }
@@ -921,8 +907,8 @@ function parseTileInput(value: string): number | undefined {
   return parsed;
 }
 
-function entryLabel(level: CampaignLevelDefinition): string {
-  return `${level.displayName} (${level.id})`;
+function entryLabel(stage: CampaignStageDefinition): string {
+  return `${stage.displayName} (${stage.id})`;
 }
 
 function createPane(title: string): { root: HTMLDivElement; body: HTMLDivElement } {
