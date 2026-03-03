@@ -3,6 +3,8 @@
  * - Added campaign v2 schema types for tutorial-first progression content.
  */
 
+import type { LevelTilePalette } from "../levels/types";
+
 export type CampaignDynamicId =
   | "none"
   | "travel_time"
@@ -56,6 +58,7 @@ export interface CampaignLevelDefinition {
   id: string;
   displayName: string;
   mapId: string;
+  tilePalette?: LevelTilePalette;
   tutorialId?: string;
   difficulty: CampaignDifficultyRef;
   dynamic: CampaignDynamicId;

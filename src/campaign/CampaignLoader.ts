@@ -4,6 +4,8 @@
  * - Added resolved mission metadata (difficulty mapping, allowlists, hints, wave presets).
  */
 
+import { cloneTilePalette, computeShorelineMask, hasTilePaletteOverrides, normalizeShorelineMaskMap } from "../levels/TilePalette";
+import type { LevelTilePalette } from "../levels/types";
 import type { LevelJson, LevelNode, LevelSizePreset, LevelSourceEntry, StageRegistryEntry } from "../levels/types";
 import type {
   CampaignMapDefinition,
@@ -97,6 +99,7 @@ export async function loadCampaignRegistryV2(
         resolvedWavePlan,
         missionId,
         level.tutorialId,
+        level.tilePalette,
       );
 
       levels.push({
@@ -153,6 +156,7 @@ export function buildLevelJsonFromCampaignMap(
   wavePlan: ResolvedCampaignWavePlan,
   missionId: string,
   tutorialId?: string,
+  tilePalette?: LevelTilePalette,
 ): LevelJson {
   const nodeCount = map.nodes.length;
   const sizePreset: LevelSizePreset = nodeCount <= 12 ? "small" : nodeCount <= 18 ? "medium" : "big";
@@ -229,8 +233,9 @@ export function buildLevelJsonFromCampaignMap(
         aiMinTroopsToAttack: 24,
       },
     },
-    terrain: createCampaignTerrain(map),
+    terrain: createCampaignTerrain(map, tilePalette),
     visuals: createCampaignVisuals(map, playerAnchor, enemyAnchor),
+    ...(tilePalette ? { tilePalette: cloneTilePalette(tilePalette) } : {}),
   };
 }
 
@@ -279,7 +284,10 @@ function hashSeed(value: string): number {
   return hash >>> 0;
 }
 
-function createCampaignTerrain(map: CampaignMapDefinition): LevelJson["terrain"] {
+function createCampaignTerrain(
+  map: CampaignMapDefinition,
+  tilePalette?: LevelTilePalette,
+): LevelJson["terrain"] {
   const width = Math.max(8, Math.floor(map.size.w));
   const height = Math.max(8, Math.floor(map.size.h));
   const total = width * height;
@@ -289,6 +297,10 @@ function createCampaignTerrain(map: CampaignMapDefinition): LevelJson["terrain"]
   const seed = hashSeed(map.id);
   const waterMask = new Array<boolean>(total).fill(true);
   const roadMask = new Array<boolean>(total).fill(false);
+  const paletteOverridesEnabled = hasTilePaletteOverrides(tilePalette);
+  const waterBaseOverride = normalizeTileIndex(tilePalette?.waterBase);
+  const grassBaseOverride = normalizeTileIndex(tilePalette?.grassBase);
+  const shorelineMaskOverrides = normalizeShorelineMaskMap(tilePalette?.shoreline?.maskToTileIndex);
   const centerX = (width - 1) * 0.5;
   const centerY = (height - 1) * 0.5;
   const radiusX = Math.max(3, Math.floor(width * 0.44));
@@ -374,22 +386,37 @@ function createCampaignTerrain(map: CampaignMapDefinition): LevelJson["terrain"]
     for (let col = 0; col < width; col += 1) {
       const index = row * width + col;
       if (waterMask[index]) {
-        ground[index] = pickVariant(WATER_TILE_VARIANTS, col, row, seed ^ 0x5bf03635);
+        if (paletteOverridesEnabled && waterBaseOverride !== null) {
+          ground[index] = waterBaseOverride;
+        } else {
+          ground[index] = pickVariant(WATER_TILE_VARIANTS, col, row, seed ^ 0x5bf03635);
+        }
         continue;
       }
 
       if (roadMask[index]) {
-        ground[index] = pickVariant(ROAD_TILE_VARIANTS, col, row, seed ^ 0xc2b2ae35);
+        const roadOverrideTile = paletteOverridesEnabled
+          ? resolveRoadTileOverride(col, row, width, height, roadMask, tilePalette?.road)
+          : null;
+        if (roadOverrideTile !== null) {
+          ground[index] = roadOverrideTile;
+        } else {
+          ground[index] = pickVariant(ROAD_TILE_VARIANTS, col, row, seed ^ 0xc2b2ae35);
+        }
         continue;
       }
 
-      const noise = hash2d(col, row, seed);
-      if (noise % 17 === 0) {
-        ground[index] = TILE_GRASS_ALT_A;
-      } else if (noise % 23 === 0) {
-        ground[index] = TILE_GRASS_ALT_B;
+      if (paletteOverridesEnabled && grassBaseOverride !== null) {
+        ground[index] = grassBaseOverride;
       } else {
-        ground[index] = TILE_GRASS_PRIMARY;
+        const noise = hash2d(col, row, seed);
+        if (noise % 17 === 0) {
+          ground[index] = TILE_GRASS_ALT_A;
+        } else if (noise % 23 === 0) {
+          ground[index] = TILE_GRASS_ALT_B;
+        } else {
+          ground[index] = TILE_GRASS_PRIMARY;
+        }
       }
     }
   }
@@ -408,6 +435,21 @@ function createCampaignTerrain(map: CampaignMapDefinition): LevelJson["terrain"]
       const waterSides = Number(northWater) + Number(southWater) + Number(westWater) + Number(eastWater);
       if (waterSides === 0) {
         continue;
+      }
+
+      if (paletteOverridesEnabled) {
+        const shorelineOverrideTile = resolveShorelineOverrideTile(
+          northWater,
+          southWater,
+          westWater,
+          eastWater,
+          shorelineMaskOverrides,
+          tilePalette?.shoreline,
+        );
+        if (shorelineOverrideTile !== null) {
+          ground[index] = shorelineOverrideTile;
+          continue;
+        }
       }
 
       if (waterSides === 1) {
@@ -519,6 +561,105 @@ function resolveSpriteKey(
   return NEUTRAL_SPRITE_CYCLE[hashSeed(node.id) % NEUTRAL_SPRITE_CYCLE.length];
 }
 
+type RoadShape = "straight" | "corner" | "t" | "cross";
+
+function resolveRoadTileOverride(
+  col: number,
+  row: number,
+  width: number,
+  height: number,
+  roadMask: readonly boolean[],
+  roadPalette: LevelTilePalette["road"] | undefined,
+): number | null {
+  if (!roadPalette) {
+    return null;
+  }
+
+  const north = row > 0 ? roadMask[(row - 1) * width + col] : false;
+  const south = row < height - 1 ? roadMask[(row + 1) * width + col] : false;
+  const west = col > 0 ? roadMask[row * width + (col - 1)] : false;
+  const east = col < width - 1 ? roadMask[row * width + (col + 1)] : false;
+  const connectionCount = Number(north) + Number(south) + Number(west) + Number(east);
+
+  const shape: RoadShape = connectionCount >= 4
+    ? "cross"
+    : connectionCount === 3
+    ? "t"
+    : connectionCount === 2
+    ? (north && south) || (west && east)
+      ? "straight"
+      : "corner"
+    : "straight";
+
+  const requested = shape === "straight"
+    ? roadPalette.straight
+    : shape === "corner"
+    ? roadPalette.corner
+    : shape === "t"
+    ? roadPalette.t
+    : roadPalette.cross;
+
+  return normalizeTileIndex(requested);
+}
+
+function resolveShorelineOverrideTile(
+  northWater: boolean,
+  southWater: boolean,
+  westWater: boolean,
+  eastWater: boolean,
+  shorelineMaskOverrides: ReadonlyMap<number, number>,
+  shorelinePalette: LevelTilePalette["shoreline"] | undefined,
+): number | null {
+  const mask = computeShorelineMask(northWater, southWater, westWater, eastWater);
+  const fromMask = shorelineMaskOverrides.get(mask);
+  if (fromMask !== undefined) {
+    return fromMask;
+  }
+  if (!shorelinePalette) {
+    return null;
+  }
+
+  const waterSides = Number(northWater) + Number(southWater) + Number(westWater) + Number(eastWater);
+  if (waterSides === 1) {
+    if (northWater) {
+      return normalizeTileIndex(shorelinePalette.north);
+    }
+    if (southWater) {
+      return normalizeTileIndex(shorelinePalette.south);
+    }
+    if (westWater) {
+      return normalizeTileIndex(shorelinePalette.west);
+    }
+    return normalizeTileIndex(shorelinePalette.east);
+  }
+
+  if (northWater && westWater && !eastWater && !southWater) {
+    return normalizeTileIndex(shorelinePalette.nw);
+  }
+  if (northWater && eastWater && !westWater && !southWater) {
+    return normalizeTileIndex(shorelinePalette.ne);
+  }
+  if (southWater && westWater && !northWater && !eastWater) {
+    return normalizeTileIndex(shorelinePalette.sw);
+  }
+  if (southWater && eastWater && !northWater && !westWater) {
+    return normalizeTileIndex(shorelinePalette.se);
+  }
+  if (northWater) {
+    return normalizeTileIndex(shorelinePalette.north);
+  }
+  if (southWater) {
+    return normalizeTileIndex(shorelinePalette.south);
+  }
+  if (westWater) {
+    return normalizeTileIndex(shorelinePalette.west);
+  }
+  if (eastWater) {
+    return normalizeTileIndex(shorelinePalette.east);
+  }
+  return null;
+}
+
 function stampLineCells(
   x0: number,
   y0: number,
@@ -575,6 +716,13 @@ function hash2d(x: number, y: number, seed: number): number {
   value = Math.imul(value ^ (value >>> 16), 2246822507);
   value = Math.imul(value ^ (value >>> 13), 3266489909);
   return (value ^ (value >>> 16)) >>> 0;
+}
+
+function normalizeTileIndex(value: unknown): number | null {
+  if (typeof value !== "number" || !Number.isInteger(value) || value < 0) {
+    return null;
+  }
+  return value;
 }
 
 async function fetchJson<T>(path: string): Promise<T> {

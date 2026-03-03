@@ -10,6 +10,7 @@ import type {
   LevelSizePreset,
 } from "./types";
 import { parseOptionalTerrain, parseOptionalVisuals } from "./LevelVisuals";
+import { parseOptionalTilePalette } from "./TilePalette";
 
 export const USER_LEVELS_STORAGE_KEY = "tower-battle.user-levels.v1";
 
@@ -145,6 +146,7 @@ export function parseLevelJson(data: unknown, sourceLabel: string): LevelJson {
     runtime: parseRuntime(data.runtime, `${sourceLabel}.runtime`),
     terrain: parseOptionalTerrain(data.terrain, `${sourceLabel}.terrain`),
     visuals: parseOptionalVisuals(data.visuals, `${sourceLabel}.visuals`),
+    tilePalette: parseOptionalTilePalette(data.tilePalette, `${sourceLabel}.tilePalette`),
   };
 }
 

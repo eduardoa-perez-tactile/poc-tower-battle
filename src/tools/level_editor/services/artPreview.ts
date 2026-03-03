@@ -209,6 +209,7 @@ function buildCampaignMissionLevel(
     resolvedWavePlan,
     "m01",
     level.tutorialId,
+    level.tilePalette,
   );
 }
 

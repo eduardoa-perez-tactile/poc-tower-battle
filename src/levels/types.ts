@@ -90,6 +90,32 @@ export interface LevelRuntimeOverrides {
   ai?: RuntimeLevelAiPatch;
 }
 
+export interface TilePaletteRoad {
+  straight?: number;
+  corner?: number;
+  t?: number;
+  cross?: number;
+}
+
+export interface TilePaletteShoreline {
+  maskToTileIndex?: Record<string, number>;
+  north?: number;
+  south?: number;
+  east?: number;
+  west?: number;
+  ne?: number;
+  nw?: number;
+  se?: number;
+  sw?: number;
+}
+
+export interface LevelTilePalette {
+  waterBase?: number;
+  grassBase?: number;
+  road?: TilePaletteRoad;
+  shoreline?: TilePaletteShoreline;
+}
+
 export interface LevelJson {
   version: 1;
   stageId: string;
@@ -103,6 +129,7 @@ export interface LevelJson {
   runtime?: LevelRuntimeOverrides;
   terrain?: TerrainData;
   visuals?: LevelVisualsData;
+  tilePalette?: LevelTilePalette;
 }
 
 export interface StageJson {
