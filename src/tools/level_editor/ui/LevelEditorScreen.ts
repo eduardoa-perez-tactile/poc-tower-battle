@@ -1209,9 +1209,13 @@ export function renderLevelEditorScreen(props: LevelEditorScreenProps): HTMLDivE
   }
 
   function setWorkspace(nextWorkspace: LevelEditorWorkspace): void {
+    const previousWorkspace = state.workspace;
     state.workspace = nextWorkspace;
     state.issues = validateWorkspace(nextWorkspace);
     saveWorkspaceSnapshot(nextWorkspace);
+    if (didFactionTintDocChange(previousWorkspace, nextWorkspace)) {
+      dispatchFactionTintUpdate(resolveWorkspaceFactionTints(nextWorkspace));
+    }
     renderAll();
   }
 
@@ -2244,6 +2248,23 @@ function cssEscape(value: string): string {
 function resolveWorkspaceFactionTints(workspace: LevelEditorWorkspace) {
   const doc = workspace.docs[FACTION_TINT_DOC_PATH];
   return resolveFactionTintConfig(doc?.currentData ?? {});
+}
+
+function didFactionTintDocChange(
+  previous: LevelEditorWorkspace | null,
+  next: LevelEditorWorkspace,
+): boolean {
+  const prevRaw = previous?.docs[FACTION_TINT_DOC_PATH]?.currentRaw ?? null;
+  const nextRaw = next.docs[FACTION_TINT_DOC_PATH]?.currentRaw ?? null;
+  return prevRaw !== nextRaw;
+}
+
+function dispatchFactionTintUpdate(config: ReturnType<typeof resolveFactionTintConfig>): void {
+  window.dispatchEvent(
+    new CustomEvent("tower-battle:faction-tints-updated", {
+      detail: { config },
+    }),
+  );
 }
 
 function normalizeHexColor(value: string | undefined): string | null {

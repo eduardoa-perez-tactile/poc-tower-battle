@@ -42,7 +42,10 @@ import {
 } from "./meta/MetaProgression";
 import { calculateMissionGloryReward, calculateRunBonusGlory, type MissionGloryReward } from "./meta/Rewards";
 import { Renderer2D } from "./render/Renderer2D";
-import { loadFactionTintConfig } from "./render/FactionTintConfig";
+import {
+  loadFactionTintConfig,
+  type ResolvedFactionTintConfig,
+} from "./render/FactionTintConfig";
 import { loadMissionCatalog, type MissionTemplate } from "./run/RunGeneration";
 import {
   createDefaultMetaProfile,
@@ -444,6 +447,15 @@ async function bootstrap(): Promise<void> {
     );
     syncDebugIndicator(debugIndicator, DEBUG_TOOLS_ENABLED, debugState);
   };
+
+  window.addEventListener("tower-battle:faction-tints-updated", (event: Event) => {
+    const detail = (event as CustomEvent<{ config?: ResolvedFactionTintConfig } | undefined>).detail;
+    if (!detail?.config) {
+      return;
+    }
+    renderer.setFactionTintConfig(detail.config);
+    render();
+  });
 
   debugUiStore.subscribe((state) => {
     if (state.showMapReadabilityOverlay !== lastMapReadabilityOverlayEnabled) {

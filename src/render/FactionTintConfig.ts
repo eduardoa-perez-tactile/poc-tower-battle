@@ -41,7 +41,7 @@ export const DEFAULT_RESOLVED_FACTION_TINTS: Readonly<ResolvedFactionTintConfig>
 
 export async function loadFactionTintConfig(path = "/data/factionTints.json"): Promise<ResolvedFactionTintConfig> {
   try {
-    const response = await fetch(path);
+    const response = await fetch(path, { cache: "no-store" });
     if (!response.ok) {
       console.warn(`[FactionTints] Failed to load ${path} (${response.status} ${response.statusText}); using defaults.`);
       return { ...DEFAULT_RESOLVED_FACTION_TINTS };
