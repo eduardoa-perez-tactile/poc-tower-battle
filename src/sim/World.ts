@@ -14,6 +14,7 @@ import {
 } from "./TerritoryControl";
 
 export type Owner = "player" | "enemy" | "neutral";
+export type UnitSpriteFacing = "up" | "down" | "left" | "right";
 
 export interface Vec2 {
   x: number;
@@ -143,6 +144,9 @@ export interface UnitPacket {
   tempArmorMultiplier: number;
   sourceLane: number;
   sourceWaveIndex: number;
+  spriteId?: string;
+  spriteFacing?: UnitSpriteFacing;
+  spriteAnimPhase?: number;
 }
 
 export interface LinkDestroyedEvent {
@@ -579,11 +583,17 @@ export class World {
   acquirePacket(packet: UnitPacket): UnitPacket {
     const pooled = this.packetPool.pop();
     if (!pooled) {
+      packet.spriteId = packet.spriteId ?? "";
+      packet.spriteFacing = packet.spriteFacing ?? undefined;
+      packet.spriteAnimPhase = packet.spriteAnimPhase ?? 0;
       return packet;
     }
 
     Object.assign(pooled, packet);
     pooled.tags = [...packet.tags];
+    pooled.spriteId = packet.spriteId ?? "";
+    pooled.spriteFacing = packet.spriteFacing ?? undefined;
+    pooled.spriteAnimPhase = packet.spriteAnimPhase ?? 0;
     return pooled;
   }
 
@@ -709,6 +719,9 @@ export class World {
     packet.tempArmorMultiplier = 1;
     packet.sourceLane = -1;
     packet.sourceWaveIndex = 0;
+    packet.spriteId = "";
+    packet.spriteFacing = undefined;
+    packet.spriteAnimPhase = 0;
     this.packetPool.push(packet);
   }
 

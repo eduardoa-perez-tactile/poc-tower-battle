@@ -673,6 +673,9 @@ function createPacket(
     tempArmorMultiplier: 1,
     sourceLane: -1,
     sourceWaveIndex: 0,
+    spriteId: "peasant_walk",
+    spriteFacing: "down",
+    spriteAnimPhase: (packetSequence % 9) * 0.11,
   };
 
   return world.acquirePacket(packet);
