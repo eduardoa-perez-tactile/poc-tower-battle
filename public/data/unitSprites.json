@@ -39,6 +39,322 @@
           { "col": 2, "row": 4 }
         ]
       }
+    },
+    "scrap_bike_walk": {
+      "image": "assets/sprites/scrap_bike.png",
+      "frameW": 64,
+      "frameH": 64,
+      "fps": 12,
+      "pivot": {
+        "x": 32,
+        "y": 56
+      },
+      "directions": {
+        "up": [
+          { "col": 4, "row": 0 },
+          { "col": 4, "row": 1 },
+          { "col": 4, "row": 2 },
+          { "col": 4, "row": 3 }
+        ],
+        "down": [
+          { "col": 0, "row": 0 },
+          { "col": 0, "row": 1 },
+          { "col": 0, "row": 2 },
+          { "col": 0, "row": 3 }
+        ],
+        "left": [
+          { "col": 6, "row": 0 },
+          { "col": 6, "row": 1 },
+          { "col": 6, "row": 2 },
+          { "col": 6, "row": 3 }
+        ],
+        "right": [
+          { "col": 2, "row": 0 },
+          { "col": 2, "row": 1 },
+          { "col": 2, "row": 2 },
+          { "col": 2, "row": 3 }
+        ]
+      }
+    },
+    "plague_rider_walk": {
+      "image": "assets/sprites/plague_rider.png",
+      "frameW": 72,
+      "frameH": 72,
+      "fps": 10,
+      "pivot": {
+        "x": 36,
+        "y": 60
+      },
+      "directions": {
+        "up": [
+          { "col": 4, "row": 0 },
+          { "col": 4, "row": 1 },
+          { "col": 4, "row": 2 },
+          { "col": 4, "row": 3 },
+          { "col": 4, "row": 4 }
+        ],
+        "down": [
+          { "col": 0, "row": 0 },
+          { "col": 0, "row": 1 },
+          { "col": 0, "row": 2 },
+          { "col": 0, "row": 3 },
+          { "col": 0, "row": 4 }
+        ],
+        "left": [
+          { "col": 6, "row": 0 },
+          { "col": 6, "row": 1 },
+          { "col": 6, "row": 2 },
+          { "col": 6, "row": 3 },
+          { "col": 6, "row": 4 }
+        ],
+        "right": [
+          { "col": 2, "row": 0 },
+          { "col": 2, "row": 1 },
+          { "col": 2, "row": 2 },
+          { "col": 2, "row": 3 },
+          { "col": 2, "row": 4 }
+        ]
+      }
+    },
+    "ember_drake_walk": {
+      "image": "assets/sprites/ember_drake.png",
+      "frameW": 88,
+      "frameH": 88,
+      "fps": 11,
+      "pivot": {
+        "x": 44,
+        "y": 74
+      },
+      "directions": {
+        "up": [
+          { "col": 4, "row": 0 },
+          { "col": 4, "row": 1 },
+          { "col": 4, "row": 2 },
+          { "col": 4, "row": 3 },
+          { "col": 4, "row": 4 }
+        ],
+        "down": [
+          { "col": 0, "row": 0 },
+          { "col": 0, "row": 1 },
+          { "col": 0, "row": 2 },
+          { "col": 0, "row": 3 },
+          { "col": 0, "row": 4 }
+        ],
+        "left": [
+          { "col": 6, "row": 0 },
+          { "col": 6, "row": 1 },
+          { "col": 6, "row": 2 },
+          { "col": 6, "row": 3 },
+          { "col": 6, "row": 4 }
+        ],
+        "right": [
+          { "col": 2, "row": 0 },
+          { "col": 2, "row": 1 },
+          { "col": 2, "row": 2 },
+          { "col": 2, "row": 3 },
+          { "col": 2, "row": 4 }
+        ]
+      }
+    },
+    "imp_sapper_walk": {
+      "image": "assets/sprites/imp_sapper.png",
+      "frameW": 72,
+      "frameH": 72,
+      "fps": 12,
+      "pivot": {
+        "x": 36,
+        "y": 60
+      },
+      "directions": {
+        "up": [
+          { "col": 4, "row": 0 },
+          { "col": 4, "row": 1 },
+          { "col": 4, "row": 2 },
+          { "col": 4, "row": 3 },
+          { "col": 4, "row": 4 }
+        ],
+        "down": [
+          { "col": 0, "row": 0 },
+          { "col": 0, "row": 1 },
+          { "col": 0, "row": 2 },
+          { "col": 0, "row": 3 },
+          { "col": 0, "row": 4 }
+        ],
+        "left": [
+          { "col": 6, "row": 0 },
+          { "col": 6, "row": 1 },
+          { "col": 6, "row": 2 },
+          { "col": 6, "row": 3 },
+          { "col": 6, "row": 4 }
+        ],
+        "right": [
+          { "col": 2, "row": 0 },
+          { "col": 2, "row": 1 },
+          { "col": 2, "row": 2 },
+          { "col": 2, "row": 3 },
+          { "col": 2, "row": 4 }
+        ]
+      }
+    },
+    "rat_raider_walk": {
+      "image": "assets/sprites/rat_raider.png",
+      "frameW": 72,
+      "frameH": 72,
+      "fps": 11,
+      "pivot": {
+        "x": 36,
+        "y": 60
+      },
+      "directions": {
+        "up": [
+          { "col": 4, "row": 0 },
+          { "col": 4, "row": 1 },
+          { "col": 4, "row": 2 },
+          { "col": 4, "row": 3 },
+          { "col": 4, "row": 4 }
+        ],
+        "down": [
+          { "col": 0, "row": 0 },
+          { "col": 0, "row": 1 },
+          { "col": 0, "row": 2 },
+          { "col": 0, "row": 3 },
+          { "col": 0, "row": 4 }
+        ],
+        "left": [
+          { "col": 6, "row": 0 },
+          { "col": 6, "row": 1 },
+          { "col": 6, "row": 2 },
+          { "col": 6, "row": 3 },
+          { "col": 6, "row": 4 }
+        ],
+        "right": [
+          { "col": 2, "row": 0 },
+          { "col": 2, "row": 1 },
+          { "col": 2, "row": 2 },
+          { "col": 2, "row": 3 },
+          { "col": 2, "row": 4 }
+        ]
+      }
+    },
+    "ogre_bruiser_walk": {
+      "image": "assets/sprites/ogre_bruiser.png",
+      "frameW": 72,
+      "frameH": 72,
+      "fps": 8,
+      "pivot": {
+        "x": 36,
+        "y": 60
+      },
+      "directions": {
+        "up": [
+          { "col": 4, "row": 0 },
+          { "col": 4, "row": 1 },
+          { "col": 4, "row": 2 },
+          { "col": 4, "row": 3 },
+          { "col": 4, "row": 4 }
+        ],
+        "down": [
+          { "col": 0, "row": 0 },
+          { "col": 0, "row": 1 },
+          { "col": 0, "row": 2 },
+          { "col": 0, "row": 3 },
+          { "col": 0, "row": 4 }
+        ],
+        "left": [
+          { "col": 6, "row": 0 },
+          { "col": 6, "row": 1 },
+          { "col": 6, "row": 2 },
+          { "col": 6, "row": 3 },
+          { "col": 6, "row": 4 }
+        ],
+        "right": [
+          { "col": 2, "row": 0 },
+          { "col": 2, "row": 1 },
+          { "col": 2, "row": 2 },
+          { "col": 2, "row": 3 },
+          { "col": 2, "row": 4 }
+        ]
+      }
+    },
+    "goblin_skirmisher_walk": {
+      "image": "assets/sprites/goblin_skirmisher.png",
+      "frameW": 72,
+      "frameH": 72,
+      "fps": 12,
+      "pivot": {
+        "x": 36,
+        "y": 60
+      },
+      "directions": {
+        "up": [
+          { "col": 4, "row": 0 },
+          { "col": 4, "row": 1 },
+          { "col": 4, "row": 2 },
+          { "col": 4, "row": 3 },
+          { "col": 4, "row": 4 }
+        ],
+        "down": [
+          { "col": 0, "row": 0 },
+          { "col": 0, "row": 1 },
+          { "col": 0, "row": 2 },
+          { "col": 0, "row": 3 },
+          { "col": 0, "row": 4 }
+        ],
+        "left": [
+          { "col": 6, "row": 0 },
+          { "col": 6, "row": 1 },
+          { "col": 6, "row": 2 },
+          { "col": 6, "row": 3 },
+          { "col": 6, "row": 4 }
+        ],
+        "right": [
+          { "col": 2, "row": 0 },
+          { "col": 2, "row": 1 },
+          { "col": 2, "row": 2 },
+          { "col": 2, "row": 3 },
+          { "col": 2, "row": 4 }
+        ]
+      }
+    },
+    "lizard_raider_walk": {
+      "image": "assets/sprites/lizard_raider.png",
+      "frameW": 72,
+      "frameH": 72,
+      "fps": 10,
+      "pivot": {
+        "x": 36,
+        "y": 60
+      },
+      "directions": {
+        "up": [
+          { "col": 4, "row": 0 },
+          { "col": 4, "row": 1 },
+          { "col": 4, "row": 2 },
+          { "col": 4, "row": 3 },
+          { "col": 4, "row": 4 }
+        ],
+        "down": [
+          { "col": 0, "row": 0 },
+          { "col": 0, "row": 1 },
+          { "col": 0, "row": 2 },
+          { "col": 0, "row": 3 },
+          { "col": 0, "row": 4 }
+        ],
+        "left": [
+          { "col": 6, "row": 0 },
+          { "col": 6, "row": 1 },
+          { "col": 6, "row": 2 },
+          { "col": 6, "row": 3 },
+          { "col": 6, "row": 4 }
+        ],
+        "right": [
+          { "col": 2, "row": 0 },
+          { "col": 2, "row": 1 },
+          { "col": 2, "row": 2 },
+          { "col": 2, "row": 3 },
+          { "col": 2, "row": 4 }
+        ]
+      }
     }
   }
 }

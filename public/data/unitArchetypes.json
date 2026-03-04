@@ -37,6 +37,302 @@
           }
         }
       }
+    },
+    {
+      "id": "scrap_bike",
+      "displayName": "Scrap Bike",
+      "visuals": {
+        "spriteSheetId": "scrap_bike",
+        "spriteAtlasKey": "scrap_bike_walk",
+        "sizeScale": 1,
+        "offsetX": 0,
+        "offsetY": 0,
+        "walk": {
+          "up": {
+            "spriteKey": "scrap_bike_walk",
+            "frames": [0, 1, 2, 3],
+            "fps": 12,
+            "loop": true
+          },
+          "down": {
+            "spriteKey": "scrap_bike_walk",
+            "frames": [0, 1, 2, 3],
+            "fps": 12,
+            "loop": true
+          },
+          "left": {
+            "spriteKey": "scrap_bike_walk",
+            "frames": [0, 1, 2, 3],
+            "fps": 12,
+            "loop": true
+          },
+          "right": {
+            "spriteKey": "scrap_bike_walk",
+            "frames": [0, 1, 2, 3],
+            "fps": 12,
+            "loop": true
+          }
+        }
+      }
+    },
+    {
+      "id": "plague_rider",
+      "displayName": "Plague Rider",
+      "visuals": {
+        "spriteSheetId": "plague_rider",
+        "spriteAtlasKey": "plague_rider_walk",
+        "sizeScale": 0.98,
+        "offsetX": 0,
+        "offsetY": 0,
+        "walk": {
+          "up": {
+            "spriteKey": "plague_rider_walk",
+            "frames": [0, 1, 2, 3, 4],
+            "fps": 10,
+            "loop": true
+          },
+          "down": {
+            "spriteKey": "plague_rider_walk",
+            "frames": [0, 1, 2, 3, 4],
+            "fps": 10,
+            "loop": true
+          },
+          "left": {
+            "spriteKey": "plague_rider_walk",
+            "frames": [0, 1, 2, 3, 4],
+            "fps": 10,
+            "loop": true
+          },
+          "right": {
+            "spriteKey": "plague_rider_walk",
+            "frames": [0, 1, 2, 3, 4],
+            "fps": 10,
+            "loop": true
+          }
+        }
+      }
+    },
+    {
+      "id": "ember_drake",
+      "displayName": "Ember Drake",
+      "visuals": {
+        "spriteSheetId": "ember_drake",
+        "spriteAtlasKey": "ember_drake_walk",
+        "sizeScale": 1.14,
+        "offsetX": 0,
+        "offsetY": 0,
+        "walk": {
+          "up": {
+            "spriteKey": "ember_drake_walk",
+            "frames": [0, 1, 2, 3, 4],
+            "fps": 11,
+            "loop": true
+          },
+          "down": {
+            "spriteKey": "ember_drake_walk",
+            "frames": [0, 1, 2, 3, 4],
+            "fps": 11,
+            "loop": true
+          },
+          "left": {
+            "spriteKey": "ember_drake_walk",
+            "frames": [0, 1, 2, 3, 4],
+            "fps": 11,
+            "loop": true
+          },
+          "right": {
+            "spriteKey": "ember_drake_walk",
+            "frames": [0, 1, 2, 3, 4],
+            "fps": 11,
+            "loop": true
+          }
+        }
+      }
+    },
+    {
+      "id": "imp_sapper",
+      "displayName": "Imp Sapper",
+      "visuals": {
+        "spriteSheetId": "imp_sapper",
+        "spriteAtlasKey": "imp_sapper_walk",
+        "sizeScale": 0.86,
+        "offsetX": 0,
+        "offsetY": 0,
+        "walk": {
+          "up": {
+            "spriteKey": "imp_sapper_walk",
+            "frames": [0, 1, 2, 3, 4],
+            "fps": 12,
+            "loop": true
+          },
+          "down": {
+            "spriteKey": "imp_sapper_walk",
+            "frames": [0, 1, 2, 3, 4],
+            "fps": 12,
+            "loop": true
+          },
+          "left": {
+            "spriteKey": "imp_sapper_walk",
+            "frames": [0, 1, 2, 3, 4],
+            "fps": 12,
+            "loop": true
+          },
+          "right": {
+            "spriteKey": "imp_sapper_walk",
+            "frames": [0, 1, 2, 3, 4],
+            "fps": 12,
+            "loop": true
+          }
+        }
+      }
+    },
+    {
+      "id": "rat_raider",
+      "displayName": "Rat Raider",
+      "visuals": {
+        "spriteSheetId": "rat_raider",
+        "spriteAtlasKey": "rat_raider_walk",
+        "sizeScale": 0.97,
+        "offsetX": 0,
+        "offsetY": 0,
+        "walk": {
+          "up": {
+            "spriteKey": "rat_raider_walk",
+            "frames": [0, 1, 2, 3, 4],
+            "fps": 11,
+            "loop": true
+          },
+          "down": {
+            "spriteKey": "rat_raider_walk",
+            "frames": [0, 1, 2, 3, 4],
+            "fps": 11,
+            "loop": true
+          },
+          "left": {
+            "spriteKey": "rat_raider_walk",
+            "frames": [0, 1, 2, 3, 4],
+            "fps": 11,
+            "loop": true
+          },
+          "right": {
+            "spriteKey": "rat_raider_walk",
+            "frames": [0, 1, 2, 3, 4],
+            "fps": 11,
+            "loop": true
+          }
+        }
+      }
+    },
+    {
+      "id": "ogre_bruiser",
+      "displayName": "Ogre Bruiser",
+      "visuals": {
+        "spriteSheetId": "ogre_bruiser",
+        "spriteAtlasKey": "ogre_bruiser_walk",
+        "sizeScale": 1.2,
+        "offsetX": 0,
+        "offsetY": 0,
+        "walk": {
+          "up": {
+            "spriteKey": "ogre_bruiser_walk",
+            "frames": [0, 1, 2, 3, 4],
+            "fps": 8,
+            "loop": true
+          },
+          "down": {
+            "spriteKey": "ogre_bruiser_walk",
+            "frames": [0, 1, 2, 3, 4],
+            "fps": 8,
+            "loop": true
+          },
+          "left": {
+            "spriteKey": "ogre_bruiser_walk",
+            "frames": [0, 1, 2, 3, 4],
+            "fps": 8,
+            "loop": true
+          },
+          "right": {
+            "spriteKey": "ogre_bruiser_walk",
+            "frames": [0, 1, 2, 3, 4],
+            "fps": 8,
+            "loop": true
+          }
+        }
+      }
+    },
+    {
+      "id": "goblin_skirmisher",
+      "displayName": "Goblin Skirmisher",
+      "visuals": {
+        "spriteSheetId": "goblin_skirmisher",
+        "spriteAtlasKey": "goblin_skirmisher_walk",
+        "sizeScale": 0.88,
+        "offsetX": 0,
+        "offsetY": 0,
+        "walk": {
+          "up": {
+            "spriteKey": "goblin_skirmisher_walk",
+            "frames": [0, 1, 2, 3, 4],
+            "fps": 12,
+            "loop": true
+          },
+          "down": {
+            "spriteKey": "goblin_skirmisher_walk",
+            "frames": [0, 1, 2, 3, 4],
+            "fps": 12,
+            "loop": true
+          },
+          "left": {
+            "spriteKey": "goblin_skirmisher_walk",
+            "frames": [0, 1, 2, 3, 4],
+            "fps": 12,
+            "loop": true
+          },
+          "right": {
+            "spriteKey": "goblin_skirmisher_walk",
+            "frames": [0, 1, 2, 3, 4],
+            "fps": 12,
+            "loop": true
+          }
+        }
+      }
+    },
+    {
+      "id": "lizard_raider",
+      "displayName": "Lizard Raider",
+      "visuals": {
+        "spriteSheetId": "lizard_raider",
+        "spriteAtlasKey": "lizard_raider_walk",
+        "sizeScale": 1.02,
+        "offsetX": 0,
+        "offsetY": 0,
+        "walk": {
+          "up": {
+            "spriteKey": "lizard_raider_walk",
+            "frames": [0, 1, 2, 3, 4],
+            "fps": 10,
+            "loop": true
+          },
+          "down": {
+            "spriteKey": "lizard_raider_walk",
+            "frames": [0, 1, 2, 3, 4],
+            "fps": 10,
+            "loop": true
+          },
+          "left": {
+            "spriteKey": "lizard_raider_walk",
+            "frames": [0, 1, 2, 3, 4],
+            "fps": 10,
+            "loop": true
+          },
+          "right": {
+            "spriteKey": "lizard_raider_walk",
+            "frames": [0, 1, 2, 3, 4],
+            "fps": 10,
+            "loop": true
+          }
+        }
+      }
     }
   ]
 }
