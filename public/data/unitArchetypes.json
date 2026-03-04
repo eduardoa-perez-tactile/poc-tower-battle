@@ -1,0 +1,42 @@
+{
+  "version": 1,
+  "archetypes": [
+    {
+      "id": "basic",
+      "displayName": "Basic Troop",
+      "visuals": {
+        "spriteSheetId": "peasant",
+        "spriteAtlasKey": "peasant_walk",
+        "sizeScale": 1,
+        "offsetX": 0,
+        "offsetY": 0,
+        "walk": {
+          "up": {
+            "spriteKey": "peasant_walk",
+            "frames": [0, 1, 2, 3, 4],
+            "fps": 10,
+            "loop": true
+          },
+          "down": {
+            "spriteKey": "peasant_walk",
+            "frames": [0, 1, 2, 3, 4],
+            "fps": 10,
+            "loop": true
+          },
+          "left": {
+            "spriteKey": "peasant_walk",
+            "frames": [0, 1, 2, 3, 4],
+            "fps": 10,
+            "loop": true
+          },
+          "right": {
+            "spriteKey": "peasant_walk",
+            "frames": [0, 1, 2, 3, 4],
+            "fps": 10,
+            "loop": true
+          }
+        }
+      }
+    }
+  ]
+}

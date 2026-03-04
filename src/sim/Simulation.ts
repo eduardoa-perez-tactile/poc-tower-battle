@@ -673,8 +673,9 @@ function createPacket(
     tempArmorMultiplier: 1,
     sourceLane: -1,
     sourceWaveIndex: 0,
-    spriteId: "peasant_walk",
-    spriteFacing: "down",
+    unitArchetypeId: "basic",
+    spriteId: "",
+    spriteFacing: undefined,
     spriteAnimPhase: (packetSequence % 9) * 0.11,
   };
 

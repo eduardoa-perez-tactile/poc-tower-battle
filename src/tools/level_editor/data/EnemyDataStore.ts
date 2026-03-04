@@ -160,6 +160,7 @@ function deserializeArchetype(raw: Record<string, unknown>): EnemyArchetype {
   const tags = asStringArray(raw.tags);
   const baseStatsRaw = isObject(raw.baseStats) ? raw.baseStats : {};
   const behaviorRaw = isObject(raw.behavior) ? raw.behavior : {};
+  const visualsRaw = isObject(raw.visuals) ? raw.visuals : {};
   const displayName = asOptionalString(raw.displayName) ?? asOptionalString(raw.name) ?? id;
   const description = asOptionalString(raw.description);
   const role = asOptionalString(raw.role);
@@ -192,6 +193,7 @@ function deserializeArchetype(raw: Record<string, unknown>): EnemyArchetype {
     displayName,
     description,
     role,
+    unitArchetypeId: asOptionalString(visualsRaw.unitArchetypeId),
     baseStats,
     spawnWeight: asNumber(raw.spawnWeight),
     isBoss: tags.includes("boss"),
@@ -206,6 +208,7 @@ function serializeArchetype(archetype: EnemyArchetype): Record<string, unknown> 
   const next = deepClone(archetype.raw);
   const baseStats = isObject(next.baseStats) ? next.baseStats : {};
   const behavior = isObject(next.behavior) ? next.behavior : {};
+  const visuals = isObject(next.visuals) ? next.visuals : {};
   const tags = withBossTags(archetype.tags, archetype.isBoss, archetype.isMiniboss);
 
   next.id = archetype.id;
@@ -248,6 +251,17 @@ function serializeArchetype(archetype: EnemyArchetype): Record<string, unknown> 
     next.behavior = behavior;
   } else {
     delete next.behavior;
+  }
+
+  if (archetype.unitArchetypeId && archetype.unitArchetypeId.trim().length > 0) {
+    visuals.unitArchetypeId = archetype.unitArchetypeId.trim();
+  } else {
+    delete visuals.unitArchetypeId;
+  }
+  if (Object.keys(visuals).length > 0) {
+    next.visuals = visuals;
+  } else {
+    delete next.visuals;
   }
 
   return next;

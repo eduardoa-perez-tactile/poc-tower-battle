@@ -130,8 +130,9 @@ export class EnemyFactory {
 
     const baseArmorMultiplier = 1;
     const baseArmor = armorFromMultiplier(baseArmorMultiplier);
-    const spriteId = request.owner === "enemy" ? "peasant_walk" : "";
-    const spriteAnimPhase = spriteId.length > 0 ? computeSpriteAnimPhaseFromPacketId(request.packetId) : 0;
+    const spriteId = "";
+    const spriteAnimPhase = computeSpriteAnimPhaseFromPacketId(request.packetId);
+    const unitArchetypeId = resolveUnitVisualArchetypeId(archetype);
 
     return {
       id: request.packetId,
@@ -185,6 +186,7 @@ export class EnemyFactory {
       tempArmorMultiplier: 1,
       sourceLane: 0,
       sourceWaveIndex: request.waveIndex,
+      unitArchetypeId,
       spriteId,
       spriteFacing: spriteId.length > 0 ? "down" : undefined,
       spriteAnimPhase,
@@ -202,4 +204,15 @@ function computeSpriteAnimPhaseFromPacketId(packetId: string): number {
     hash = ((hash << 5) - hash + packetId.charCodeAt(i)) | 0;
   }
   return (Math.abs(hash) % 1000) / 1000;
+}
+
+function resolveUnitVisualArchetypeId(archetype: EnemyArchetypeDefinition): string {
+  const explicit = archetype.visuals.unitArchetypeId?.trim();
+  if (explicit && explicit.length > 0) {
+    return explicit;
+  }
+  if (archetype.id.trim().length > 0) {
+    return archetype.id;
+  }
+  return "basic";
 }

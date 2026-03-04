@@ -34,6 +34,7 @@ export interface EnemyVisualDefinition {
   sizeScale: number;
   vfxHook: string;
   sfxHook: string;
+  unitArchetypeId?: string;
 }
 
 export interface EnemyDropDefinition {

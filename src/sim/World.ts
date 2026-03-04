@@ -144,6 +144,7 @@ export interface UnitPacket {
   tempArmorMultiplier: number;
   sourceLane: number;
   sourceWaveIndex: number;
+  unitArchetypeId?: string;
   spriteId?: string;
   spriteFacing?: UnitSpriteFacing;
   spriteAnimPhase?: number;
@@ -583,6 +584,7 @@ export class World {
   acquirePacket(packet: UnitPacket): UnitPacket {
     const pooled = this.packetPool.pop();
     if (!pooled) {
+      packet.unitArchetypeId = packet.unitArchetypeId ?? "";
       packet.spriteId = packet.spriteId ?? "";
       packet.spriteFacing = packet.spriteFacing ?? undefined;
       packet.spriteAnimPhase = packet.spriteAnimPhase ?? 0;
@@ -591,6 +593,7 @@ export class World {
 
     Object.assign(pooled, packet);
     pooled.tags = [...packet.tags];
+    pooled.unitArchetypeId = packet.unitArchetypeId ?? "";
     pooled.spriteId = packet.spriteId ?? "";
     pooled.spriteFacing = packet.spriteFacing ?? undefined;
     pooled.spriteAnimPhase = packet.spriteAnimPhase ?? 0;
@@ -719,6 +722,7 @@ export class World {
     packet.tempArmorMultiplier = 1;
     packet.sourceLane = -1;
     packet.sourceWaveIndex = 0;
+    packet.unitArchetypeId = "";
     packet.spriteId = "";
     packet.spriteFacing = undefined;
     packet.spriteAnimPhase = 0;

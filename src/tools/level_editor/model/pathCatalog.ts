@@ -7,6 +7,7 @@ export const CORE_LEVEL_EDITOR_PATHS = [
   "/data/difficultyTiers.json",
   "/data/wave-modifiers.json",
   "/data/enemyArchetypes.json",
+  "/data/unitArchetypes.json",
   "/data/towerArchetypes.json",
   "/data/waves-handcrafted.json",
   "/data/wavePacingTargets.json",

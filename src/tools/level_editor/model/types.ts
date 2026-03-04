@@ -14,6 +14,7 @@ import type {
 import type { AscensionDifficultyCatalog, StageDifficultyCatalog } from "../../../waves/DifficultyTypes";
 import type { TowerArchetypeCatalog } from "../../../sim/DepthTypes";
 import type { FactionTintConfigDoc } from "../../../render/FactionTintConfig";
+import type { UnitArchetypeCatalog } from "../../../data/UnitArchetypes";
 
 export const LEVEL_EDITOR_WORKSPACE_VERSION = 1;
 export const LEVEL_EDITOR_WORKSPACE_STORAGE_KEY = "tower-battle.level-editor.workspace.v1";
@@ -33,6 +34,7 @@ export type LevelEditorKnownJson =
   | StageDifficultyCatalog
   | AscensionDifficultyCatalog
   | TowerArchetypeCatalog
+  | UnitArchetypeCatalog
   | TutorialCatalog
   | FactionTintConfigDoc
   | Record<string, unknown>
@@ -49,6 +51,7 @@ export type LevelEditorDocKind =
   | "ascension-difficulty"
   | "wave-modifiers"
   | "enemy-archetypes"
+  | "unit-archetypes"
   | "tower-archetypes"
   | "waves-handcrafted"
   | "wave-pacing-targets"
