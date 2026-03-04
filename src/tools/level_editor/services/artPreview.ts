@@ -32,6 +32,7 @@ export interface LevelEditorArtPreviewPayload {
     x: number;
     y: number;
     archetype: string;
+    owner: "player" | "enemy" | "neutral";
   }>;
   towerArtByArchetype: Record<string, LevelEditorTowerArtPreview>;
 }
@@ -122,6 +123,7 @@ function compileArtPreviewPayload(
           x: tower.x,
           y: tower.y,
           archetype: tower.archetype,
+          owner: tower.owner,
         })),
         towerArtByArchetype: readTowerArtByArchetype(workspace),
       },

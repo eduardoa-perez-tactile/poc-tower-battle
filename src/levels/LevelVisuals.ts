@@ -76,7 +76,6 @@ export function parseOptionalVisuals(
 
   const towerDefaults = parseTowerDefaults(value.towerDefaults, `${fieldName}.towerDefaults`);
   const towers = parseTowerVisualOverrides(value.towers, `${fieldName}.towers`);
-
   return {
     towerDefaults,
     towers,

@@ -137,6 +137,9 @@ function resolveKind(path: string, data: unknown | null): LevelEditorDocKind {
   if (path.endsWith("/presets.json")) {
     return "wave-presets";
   }
+  if (path.endsWith("/factionTints.json")) {
+    return "faction-tints";
+  }
   if (path.endsWith("/wave-balance.json")) {
     return "wave-balance";
   }
@@ -194,6 +197,8 @@ function resolveGroup(kind: LevelEditorDocKind): LevelEditorDocument["group"] {
       return "levels";
     case "wave-presets":
       return "presets";
+    case "faction-tints":
+      return "globals";
     case "campaign-map":
       return "maps";
     case "wave-balance":

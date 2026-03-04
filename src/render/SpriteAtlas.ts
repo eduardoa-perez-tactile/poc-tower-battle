@@ -38,6 +38,8 @@ export interface DrawBuildingFrameParams {
   offsetX?: number;
   offsetY?: number;
   scale?: number;
+  tintColor?: string;
+  tintStrength?: number;
 }
 
 export async function loadSpriteCatalog(path = "/data/art/sprites.json"): Promise<SpriteCatalog> {
@@ -53,12 +55,14 @@ export class SpriteAtlas {
   private catalog: SpriteCatalog | null;
   private readonly imageByPath: Map<string, HTMLImageElement>;
   private readonly frameCountBySpriteKey: Map<string, number>;
+  private readonly tintedFrameCache: Map<string, HTMLCanvasElement>;
   private loadPromise: Promise<void> | null;
 
   constructor() {
     this.catalog = null;
     this.imageByPath = new Map<string, HTMLImageElement>();
     this.frameCountBySpriteKey = new Map<string, number>();
+    this.tintedFrameCache = new Map<string, HTMLCanvasElement>();
     this.loadPromise = null;
   }
 
@@ -159,20 +163,59 @@ export class SpriteAtlas {
     const drawH = meta.frameH * scale;
     const drawX = params.worldX - meta.anchorX * scale + offsetX;
     const drawY = params.worldY - meta.anchorY * scale + offsetY;
+    const tintColor = normalizeHexColor(params.tintColor);
+    const tintStrength = clamp01(params.tintStrength ?? 0);
 
     const previousSmoothing = ctx.imageSmoothingEnabled;
     ctx.imageSmoothingEnabled = false;
-    ctx.drawImage(
-      image,
-      0,
-      sy,
-      meta.frameW,
-      meta.frameH,
-      drawX,
-      drawY,
-      drawW,
-      drawH,
-    );
+    if (tintColor && tintStrength > 0) {
+      const tintedFrame = this.getTintedFrame({
+        spriteKey: params.spriteKey,
+        frameIndex: clampedFrame,
+        tintColor,
+        tintStrength,
+        image,
+        frameW: meta.frameW,
+        frameH: meta.frameH,
+      });
+      if (tintedFrame) {
+        ctx.drawImage(
+          tintedFrame,
+          0,
+          0,
+          meta.frameW,
+          meta.frameH,
+          drawX,
+          drawY,
+          drawW,
+          drawH,
+        );
+      } else {
+        ctx.drawImage(
+          image,
+          0,
+          sy,
+          meta.frameW,
+          meta.frameH,
+          drawX,
+          drawY,
+          drawW,
+          drawH,
+        );
+      }
+    } else {
+      ctx.drawImage(
+        image,
+        0,
+        sy,
+        meta.frameW,
+        meta.frameH,
+        drawX,
+        drawY,
+        drawW,
+        drawH,
+      );
+    }
     ctx.imageSmoothingEnabled = previousSmoothing;
     return true;
   }
@@ -214,6 +257,7 @@ export class SpriteAtlas {
     }
 
     this.frameCountBySpriteKey.clear();
+    this.tintedFrameCache.clear();
     for (const [spriteKey, meta] of Object.entries(catalog.buildings)) {
       const image = this.imageByPath.get(meta.image);
       if (!image) {
@@ -237,6 +281,62 @@ export class SpriteAtlas {
     const frameCount = Math.max(1, Math.floor(raw));
     this.frameCountBySpriteKey.set(spriteKey, frameCount);
     return frameCount;
+  }
+
+  private getTintedFrame(input: {
+    spriteKey: string;
+    frameIndex: number;
+    tintColor: string;
+    tintStrength: number;
+    image: HTMLImageElement;
+    frameW: number;
+    frameH: number;
+  }): HTMLCanvasElement | null {
+    const cacheKey = [
+      input.spriteKey,
+      input.frameIndex,
+      input.tintColor,
+      Math.round(input.tintStrength * 1000),
+    ].join(":");
+    const cached = this.tintedFrameCache.get(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
+    const canvas = document.createElement("canvas");
+    canvas.width = input.frameW;
+    canvas.height = input.frameH;
+    const tintCtx = canvas.getContext("2d");
+    if (!tintCtx) {
+      return null;
+    }
+
+    const sy = input.frameIndex * input.frameH;
+    tintCtx.imageSmoothingEnabled = false;
+    tintCtx.drawImage(
+      input.image,
+      0,
+      sy,
+      input.frameW,
+      input.frameH,
+      0,
+      0,
+      input.frameW,
+      input.frameH,
+    );
+    tintCtx.globalCompositeOperation = "source-atop";
+    tintCtx.globalAlpha = input.tintStrength;
+    tintCtx.fillStyle = input.tintColor;
+    tintCtx.fillRect(0, 0, input.frameW, input.frameH);
+    tintCtx.globalAlpha = 1;
+    tintCtx.globalCompositeOperation = "source-over";
+
+    this.tintedFrameCache.set(cacheKey, canvas);
+    if (this.tintedFrameCache.size > 2048) {
+      this.tintedFrameCache.clear();
+      this.tintedFrameCache.set(cacheKey, canvas);
+    }
+    return canvas;
   }
 }
 
@@ -315,4 +415,19 @@ function asInt(value: unknown, field: string): number {
 
 function clampInt(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, Math.floor(value)));
+}
+
+function clamp01(value: number): number {
+  return Math.max(0, Math.min(1, value));
+}
+
+function normalizeHexColor(value: string | undefined): string | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+  const trimmed = value.trim();
+  if (!/^#[0-9a-fA-F]{6}$/.test(trimmed)) {
+    return null;
+  }
+  return trimmed.toLowerCase();
 }

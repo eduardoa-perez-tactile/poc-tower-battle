@@ -1,6 +1,10 @@
 import { TERRAIN_EMPTY_TILE, type TerrainData } from "../types/Terrain";
 import type { LevelVisualsData } from "../types/Visuals";
 import { resolveTowerVisual } from "../levels/LevelVisuals";
+import {
+  DEFAULT_RESOLVED_FACTION_TINTS,
+  type ResolvedFactionTintConfig,
+} from "./FactionTintConfig";
 import type { DrawBuildingFrameParams, SpriteAtlas } from "./SpriteAtlas";
 
 export interface MapCamera {
@@ -15,6 +19,7 @@ export interface TowerVisualAnchor {
   x: number;
   y: number;
   archetype?: string;
+  owner?: "player" | "enemy" | "neutral";
 }
 
 export interface TowerArchetypeVisualOverride {
@@ -27,9 +32,19 @@ export interface TowerArchetypeVisualOverride {
 
 export class MapRenderer {
   private readonly drawBuffer: TowerVisualAnchor[];
+  private factionTints: ResolvedFactionTintConfig;
 
   constructor() {
     this.drawBuffer = [];
+    this.factionTints = { ...DEFAULT_RESOLVED_FACTION_TINTS };
+  }
+
+  setFactionTintConfig(config: ResolvedFactionTintConfig): void {
+    this.factionTints = {
+      player: config.player,
+      enemy: config.enemy,
+      neutral: config.neutral,
+    };
   }
 
   renderTerrain(
@@ -94,6 +109,7 @@ export class MapRenderer {
       const clampedFrame = frameCount === null
         ? requestedFrame
         : Math.max(0, Math.min(frameCount - 1, requestedFrame));
+      const factionTint = this.factionTints[tower.owner ?? "neutral"];
 
       const drawParams: DrawBuildingFrameParams = {
         spriteKey: resolved.spriteKey,
@@ -103,6 +119,8 @@ export class MapRenderer {
         offsetX: resolved.offsetX,
         offsetY: resolved.offsetY,
         scale: resolved.scale,
+        tintColor: factionTint?.color,
+        tintStrength: factionTint?.strength,
       };
       if (atlas.drawBuildingFrame(ctx, drawParams)) {
         outDrawnTowerIds.add(tower.id);

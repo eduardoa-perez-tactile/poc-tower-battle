@@ -42,6 +42,7 @@ import {
 } from "./meta/MetaProgression";
 import { calculateMissionGloryReward, calculateRunBonusGlory, type MissionGloryReward } from "./meta/Rewards";
 import { Renderer2D } from "./render/Renderer2D";
+import { loadFactionTintConfig } from "./render/FactionTintConfig";
 import { loadMissionCatalog, type MissionTemplate } from "./run/RunGeneration";
 import {
   createDefaultMetaProfile,
@@ -233,13 +234,25 @@ async function bootstrap(): Promise<void> {
     });
   });
 
-  const [missionTemplates, upgradeCatalog, skillCatalog, ascensionCatalog, unlockCatalog, waveContent, depthContent, levelRegistry, tutorialRegistry] = await Promise.all([
+  const [
+    missionTemplates,
+    upgradeCatalog,
+    skillCatalog,
+    ascensionCatalog,
+    unlockCatalog,
+    waveContent,
+    factionTintConfig,
+    depthContent,
+    levelRegistry,
+    tutorialRegistry,
+  ] = await Promise.all([
     loadMissionCatalog(),
     loadMetaUpgradeCatalog(),
     loadSkillCatalog(),
     loadAscensionCatalog(),
     loadUnlockCatalog(),
     loadWaveContent(),
+    loadFactionTintConfig(),
     loadDepthContent(),
     loadLevelRegistry(),
     tutorialRegistryPromise,
@@ -247,6 +260,7 @@ async function bootstrap(): Promise<void> {
 
   let activeTowerArchetypes = resolveTowerArchetypesFromEditorSnapshot(depthContent.towerArchetypes);
   renderer.setTowerArchetypeArt(buildTowerArchetypeArtMap(activeTowerArchetypes));
+  renderer.setFactionTintConfig(factionTintConfig);
 
   const knownNodeIds = new Set(getUpgradeNodes(upgradeCatalog).map((node) => node.id));
   validateUnlockCatalog(unlockCatalog, {

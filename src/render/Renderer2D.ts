@@ -17,6 +17,7 @@ import {
 } from "../sim/World";
 import type { WaveRenderState } from "../waves/WaveDirector";
 import { MapRenderer, type TowerArchetypeVisualOverride } from "./MapRenderer";
+import type { ResolvedFactionTintConfig } from "./FactionTintConfig";
 import { MapOverlay, type MapOverlayInteractionState } from "./overlay/MapOverlay";
 import { SpriteAtlas } from "./SpriteAtlas";
 
@@ -87,6 +88,10 @@ export class Renderer2D {
 
   setTowerArchetypeArt(visuals: Record<string, TowerArchetypeVisualOverride> | null): void {
     this.towerArchetypeVisuals = visuals;
+  }
+
+  setFactionTintConfig(config: ResolvedFactionTintConfig): void {
+    this.mapRenderer.setFactionTintConfig(config);
   }
 
   setShowGridLines(enabled: boolean): void {
