@@ -130,6 +130,8 @@ export class EnemyFactory {
 
     const baseArmorMultiplier = 1;
     const baseArmor = armorFromMultiplier(baseArmorMultiplier);
+    const spriteId = request.owner === "enemy" ? "peasant_walk" : "";
+    const spriteAnimPhase = spriteId.length > 0 ? computeSpriteAnimPhaseFromPacketId(request.packetId) : 0;
 
     return {
       id: request.packetId,
@@ -183,10 +185,21 @@ export class EnemyFactory {
       tempArmorMultiplier: 1,
       sourceLane: 0,
       sourceWaveIndex: request.waveIndex,
+      spriteId,
+      spriteFacing: spriteId.length > 0 ? "down" : undefined,
+      spriteAnimPhase,
     };
   }
 }
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
+}
+
+function computeSpriteAnimPhaseFromPacketId(packetId: string): number {
+  let hash = 0;
+  for (let i = 0; i < packetId.length; i += 1) {
+    hash = ((hash << 5) - hash + packetId.charCodeAt(i)) | 0;
+  }
+  return (Math.abs(hash) % 1000) / 1000;
 }
