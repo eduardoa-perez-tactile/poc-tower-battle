@@ -12,6 +12,7 @@ import {
   type Owner,
   type Tower,
   type UnitPacket,
+  type UnitSpriteFacing,
   type Vec2,
   type World,
 } from "../sim/World";
@@ -20,6 +21,7 @@ import { MapRenderer, type TowerArchetypeVisualOverride } from "./MapRenderer";
 import type { ResolvedFactionTintConfig } from "./FactionTintConfig";
 import { MapOverlay, type MapOverlayInteractionState } from "./overlay/MapOverlay";
 import { SpriteAtlas } from "./SpriteAtlas";
+import { UnitSpriteAtlas } from "./UnitSpriteAtlas";
 
 const OWNER_COLORS: Record<Owner, string> = {
   player: "#2a9d8f",
@@ -39,10 +41,13 @@ const PACKET_COLORS: Record<Owner, string> = {
   neutral: "#dee2e6",
 };
 
+const DEFAULT_USE_UNIT_SPRITES = true;
+
 export class Renderer2D {
   private readonly canvas: HTMLCanvasElement;
   private readonly ctx: CanvasRenderingContext2D;
   private readonly spriteAtlas: SpriteAtlas;
+  private readonly unitSpriteAtlas: UnitSpriteAtlas;
   private readonly mapRenderer: MapRenderer;
   private readonly mapOverlay: MapOverlay;
   private readonly spriteDrawnTowerIds: Set<string>;
@@ -55,11 +60,13 @@ export class Renderer2D {
   private showMapDebugOverlay: boolean;
   private showMapReadabilityOverlay: boolean;
   private showMapOverlayLegend: boolean;
+  private useUnitSprites: boolean;
 
   constructor(canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D) {
     this.canvas = canvas;
     this.ctx = ctx;
     this.spriteAtlas = new SpriteAtlas();
+    this.unitSpriteAtlas = new UnitSpriteAtlas();
     this.mapRenderer = new MapRenderer();
     this.mapOverlay = new MapOverlay();
     this.spriteDrawnTowerIds = new Set<string>();
@@ -72,8 +79,12 @@ export class Renderer2D {
     this.showMapDebugOverlay = false;
     this.showMapReadabilityOverlay = true;
     this.showMapOverlayLegend = false;
+    this.useUnitSprites = DEFAULT_USE_UNIT_SPRITES;
     void this.spriteAtlas.ensureLoaded().catch((error) => {
       console.error("Failed to load map art atlas", error);
+    });
+    void this.unitSpriteAtlas.ensureLoaded().catch((error) => {
+      console.error("Failed to load unit sprite atlas", error);
     });
   }
 
@@ -112,6 +123,10 @@ export class Renderer2D {
 
   setShowMapOverlayLegend(enabled: boolean): void {
     this.showMapOverlayLegend = enabled;
+  }
+
+  setUseUnitSprites(enabled: boolean): void {
+    this.useUnitSprites = enabled;
   }
 
   clear(): void {
@@ -182,15 +197,7 @@ export class Renderer2D {
       if (!position) {
         continue;
       }
-      this.drawPacket(
-        position,
-        packet.owner,
-        packet.count,
-        packet.sizeScale,
-        packet.colorTint,
-        packet.isElite,
-        packet.icon,
-      );
+      this.drawPacket(world, packet, position);
     }
 
     for (const tower of world.towers) {
@@ -531,36 +538,67 @@ export class Renderer2D {
     this.ctx.restore();
   }
 
-  private drawPacket(
-    position: Vec2,
-    owner: Owner,
-    count: number,
-    sizeScale: number,
-    colorTint: string,
-    isElite: boolean,
-    icon: string,
-  ): void {
+  private drawPacket(world: World, packet: UnitPacket, position: Vec2): void {
     this.ctx.save();
-    const packetRadius = Math.max(4, 8 * sizeScale);
-    this.ctx.fillStyle = colorTint || PACKET_COLORS[owner];
+    const packetRadius = Math.max(4, 8 * packet.sizeScale);
+    const usesSprite =
+      this.useUnitSprites &&
+      packet.spriteId !== undefined &&
+      packet.spriteId.length > 0 &&
+      this.unitSpriteAtlas.isReady();
+
+    if (usesSprite) {
+      const facing = resolvePacketFacing(world, packet);
+      packet.spriteFacing = facing;
+      const drawn = this.unitSpriteAtlas.drawSprite(
+        this.ctx,
+        packet.spriteId ?? "",
+        facing,
+        packet.ageSec + (packet.spriteAnimPhase ?? 0),
+        position.x,
+        position.y,
+        packet.sizeScale,
+      );
+      if (drawn) {
+        if (packet.isElite) {
+          this.ctx.strokeStyle = "#ffd166";
+          this.ctx.lineWidth = 1.5;
+          this.ctx.beginPath();
+          this.ctx.arc(position.x, position.y, packetRadius + 1, 0, Math.PI * 2);
+          this.ctx.stroke();
+        }
+        this.drawPacketCountLabel(position, packet.count);
+        this.ctx.restore();
+        return;
+      }
+    }
+
+    this.ctx.fillStyle = packet.colorTint || PACKET_COLORS[packet.owner];
     this.ctx.beginPath();
     this.ctx.arc(position.x, position.y, packetRadius, 0, Math.PI * 2);
     this.ctx.fill();
 
-    this.ctx.strokeStyle = isElite ? "#ffd166" : "#0b0c0d";
+    this.ctx.strokeStyle = packet.isElite ? "#ffd166" : "#0b0c0d";
     this.ctx.lineWidth = 1.5;
     this.ctx.stroke();
 
+    this.drawPacketCountLabel(position, packet.count);
+    if (packet.icon) {
+      this.ctx.font = "bold 10px Arial";
+      this.ctx.fillStyle = "#ffffff";
+      this.ctx.textAlign = "center";
+      this.ctx.textBaseline = "middle";
+      this.ctx.fillText(packet.icon, position.x, position.y + 0.5);
+    }
+    this.ctx.restore();
+  }
+
+  private drawPacketCountLabel(position: Vec2, count: number): void {
     this.ctx.fillStyle = "#ffffff";
     this.ctx.font = "11px Arial";
     this.ctx.textAlign = "center";
     this.ctx.textBaseline = "middle";
     this.ctx.fillText(String(Math.max(0, Math.round(count))), position.x, position.y - 14);
-    if (icon) {
-      this.ctx.font = "bold 10px Arial";
-      this.ctx.fillText(icon, position.x, position.y + 0.5);
-    }
-    this.ctx.restore();
   }
 
   private drawTelegraphs(waveRenderState: WaveRenderState): void {
@@ -772,4 +810,85 @@ function getPolylineLength(points: Vec2[]): number {
     totalLength += Math.hypot(points[i].x - points[i - 1].x, points[i].y - points[i - 1].y);
   }
   return totalLength;
+}
+
+function resolvePacketFacing(world: World, packet: UnitPacket): UnitSpriteFacing {
+  const link = world.getLinkById(packet.linkId);
+  if (!link || link.points.length < 2) {
+    return packet.spriteFacing ?? "down";
+  }
+  return resolveFacingFromPolyline(link.points, packet.progress01);
+}
+
+function resolveFacingFromPolyline(points: Vec2[], progress01: number): UnitSpriteFacing {
+  const totalLength = getPolylineLength(points);
+  if (totalLength <= 0.001) {
+    return "down";
+  }
+
+  const currentDistance = clamp01(progress01) * totalLength;
+  const aheadDistance = Math.min(1, clamp01(progress01) + 0.01) * totalLength;
+
+  let walkedDistance = 0;
+  let currentX = points[0].x;
+  let currentY = points[0].y;
+  let aheadX = currentX;
+  let aheadY = currentY;
+  let currentResolved = false;
+  let aheadResolved = false;
+
+  for (let i = 1; i < points.length; i += 1) {
+    const start = points[i - 1];
+    const end = points[i];
+    const segmentDx = end.x - start.x;
+    const segmentDy = end.y - start.y;
+    const segmentLength = Math.hypot(segmentDx, segmentDy);
+    if (segmentLength <= 0.001) {
+      continue;
+    }
+
+    const nextWalkedDistance = walkedDistance + segmentLength;
+    if (!currentResolved && nextWalkedDistance >= currentDistance) {
+      const t = (currentDistance - walkedDistance) / segmentLength;
+      currentX = start.x + segmentDx * t;
+      currentY = start.y + segmentDy * t;
+      currentResolved = true;
+    }
+    if (!aheadResolved && nextWalkedDistance >= aheadDistance) {
+      const t = (aheadDistance - walkedDistance) / segmentLength;
+      aheadX = start.x + segmentDx * t;
+      aheadY = start.y + segmentDy * t;
+      aheadResolved = true;
+    }
+
+    if (currentResolved && aheadResolved) {
+      break;
+    }
+    walkedDistance = nextWalkedDistance;
+  }
+
+  if (!currentResolved) {
+    const last = points[points.length - 1];
+    currentX = last.x;
+    currentY = last.y;
+  }
+  if (!aheadResolved) {
+    const last = points[points.length - 1];
+    aheadX = last.x;
+    aheadY = last.y;
+  }
+
+  let dx = aheadX - currentX;
+  let dy = aheadY - currentY;
+  if (Math.abs(dx) <= 0.001 && Math.abs(dy) <= 0.001) {
+    const end = points[points.length - 1];
+    const beforeEnd = points[points.length - 2];
+    dx = end.x - beforeEnd.x;
+    dy = end.y - beforeEnd.y;
+  }
+
+  if (Math.abs(dx) > Math.abs(dy)) {
+    return dx >= 0 ? "right" : "left";
+  }
+  return dy >= 0 ? "down" : "up";
 }

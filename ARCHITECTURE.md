@@ -14,7 +14,8 @@
 - `src/sim/Simulation.ts`: regen, sending, packet combat, movement, arrival/capture, modifier hooks, effective armor damage resolution.
 - `src/sim/TerritoryControl.ts`: connected-cluster graph computation and territory bonus application/reset.
 - `src/input/InputController.ts`: player drag-to-link interactions plus tower selection tracking.
-- `src/render/Renderer2D.ts`: links/towers/packets rendering plus telegraphs, boss bar, and territory cluster visual cues.
+- `src/render/Renderer2D.ts`: links/towers/packets rendering plus telegraphs, boss bar, territory cluster visual cues, and packet sprite fallback rendering.
+- `src/render/UnitSpriteAtlas.ts`: data-driven unit sprite metadata/image loader and cached sprite frame rendering.
 - `src/ui/hud/*`: modular HUD zones (`TopBarZone`, `WaveIntelPanel`, `ObjectiveCard`, `TowerInspectorPanel`) and view-model assembly (`buildHudViewModel.ts`).
 
 ## Meta progression modules (M8)
@@ -40,6 +41,7 @@
 - Ascensions: `public/data/ascensions.json`
 - Permanent unlock pacing: `public/data/unlocks.json`
 - Enemy archetypes: `public/data/enemyArchetypes.json`
+- Unit sprite metadata: `public/data/unitSprites.json`
 - Wave modifiers: `public/data/wave-modifiers.json`
 - Handcrafted waves: `public/data/waves-handcrafted.json`
 - Wave scaling/rewards/elite/boss config: `public/data/wave-balance.json`
