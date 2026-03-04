@@ -6,6 +6,11 @@
 
 import { Game, type MatchResult } from "./game/Game";
 import {
+  unitArchetypeRegistry,
+  UNIT_ARCHETYPES_UPDATED_EVENT,
+  type UnitArchetypeCatalog,
+} from "./data/UnitArchetypes";
+import {
   DIFFICULTY_TIER_IDS,
   DEFAULT_DIFFICULTY_TIER,
   type DifficultyTierId,
@@ -260,6 +265,9 @@ async function bootstrap(): Promise<void> {
     loadLevelRegistry(),
     tutorialRegistryPromise,
   ]);
+  await unitArchetypeRegistry.ensureLoaded().catch((error) => {
+    console.error("Failed to initialize unit archetype visuals. Falling back to packet circles.", error);
+  });
 
   let activeTowerArchetypes = resolveTowerArchetypesFromEditorSnapshot(depthContent.towerArchetypes);
   renderer.setTowerArchetypeArt(buildTowerArchetypeArtMap(activeTowerArchetypes));
@@ -454,6 +462,20 @@ async function bootstrap(): Promise<void> {
       return;
     }
     renderer.setFactionTintConfig(detail.config);
+    render();
+  });
+
+  window.addEventListener(UNIT_ARCHETYPES_UPDATED_EVENT, (event: Event) => {
+    const detail = (event as CustomEvent<{ catalog?: UnitArchetypeCatalog } | undefined>).detail;
+    if (!detail?.catalog) {
+      return;
+    }
+    try {
+      unitArchetypeRegistry.setCatalog(detail.catalog);
+    } catch (error) {
+      console.error("Failed to apply live unit archetype update", error);
+      return;
+    }
     render();
   });
 

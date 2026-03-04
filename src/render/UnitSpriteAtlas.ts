@@ -27,7 +27,7 @@ interface UnitSpriteCatalogInput {
   sprites: Record<string, UnitSpriteDefinitionInput>;
 }
 
-interface UnitSpriteFrameRect {
+export interface UnitSpriteFrameRect {
   x: number;
   y: number;
   w: number;
@@ -40,6 +40,35 @@ interface UnitSpriteDefinition {
   pivotX: number;
   pivotY: number;
   directions: Record<UnitSpriteFacing, UnitSpriteFrameRect[]>;
+}
+
+export interface UnitSpriteAnimDefinition {
+  spriteId: string;
+  fps: number;
+  frameCounts: Record<UnitSpriteFacing, number>;
+}
+
+export interface UnitSpriteAnimFrame {
+  image: HTMLImageElement;
+  imagePath: string;
+  frame: UnitSpriteFrameRect;
+  pivotX: number;
+  pivotY: number;
+  directionFrameCount: number;
+}
+
+export interface DrawUnitSpriteAnimationParams {
+  spriteId: string;
+  facing: UnitSpriteFacing;
+  timeSec: number;
+  worldX: number;
+  worldY: number;
+  sizeScale: number;
+  frames?: number[];
+  fps?: number;
+  loop?: boolean;
+  offsetX?: number;
+  offsetY?: number;
 }
 
 const FACINGS: UnitSpriteFacing[] = ["up", "down", "left", "right"];
@@ -73,6 +102,66 @@ export class UnitSpriteAtlas {
     return this.ready;
   }
 
+  getSpriteIds(): string[] {
+    return Array.from(this.spriteById.keys()).sort((left, right) => left.localeCompare(right));
+  }
+
+  getDirectionFrameCount(spriteId: string, facing: UnitSpriteFacing): number {
+    const definition = this.spriteById.get(spriteId);
+    if (!definition) {
+      return 0;
+    }
+    const frames = resolveDirectionFrames(definition, facing);
+    return frames.length;
+  }
+
+  getAnimDefinition(spriteId: string): UnitSpriteAnimDefinition | null {
+    const definition = this.spriteById.get(spriteId);
+    if (!definition) {
+      return null;
+    }
+    return {
+      spriteId,
+      fps: definition.fps,
+      frameCounts: {
+        up: resolveDirectionFrames(definition, "up").length,
+        down: resolveDirectionFrames(definition, "down").length,
+        left: resolveDirectionFrames(definition, "left").length,
+        right: resolveDirectionFrames(definition, "right").length,
+      },
+    };
+  }
+
+  getUnitAnimFrame(
+    spriteId: string,
+    facing: UnitSpriteFacing,
+    frameIndex: number,
+  ): UnitSpriteAnimFrame | null {
+    if (!this.ready) {
+      return null;
+    }
+
+    const resolved = this.resolveSprite(spriteId);
+    if (!resolved) {
+      return null;
+    }
+
+    const directionFrames = resolveDirectionFrames(resolved.definition, facing);
+    if (directionFrames.length === 0) {
+      return null;
+    }
+
+    const clampedIndex = clampInt(frameIndex, 0, directionFrames.length - 1);
+    return {
+      image: resolved.image,
+      imagePath: resolved.definition.image,
+      frame: directionFrames[clampedIndex],
+      pivotX: resolved.definition.pivotX,
+      pivotY: resolved.definition.pivotY,
+      directionFrameCount: directionFrames.length,
+    };
+  }
+
   drawSprite(
     ctx: CanvasRenderingContext2D,
     spriteId: string,
@@ -82,38 +171,57 @@ export class UnitSpriteAtlas {
     worldY: number,
     sizeScale: number,
   ): boolean {
+    return this.drawAnimation(ctx, {
+      spriteId,
+      facing,
+      timeSec,
+      worldX,
+      worldY,
+      sizeScale,
+    });
+  }
+
+  drawAnimation(ctx: CanvasRenderingContext2D, params: DrawUnitSpriteAnimationParams): boolean {
     if (!this.ready) {
       return false;
     }
 
-    const definition = this.spriteById.get(spriteId);
-    if (!definition) {
-      return false;
-    }
-    const image = this.imageByPath.get(definition.image);
-    if (!image) {
+    const resolved = this.resolveSprite(params.spriteId);
+    if (!resolved) {
       return false;
     }
 
-    const directionFrames = definition.directions[facing];
-    const frames = directionFrames.length > 0 ? directionFrames : definition.directions.down;
-    if (frames.length === 0) {
+    const directionFrames = resolveDirectionFrames(resolved.definition, params.facing);
+    if (directionFrames.length === 0) {
       return false;
     }
 
-    const frameIndex =
-      Math.floor(Math.max(0, timeSec) * Math.max(1, definition.fps)) % frames.length;
-    const frame = frames[frameIndex];
-    const scale = Math.max(0.2, sizeScale);
+    const frameSequence = normalizeFrameSequence(params.frames, directionFrames.length);
+    if (frameSequence.length === 0) {
+      return false;
+    }
+
+    const effectiveFps =
+      typeof params.fps === "number" && Number.isFinite(params.fps) && params.fps > 0
+        ? params.fps
+        : resolved.definition.fps;
+    const shouldLoop = params.loop ?? true;
+    const elapsedFrames = Math.floor(Math.max(0, params.timeSec) * Math.max(0.01, effectiveFps));
+    const sequenceIndex = shouldLoop
+      ? elapsedFrames % frameSequence.length
+      : clampInt(elapsedFrames, 0, frameSequence.length - 1);
+    const frame = directionFrames[frameSequence[sequenceIndex]];
+
+    const scale = Math.max(0.2, params.sizeScale);
     const drawW = frame.w * scale;
     const drawH = frame.h * scale;
-    const drawX = Math.round(worldX - definition.pivotX * scale);
-    const drawY = Math.round(worldY - definition.pivotY * scale);
+    const drawX = Math.round(params.worldX - resolved.definition.pivotX * scale + (params.offsetX ?? 0));
+    const drawY = Math.round(params.worldY - resolved.definition.pivotY * scale + (params.offsetY ?? 0));
 
     const previousSmoothing = ctx.imageSmoothingEnabled;
     ctx.imageSmoothingEnabled = false;
     ctx.drawImage(
-      image,
+      resolved.image,
       frame.x,
       frame.y,
       frame.w,
@@ -125,6 +233,20 @@ export class UnitSpriteAtlas {
     );
     ctx.imageSmoothingEnabled = previousSmoothing;
     return true;
+  }
+
+  private resolveSprite(
+    spriteId: string,
+  ): { definition: UnitSpriteDefinition; image: HTMLImageElement } | null {
+    const definition = this.spriteById.get(spriteId);
+    if (!definition) {
+      return null;
+    }
+    const image = this.imageByPath.get(definition.image);
+    if (!image) {
+      return null;
+    }
+    return { definition, image };
   }
 
   private async loadInternal(): Promise<void> {
@@ -293,6 +415,45 @@ function parseFrameRect(
   throw new Error(
     `Sprite ${spriteId} direction ${facing} frame ${index} must define either (x,y) or (col,row)`,
   );
+}
+
+function resolveDirectionFrames(
+  definition: UnitSpriteDefinition,
+  facing: UnitSpriteFacing,
+): UnitSpriteFrameRect[] {
+  const directionFrames = definition.directions[facing];
+  if (directionFrames.length > 0) {
+    return directionFrames;
+  }
+  return definition.directions.down;
+}
+
+function normalizeFrameSequence(frames: number[] | undefined, directionFrameCount: number): number[] {
+  if (directionFrameCount <= 0) {
+    return [];
+  }
+
+  if (!frames || frames.length === 0) {
+    const defaults: number[] = [];
+    for (let index = 0; index < directionFrameCount; index += 1) {
+      defaults.push(index);
+    }
+    return defaults;
+  }
+
+  const normalized: number[] = [];
+  for (const frameIndex of frames) {
+    if (!Number.isFinite(frameIndex)) {
+      continue;
+    }
+    const clamped = clampInt(frameIndex, 0, directionFrameCount - 1);
+    normalized.push(clamped);
+  }
+  return normalized;
+}
+
+function clampInt(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, Math.floor(value)));
 }
 
 function loadImage(path: string): Promise<HTMLImageElement> {

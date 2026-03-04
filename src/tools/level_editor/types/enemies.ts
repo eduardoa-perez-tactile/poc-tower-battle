@@ -26,6 +26,7 @@ export interface EnemyArchetype {
   displayName: string;
   description?: string;
   role?: string;
+  unitArchetypeId?: string;
   baseStats: EnemyArchetypeBaseStats;
   spawnWeight: number;
   isBoss: boolean;
@@ -41,4 +42,3 @@ export interface LevelEnemySet {
   minibossWave?: number;
   bossId?: string;
 }
-

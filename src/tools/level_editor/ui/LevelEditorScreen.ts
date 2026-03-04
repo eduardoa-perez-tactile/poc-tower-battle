@@ -2,6 +2,12 @@ import type { DifficultyTierId } from "../../../config/Difficulty";
 import { createButton } from "../../../components/ui/primitives";
 import type { CampaignSpecV2 } from "../../../campaign/CampaignTypes";
 import {
+  parseUnitArchetypeCatalog,
+  UNIT_ARCHETYPE_DOC_PATH,
+  UNIT_ARCHETYPES_UPDATED_EVENT,
+  type UnitArchetypeCatalog,
+} from "../../../data/UnitArchetypes";
+import {
   createFactionTintConfigDoc,
   DEFAULT_FACTION_TINT_DOC,
   resolveFactionTintConfig,
@@ -33,6 +39,7 @@ import { createTutorialTab } from "./TutorialTab";
 import { ArtPreviewAssetManager, ArtPreviewRenderer } from "./ArtPreviewRenderer";
 import { createTowerDictionaryTab } from "./TowerDictionaryTab";
 import { createTileLibraryTab } from "./TileLibraryTab";
+import { createUnitArchetypesTab } from "./UnitArchetypesTab";
 
 export interface LevelEditorScreenProps {
   onBack: () => void;
@@ -43,7 +50,7 @@ interface EditorUiState {
   loadError: string | null;
   workspace: LevelEditorWorkspace | null;
   selection: LevelEditorSelection | null;
-  activeTab: "levels" | "enemies" | "tutorial" | "tower-dictionary" | "tile-library";
+  activeTab: "levels" | "enemies" | "tutorial" | "tower-dictionary" | "tile-library" | "unit-archetypes";
   libraryScope: "campaign" | "presets" | "globals";
   campaignStageIndex: number;
   campaignLevelIndex: number;
@@ -158,7 +165,21 @@ export function renderLevelEditorScreen(props: LevelEditorScreenProps): HTMLDivE
     state.activeTab = "tile-library";
     renderAll();
   };
-  toolbar.append(levelsTabBtn, enemiesTabBtn, tutorialTabBtn, towerDictionaryTabBtn, tileLibraryTabBtn);
+  const unitArchetypesTabBtn = document.createElement("button");
+  unitArchetypesTabBtn.type = "button";
+  unitArchetypesTabBtn.textContent = "Unit Archetypes";
+  unitArchetypesTabBtn.onclick = () => {
+    state.activeTab = "unit-archetypes";
+    renderAll();
+  };
+  toolbar.append(
+    levelsTabBtn,
+    enemiesTabBtn,
+    tutorialTabBtn,
+    towerDictionaryTabBtn,
+    tileLibraryTabBtn,
+    unitArchetypesTabBtn,
+  );
 
   const layout = document.createElement("div");
   layout.style.display = "grid";
@@ -255,7 +276,36 @@ export function renderLevelEditorScreen(props: LevelEditorScreenProps): HTMLDivE
   });
   tileLibraryRoot.appendChild(tileLibraryTab.root);
 
-  panel.append(header, toolbar, layout, enemiesRoot, tutorialRoot, towerDictionaryRoot, tileLibraryRoot, status);
+  const unitArchetypesRoot = document.createElement("div");
+  const unitArchetypesTab = createUnitArchetypesTab({
+    getWorkspace: () => state.workspace,
+    commitWorkspace: (updater) => {
+      if (!state.workspace) {
+        return;
+      }
+      const nextWorkspace = updater(state.workspace);
+      if (nextWorkspace !== state.workspace) {
+        setWorkspace(nextWorkspace);
+      }
+    },
+    onInfoMessage: (message) => {
+      state.infoMessage = message;
+      renderStatus();
+    },
+  });
+  unitArchetypesRoot.appendChild(unitArchetypesTab.root);
+
+  panel.append(
+    header,
+    toolbar,
+    layout,
+    enemiesRoot,
+    tutorialRoot,
+    towerDictionaryRoot,
+    tileLibraryRoot,
+    unitArchetypesRoot,
+    status,
+  );
 
   void initialize();
   renderAll();
@@ -296,18 +346,21 @@ export function renderLevelEditorScreen(props: LevelEditorScreenProps): HTMLDivE
     applyTabButtonStyle(tutorialTabBtn, state.activeTab === "tutorial");
     applyTabButtonStyle(towerDictionaryTabBtn, state.activeTab === "tower-dictionary");
     applyTabButtonStyle(tileLibraryTabBtn, state.activeTab === "tile-library");
+    applyTabButtonStyle(unitArchetypesTabBtn, state.activeTab === "unit-archetypes");
 
     const showLevels = state.activeTab === "levels";
     const showEnemies = state.activeTab === "enemies";
     const showTutorial = state.activeTab === "tutorial";
     const showTowerDictionary = state.activeTab === "tower-dictionary";
     const showTileLibrary = state.activeTab === "tile-library";
+    const showUnitArchetypes = state.activeTab === "unit-archetypes";
     layout.style.display = showLevels ? "grid" : "none";
     status.style.display = showLevels ? "block" : "none";
     enemiesTab.setActive(showEnemies);
     tutorialTab.setActive(showTutorial);
     towerDictionaryTab.setActive(showTowerDictionary);
     tileLibraryTab.setActive(showTileLibrary);
+    unitArchetypesTab.setActive(showUnitArchetypes);
 
     if (showLevels) {
       renderLibrary();
@@ -1213,6 +1266,12 @@ export function renderLevelEditorScreen(props: LevelEditorScreenProps): HTMLDivE
     state.workspace = nextWorkspace;
     state.issues = validateWorkspace(nextWorkspace);
     saveWorkspaceSnapshot(nextWorkspace);
+    if (didUnitArchetypeDocChange(previousWorkspace, nextWorkspace)) {
+      const unitCatalog = resolveWorkspaceUnitArchetypes(nextWorkspace);
+      if (unitCatalog) {
+        dispatchUnitArchetypeUpdate(unitCatalog);
+      }
+    }
     if (didFactionTintDocChange(previousWorkspace, nextWorkspace)) {
       dispatchFactionTintUpdate(resolveWorkspaceFactionTints(nextWorkspace));
     }
@@ -2263,6 +2322,35 @@ function dispatchFactionTintUpdate(config: ReturnType<typeof resolveFactionTintC
   window.dispatchEvent(
     new CustomEvent("tower-battle:faction-tints-updated", {
       detail: { config },
+    }),
+  );
+}
+
+function resolveWorkspaceUnitArchetypes(workspace: LevelEditorWorkspace): UnitArchetypeCatalog | null {
+  const doc = workspace.docs[UNIT_ARCHETYPE_DOC_PATH];
+  if (!doc || doc.currentData === null) {
+    return null;
+  }
+  try {
+    return parseUnitArchetypeCatalog(doc.currentData, UNIT_ARCHETYPE_DOC_PATH);
+  } catch {
+    return null;
+  }
+}
+
+function didUnitArchetypeDocChange(
+  previous: LevelEditorWorkspace | null,
+  next: LevelEditorWorkspace,
+): boolean {
+  const prevRaw = previous?.docs[UNIT_ARCHETYPE_DOC_PATH]?.currentRaw ?? null;
+  const nextRaw = next.docs[UNIT_ARCHETYPE_DOC_PATH]?.currentRaw ?? null;
+  return prevRaw !== nextRaw;
+}
+
+function dispatchUnitArchetypeUpdate(catalog: UnitArchetypeCatalog): void {
+  window.dispatchEvent(
+    new CustomEvent(UNIT_ARCHETYPES_UPDATED_EVENT, {
+      detail: { catalog },
     }),
   );
 }

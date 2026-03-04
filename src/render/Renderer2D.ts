@@ -3,6 +3,11 @@ import type {
   LinkCandidateState,
   PointerHint,
 } from "../input/InputController";
+import {
+  unitArchetypeRegistry,
+  type UnitVisualDefinition,
+  type UnitWalkAnimationOverride,
+} from "../data/UnitArchetypes";
 import type { GridRenderData } from "../levels/runtime";
 import type { TerrainData } from "../types/Terrain";
 import type { LevelVisualsData } from "../types/Visuals";
@@ -42,6 +47,15 @@ const PACKET_COLORS: Record<Owner, string> = {
 };
 
 const DEFAULT_USE_UNIT_SPRITES = true;
+const SPRITE_FALLBACK_EPSILON = 0.01;
+
+interface PacketMotionState {
+  x: number;
+  y: number;
+  dx: number;
+  dy: number;
+  seenOnFrame: number;
+}
 
 export class Renderer2D {
   private readonly canvas: HTMLCanvasElement;
@@ -61,6 +75,10 @@ export class Renderer2D {
   private showMapReadabilityOverlay: boolean;
   private showMapOverlayLegend: boolean;
   private useUnitSprites: boolean;
+  private unitVisualsVersion: number;
+  private readonly unitVisualByKey: Map<string, UnitVisualDefinition | null>;
+  private readonly packetMotionById: Map<string, PacketMotionState>;
+  private renderFrameSequence: number;
 
   constructor(canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D) {
     this.canvas = canvas;
@@ -80,11 +98,18 @@ export class Renderer2D {
     this.showMapReadabilityOverlay = true;
     this.showMapOverlayLegend = false;
     this.useUnitSprites = DEFAULT_USE_UNIT_SPRITES;
+    this.unitVisualsVersion = -1;
+    this.unitVisualByKey = new Map<string, UnitVisualDefinition | null>();
+    this.packetMotionById = new Map<string, PacketMotionState>();
+    this.renderFrameSequence = 0;
     void this.spriteAtlas.ensureLoaded().catch((error) => {
       console.error("Failed to load map art atlas", error);
     });
     void this.unitSpriteAtlas.ensureLoaded().catch((error) => {
       console.error("Failed to load unit sprite atlas", error);
+    });
+    void unitArchetypeRegistry.ensureLoaded().catch((error) => {
+      console.error("Failed to load unit archetype visuals", error);
     });
   }
 
@@ -143,6 +168,9 @@ export class Renderer2D {
     linkBreakBursts: ReadonlyArray<{ x: number; y: number; ttlSec: number; radiusPx: number }>,
   ): void {
     this.clear();
+    this.renderFrameSequence += 1;
+    this.syncUnitVisualCacheVersion();
+    const renderTimeSec = performance.now() / 1000;
 
     const viewport = this.getViewportSize();
     const hasArtContent = this.mapTerrain !== null || this.mapVisuals !== null;
@@ -199,6 +227,7 @@ export class Renderer2D {
       }
       this.drawPacket(world, packet, position);
     }
+    this.prunePacketMotionCache();
 
     for (const tower of world.towers) {
       const candidateState = interaction.dragOverlay?.candidateStateByTowerId[tower.id] ?? null;
@@ -226,7 +255,7 @@ export class Renderer2D {
           interaction,
           showLegend: this.showMapOverlayLegend,
           showDebugIds: this.showMapDebugOverlay,
-          timeSec: performance.now() / 1000,
+          timeSec: renderTimeSec,
         },
         {
           offsetX: 0,
@@ -252,6 +281,35 @@ export class Renderer2D {
 
     if (bossBar) {
       this.drawBossBar(bossBar.name, bossBar.hp01);
+    }
+  }
+
+  private syncUnitVisualCacheVersion(): void {
+    const nextVersion = unitArchetypeRegistry.getVersion();
+    if (nextVersion === this.unitVisualsVersion) {
+      return;
+    }
+    this.unitVisualsVersion = nextVersion;
+    this.unitVisualByKey.clear();
+  }
+
+  private resolveUnitVisual(archetypeId: string): UnitVisualDefinition | null {
+    const cacheKey = `${this.unitVisualsVersion}:${archetypeId}`;
+    const cached = this.unitVisualByKey.get(cacheKey);
+    if (cached !== undefined) {
+      return cached;
+    }
+    const visual = unitArchetypeRegistry.getArchetype(archetypeId)?.visuals ?? null;
+    this.unitVisualByKey.set(cacheKey, visual);
+    return visual;
+  }
+
+  private prunePacketMotionCache(): void {
+    for (const [packetId, state] of this.packetMotionById.entries()) {
+      if (state.seenOnFrame === this.renderFrameSequence) {
+        continue;
+      }
+      this.packetMotionById.delete(packetId);
     }
   }
 
@@ -541,14 +599,62 @@ export class Renderer2D {
   private drawPacket(world: World, packet: UnitPacket, position: Vec2): void {
     this.ctx.save();
     const packetRadius = Math.max(4, 8 * packet.sizeScale);
-    const usesSprite =
-      this.useUnitSprites &&
-      packet.spriteId !== undefined &&
-      packet.spriteId.length > 0 &&
-      this.unitSpriteAtlas.isReady();
+    const hasSpriteAtlas = this.useUnitSprites && this.unitSpriteAtlas.isReady();
+    const visualArchetypeIds = resolvePacketUnitArchetypeCandidates(packet);
 
-    if (usesSprite) {
-      const facing = resolvePacketFacing(world, packet);
+    if (hasSpriteAtlas && visualArchetypeIds.length > 0) {
+      const facing = resolveFacingFromVelocity(
+        world,
+        packet,
+        position,
+        this.packetMotionById,
+        this.renderFrameSequence,
+      );
+      packet.spriteFacing = facing;
+      for (const visualArchetypeId of visualArchetypeIds) {
+        const visual = this.resolveUnitVisual(visualArchetypeId);
+        const walkAnimation = resolveWalkAnimation(visual, facing);
+        if (!walkAnimation) {
+          continue;
+        }
+        const effectiveScale = visual?.sizeScale ?? packet.sizeScale;
+        const drawn = this.unitSpriteAtlas.drawAnimation(this.ctx, {
+          spriteId: walkAnimation.spriteKey,
+          facing,
+          timeSec: packet.ageSec + (packet.spriteAnimPhase ?? 0),
+          worldX: position.x,
+          worldY: position.y,
+          sizeScale: effectiveScale,
+          frames: walkAnimation.frames,
+          fps: walkAnimation.fps,
+          loop: walkAnimation.loop ?? true,
+          offsetX: visual?.offsetX ?? 0,
+          offsetY: visual?.offsetY ?? 0,
+        });
+        if (drawn) {
+          if (packet.isElite) {
+            this.drawEliteSpriteRing(position, packetRadius);
+          }
+          this.drawPacketCountLabel(position, packet.count);
+          this.ctx.restore();
+          return;
+        }
+      }
+    }
+
+    const useLegacySpriteFallback =
+      hasSpriteAtlas &&
+      packet.spriteId !== undefined &&
+      packet.spriteId.length > 0;
+
+    if (useLegacySpriteFallback) {
+      const facing = resolveFacingFromVelocity(
+        world,
+        packet,
+        position,
+        this.packetMotionById,
+        this.renderFrameSequence,
+      );
       packet.spriteFacing = facing;
       const drawn = this.unitSpriteAtlas.drawSprite(
         this.ctx,
@@ -561,11 +667,7 @@ export class Renderer2D {
       );
       if (drawn) {
         if (packet.isElite) {
-          this.ctx.strokeStyle = "#ffd166";
-          this.ctx.lineWidth = 1.5;
-          this.ctx.beginPath();
-          this.ctx.arc(position.x, position.y, packetRadius + 1, 0, Math.PI * 2);
-          this.ctx.stroke();
+          this.drawEliteSpriteRing(position, packetRadius);
         }
         this.drawPacketCountLabel(position, packet.count);
         this.ctx.restore();
@@ -578,10 +680,7 @@ export class Renderer2D {
     this.ctx.arc(position.x, position.y, packetRadius, 0, Math.PI * 2);
     this.ctx.fill();
 
-    this.ctx.strokeStyle = packet.isElite ? "#ffd166" : "#0b0c0d";
-    this.ctx.lineWidth = 1.5;
-    this.ctx.stroke();
-
+    this.drawPacketOutline(position, packetRadius, packet.isElite);
     this.drawPacketCountLabel(position, packet.count);
     if (packet.icon) {
       this.ctx.font = "bold 10px Arial";
@@ -591,6 +690,22 @@ export class Renderer2D {
       this.ctx.fillText(packet.icon, position.x, position.y + 0.5);
     }
     this.ctx.restore();
+  }
+
+  private drawPacketOutline(position: Vec2, packetRadius: number, isElite: boolean): void {
+    this.ctx.strokeStyle = isElite ? "#ffd166" : "#0b0c0d";
+    this.ctx.lineWidth = 1.5;
+    this.ctx.beginPath();
+    this.ctx.arc(position.x, position.y, packetRadius, 0, Math.PI * 2);
+    this.ctx.stroke();
+  }
+
+  private drawEliteSpriteRing(position: Vec2, packetRadius: number): void {
+    this.ctx.strokeStyle = "#ffd166";
+    this.ctx.lineWidth = 1.5;
+    this.ctx.beginPath();
+    this.ctx.arc(position.x, position.y, packetRadius + 1, 0, Math.PI * 2);
+    this.ctx.stroke();
   }
 
   private drawPacketCountLabel(position: Vec2, count: number): void {
@@ -812,12 +927,103 @@ function getPolylineLength(points: Vec2[]): number {
   return totalLength;
 }
 
-function resolvePacketFacing(world: World, packet: UnitPacket): UnitSpriteFacing {
+function resolvePacketUnitArchetypeCandidates(packet: UnitPacket): string[] {
+  const candidates: string[] = [];
+
+  const explicit = packet.unitArchetypeId?.trim();
+  if (explicit && explicit.length > 0) {
+    candidates.push(explicit);
+  }
+
+  const archetypeId = packet.archetypeId.trim();
+  if (archetypeId.length > 0 && !candidates.includes(archetypeId)) {
+    candidates.push(archetypeId);
+  }
+
+  if (!candidates.includes("basic")) {
+    candidates.push("basic");
+  }
+
+  return candidates;
+}
+
+function resolveWalkAnimation(
+  visual: UnitVisualDefinition | null,
+  facing: UnitSpriteFacing,
+): UnitWalkAnimationOverride | null {
+  if (!visual) {
+    return null;
+  }
+  const walk = visual.walk;
+  const override = walk?.[facing] ?? walk?.down;
+  if (override?.spriteKey) {
+    return override;
+  }
+  if (visual.spriteAtlasKey) {
+    return {
+      spriteKey: visual.spriteAtlasKey,
+      loop: true,
+    };
+  }
+  return null;
+}
+
+function resolveFacingFromVelocity(
+  world: World,
+  packet: UnitPacket,
+  position: Vec2,
+  motionById: Map<string, PacketMotionState>,
+  renderFrameSequence: number,
+): UnitSpriteFacing {
+  const previous = motionById.get(packet.id);
+  let dx = 0;
+  let dy = 0;
+
+  if (previous) {
+    dx = position.x - previous.x;
+    dy = position.y - previous.y;
+    if (Math.abs(dx) <= SPRITE_FALLBACK_EPSILON && Math.abs(dy) <= SPRITE_FALLBACK_EPSILON) {
+      dx = previous.dx;
+      dy = previous.dy;
+    }
+  }
+
+  if (Math.abs(dx) <= SPRITE_FALLBACK_EPSILON && Math.abs(dy) <= SPRITE_FALLBACK_EPSILON) {
+    const fallbackFacing = resolvePacketFacingFromPath(world, packet);
+    motionById.set(packet.id, {
+      x: position.x,
+      y: position.y,
+      dx,
+      dy,
+      seenOnFrame: renderFrameSequence,
+    });
+    return fallbackFacing;
+  }
+
+  motionById.set(packet.id, {
+    x: position.x,
+    y: position.y,
+    dx,
+    dy,
+    seenOnFrame: renderFrameSequence,
+  });
+
+  return facingFromDelta(dx, dy);
+}
+
+function resolvePacketFacingFromPath(world: World, packet: UnitPacket): UnitSpriteFacing {
   const link = world.getLinkById(packet.linkId);
   if (!link || link.points.length < 2) {
     return packet.spriteFacing ?? "down";
   }
   return resolveFacingFromPolyline(link.points, packet.progress01);
+}
+
+function facingFromDelta(dx: number, dy: number): UnitSpriteFacing {
+  if (Math.abs(dx) > Math.abs(dy)) {
+    return dx >= 0 ? "right" : "left";
+  }
+  return dy >= 0 ? "down" : "up";
 }
 
 function resolveFacingFromPolyline(points: Vec2[], progress01: number): UnitSpriteFacing {
@@ -887,8 +1093,5 @@ function resolveFacingFromPolyline(points: Vec2[], progress01: number): UnitSpri
     dy = end.y - beforeEnd.y;
   }
 
-  if (Math.abs(dx) > Math.abs(dy)) {
-    return dx >= 0 ? "right" : "left";
-  }
-  return dy >= 0 ? "down" : "up";
+  return facingFromDelta(dx, dy);
 }

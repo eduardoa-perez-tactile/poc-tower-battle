@@ -1,4 +1,5 @@
 import { createButton } from "../../../components/ui/primitives";
+import { parseUnitArchetypeCatalog, UNIT_ARCHETYPE_DOC_PATH } from "../../../data/UnitArchetypes";
 import type { LevelEditorWorkspace } from "../model/types";
 import { createEnemyDataStore } from "../data/EnemyDataStore";
 import type { EnemyArchetype, LevelEnemySet } from "../types/enemies";
@@ -308,6 +309,37 @@ export function createEnemiesTab(options: EnemiesTabOptions): EnemiesTabControll
     form.appendChild(makeCheckboxInput("isMiniboss", archetype.isMiniboss, (checked) => {
       updateSelectedArchetype((entry) => ({ ...entry, isMiniboss: checked }));
     }));
+
+    form.appendChild(sectionTitle("Visual Mapping"));
+    const unitArchetypeSelect = document.createElement("select");
+    applySelectStyle(unitArchetypeSelect);
+    const noneOption = document.createElement("option");
+    noneOption.value = "";
+    noneOption.textContent = "(Use enemy id / fallback to basic)";
+    unitArchetypeSelect.appendChild(noneOption);
+    const unitArchetypeIds = getUnitArchetypeIds(options.getWorkspace());
+    for (const id of unitArchetypeIds) {
+      const option = document.createElement("option");
+      option.value = id;
+      option.textContent = id;
+      unitArchetypeSelect.appendChild(option);
+    }
+    const currentUnitArchetypeId = archetype.unitArchetypeId?.trim() ?? "";
+    if (currentUnitArchetypeId.length > 0 && !unitArchetypeIds.includes(currentUnitArchetypeId)) {
+      const option = document.createElement("option");
+      option.value = currentUnitArchetypeId;
+      option.textContent = `${currentUnitArchetypeId} (missing in unitArchetypes)`;
+      unitArchetypeSelect.appendChild(option);
+    }
+    unitArchetypeSelect.value = currentUnitArchetypeId;
+    unitArchetypeSelect.onchange = () => {
+      const nextId = unitArchetypeSelect.value.trim();
+      updateSelectedArchetype((entry) => ({
+        ...entry,
+        unitArchetypeId: nextId.length > 0 ? nextId : undefined,
+      }));
+    };
+    form.appendChild(labelWith("unitArchetypeId", unitArchetypeSelect));
 
     const showShield =
       archetype.tags.includes("shield") ||
@@ -744,6 +776,25 @@ function uniqueStrings(values: string[]): string[] {
   return [...new Set(values)];
 }
 
+function getUnitArchetypeIds(workspace: LevelEditorWorkspace | null): string[] {
+  if (!workspace) {
+    return [];
+  }
+  const doc = workspace.docs[UNIT_ARCHETYPE_DOC_PATH];
+  if (!doc || !doc.currentData) {
+    return [];
+  }
+  try {
+    const catalog = parseUnitArchetypeCatalog(doc.currentData, UNIT_ARCHETYPE_DOC_PATH);
+    return catalog.archetypes
+      .map((entry) => entry.id)
+      .filter((id) => id.trim().length > 0)
+      .sort((left, right) => left.localeCompare(right));
+  } catch {
+    return [];
+  }
+}
+
 function validateArchetypeDraft(archetypes: EnemyArchetype[]): string[] {
   const errors: string[] = [];
   const seen = new Set<string>();
@@ -800,4 +851,3 @@ function validateLevelSetDraft(
   }
   return errors;
 }
-
