@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "player": {
+    "color": "#2dd4bf",
+    "strength": 0.22
+  },
+  "enemy": {
+    "color": "#fb7185",
+    "strength": 0.24
+  },
+  "neutral": {
+    "color": "#b8c2cf",
+    "strength": 0
+  }
+}

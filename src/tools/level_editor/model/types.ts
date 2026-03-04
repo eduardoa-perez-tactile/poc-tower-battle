@@ -13,6 +13,7 @@ import type {
 } from "../../../waves/Definitions";
 import type { AscensionDifficultyCatalog, StageDifficultyCatalog } from "../../../waves/DifficultyTypes";
 import type { TowerArchetypeCatalog } from "../../../sim/DepthTypes";
+import type { FactionTintConfigDoc } from "../../../render/FactionTintConfig";
 
 export const LEVEL_EDITOR_WORKSPACE_VERSION = 1;
 export const LEVEL_EDITOR_WORKSPACE_STORAGE_KEY = "tower-battle.level-editor.workspace.v1";
@@ -33,12 +34,14 @@ export type LevelEditorKnownJson =
   | AscensionDifficultyCatalog
   | TowerArchetypeCatalog
   | TutorialCatalog
+  | FactionTintConfigDoc
   | Record<string, unknown>
   | Array<unknown>;
 
 export type LevelEditorDocKind =
   | "campaign"
   | "wave-presets"
+  | "faction-tints"
   | "wave-balance"
   | "balance-baselines"
   | "difficulty-tiers"

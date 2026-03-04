@@ -1,6 +1,7 @@
 export const CORE_LEVEL_EDITOR_PATHS = [
   "/data/campaign/campaign_v2.json",
   "/data/waves/presets.json",
+  "/data/factionTints.json",
   "/data/wave-balance.json",
   "/data/balanceBaselines.json",
   "/data/difficultyTiers.json",

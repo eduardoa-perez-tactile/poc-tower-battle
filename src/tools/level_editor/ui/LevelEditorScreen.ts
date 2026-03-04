@@ -1,6 +1,11 @@
 import type { DifficultyTierId } from "../../../config/Difficulty";
 import { createButton } from "../../../components/ui/primitives";
 import type { CampaignSpecV2 } from "../../../campaign/CampaignTypes";
+import {
+  createFactionTintConfigDoc,
+  DEFAULT_FACTION_TINT_DOC,
+  resolveFactionTintConfig,
+} from "../../../render/FactionTintConfig";
 import { loadSpriteCatalog, type SpriteCatalog } from "../../../render/SpriteAtlas";
 import { toPrettyJson } from "../model/json";
 import type {
@@ -71,6 +76,8 @@ interface EditablePreviewMap {
 interface EditableMapPreviewController {
   resetView: () => void;
 }
+
+const FACTION_TINT_DOC_PATH = "/data/factionTints.json";
 
 export function renderLevelEditorScreen(props: LevelEditorScreenProps): HTMLDivElement {
   const panel = document.createElement("div");
@@ -1072,6 +1079,7 @@ export function renderLevelEditorScreen(props: LevelEditorScreenProps): HTMLDivE
         width: canvas.width,
         height: canvas.height,
       });
+      artPreviewRenderer.setFactionTintConfig(resolveWorkspaceFactionTints(workspace));
       const atlas = assetSnapshot.atlas;
       const renderedArt = assetSnapshot.state === "ready" && atlas && compilation.payload
         ? artPreviewRenderer.draw(canvas, compilation.payload, atlas)
@@ -1201,9 +1209,13 @@ export function renderLevelEditorScreen(props: LevelEditorScreenProps): HTMLDivE
   }
 
   function setWorkspace(nextWorkspace: LevelEditorWorkspace): void {
+    const previousWorkspace = state.workspace;
     state.workspace = nextWorkspace;
     state.issues = validateWorkspace(nextWorkspace);
     saveWorkspaceSnapshot(nextWorkspace);
+    if (didFactionTintDocChange(previousWorkspace, nextWorkspace)) {
+      dispatchFactionTintUpdate(resolveWorkspaceFactionTints(nextWorkspace));
+    }
     renderAll();
   }
 
@@ -1304,6 +1316,11 @@ function renderTypedForm(
   const campaignLevel = getSelectedCampaignLevel(workspace, selection);
   if (campaignLevel && selection.type === "campaign-mission") {
     container.appendChild(renderCampaignMissionForm(workspace, selection, onWorkspaceChange));
+    return;
+  }
+
+  if (selection.type === "file" && selection.docId === FACTION_TINT_DOC_PATH) {
+    container.appendChild(renderFactionTintForm(workspace, selection, onWorkspaceChange));
     return;
   }
 
@@ -1509,6 +1526,72 @@ function renderPresetForm(
   return form;
 }
 
+function renderFactionTintForm(
+  workspace: LevelEditorWorkspace,
+  selection: Extract<LevelEditorSelection, { type: "file" }>,
+  onWorkspaceChange: (workspace: LevelEditorWorkspace) => void,
+): HTMLElement {
+  const doc = workspace.docs[selection.docId];
+  const resolved = resolveFactionTintConfig(doc?.currentData ?? {});
+  const form = document.createElement("div");
+  form.style.display = "grid";
+  form.style.gap = "8px";
+
+  const hint = document.createElement("p");
+  hint.className = "campaign-progress-subtitle";
+  hint.textContent = "Global tower sprite tints by faction owner.";
+  form.appendChild(hint);
+
+  const playerColor = makeColorInput(resolved.player?.color ?? DEFAULT_FACTION_TINT_DOC.player?.color ?? "#2dd4bf", "player.color");
+  const playerStrength = makeNumberInput(resolved.player?.strength ?? DEFAULT_FACTION_TINT_DOC.player?.strength ?? 0.22, 0, 1, 0.01, "player.strength");
+  const enemyColor = makeColorInput(resolved.enemy?.color ?? DEFAULT_FACTION_TINT_DOC.enemy?.color ?? "#fb7185", "enemy.color");
+  const enemyStrength = makeNumberInput(resolved.enemy?.strength ?? DEFAULT_FACTION_TINT_DOC.enemy?.strength ?? 0.24, 0, 1, 0.01, "enemy.strength");
+  const neutralColor = makeColorInput(resolved.neutral?.color ?? DEFAULT_FACTION_TINT_DOC.neutral?.color ?? "#b8c2cf", "neutral.color");
+  const neutralStrength = makeNumberInput(resolved.neutral?.strength ?? DEFAULT_FACTION_TINT_DOC.neutral?.strength ?? 0, 0, 1, 0.01, "neutral.strength");
+
+  form.append(
+    labelWith("Player Tint", playerColor),
+    labelWith("Player Strength", playerStrength),
+    labelWith("Enemy Tint", enemyColor),
+    labelWith("Enemy Strength", enemyStrength),
+    labelWith("Neutral Tint", neutralColor),
+    labelWith("Neutral Strength", neutralStrength),
+  );
+
+  const apply = createButton("Apply Faction Tints", () => {
+    const next = createFactionTintConfigDoc({
+      player: {
+        color: normalizeHexColor(playerColor.value) ?? (DEFAULT_FACTION_TINT_DOC.player?.color ?? "#2dd4bf"),
+        strength: clamp01(parseFloatOr(playerStrength.value, DEFAULT_FACTION_TINT_DOC.player?.strength ?? 0.22)),
+      },
+      enemy: {
+        color: normalizeHexColor(enemyColor.value) ?? (DEFAULT_FACTION_TINT_DOC.enemy?.color ?? "#fb7185"),
+        strength: clamp01(parseFloatOr(enemyStrength.value, DEFAULT_FACTION_TINT_DOC.enemy?.strength ?? 0.24)),
+      },
+      neutral: {
+        color: normalizeHexColor(neutralColor.value) ?? (DEFAULT_FACTION_TINT_DOC.neutral?.color ?? "#b8c2cf"),
+        strength: clamp01(parseFloatOr(neutralStrength.value, DEFAULT_FACTION_TINT_DOC.neutral?.strength ?? 0)),
+      },
+    });
+    onWorkspaceChange(setDocumentData(workspace, selection.docId, next));
+  }, { variant: "secondary" });
+
+  const reset = createButton("Reset Defaults", () => {
+    onWorkspaceChange(setDocumentData(workspace, selection.docId, {
+      ...DEFAULT_FACTION_TINT_DOC,
+    }));
+  }, { variant: "ghost" });
+
+  const row = document.createElement("div");
+  row.style.display = "flex";
+  row.style.gap = "8px";
+  row.style.flexWrap = "wrap";
+  row.append(apply, reset);
+  form.appendChild(row);
+
+  return form;
+}
+
 function makeTextField(
   label: string,
   value: string,
@@ -1557,6 +1640,32 @@ function makeCheckboxField(
   input.dataset.fieldPath = fieldPath;
   input.onchange = () => onCommit(input.checked);
   return labelWith(label, input);
+}
+
+function makeColorInput(value: string, fieldPath: string): HTMLInputElement {
+  const input = document.createElement("input");
+  input.type = "color";
+  input.value = normalizeHexColor(value) ?? "#2dd4bf";
+  input.dataset.fieldPath = fieldPath;
+  return input;
+}
+
+function makeNumberInput(
+  value: number,
+  min: number,
+  max: number,
+  step: number,
+  fieldPath: string,
+): HTMLInputElement {
+  const input = document.createElement("input");
+  input.type = "number";
+  input.min = `${min}`;
+  input.max = `${max}`;
+  input.step = `${step}`;
+  input.value = Number.isFinite(value) ? String(value) : "0";
+  input.className = "campaign-generator-size-select";
+  input.dataset.fieldPath = fieldPath;
+  return input;
 }
 
 function drawMapPreview(canvas: HTMLCanvasElement, map: MapPreviewModel): void {
@@ -2134,6 +2243,51 @@ function clamp(value: number, min: number, max: number): number {
 
 function cssEscape(value: string): string {
   return value.replace(/([\\"\[\].:#])/g, "\\$1");
+}
+
+function resolveWorkspaceFactionTints(workspace: LevelEditorWorkspace) {
+  const doc = workspace.docs[FACTION_TINT_DOC_PATH];
+  return resolveFactionTintConfig(doc?.currentData ?? {});
+}
+
+function didFactionTintDocChange(
+  previous: LevelEditorWorkspace | null,
+  next: LevelEditorWorkspace,
+): boolean {
+  const prevRaw = previous?.docs[FACTION_TINT_DOC_PATH]?.currentRaw ?? null;
+  const nextRaw = next.docs[FACTION_TINT_DOC_PATH]?.currentRaw ?? null;
+  return prevRaw !== nextRaw;
+}
+
+function dispatchFactionTintUpdate(config: ReturnType<typeof resolveFactionTintConfig>): void {
+  window.dispatchEvent(
+    new CustomEvent("tower-battle:faction-tints-updated", {
+      detail: { config },
+    }),
+  );
+}
+
+function normalizeHexColor(value: string | undefined): string | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+  const trimmed = value.trim();
+  if (!/^#[0-9a-fA-F]{6}$/.test(trimmed)) {
+    return null;
+  }
+  return trimmed.toLowerCase();
+}
+
+function parseFloatOr(value: string, fallback: number): number {
+  const parsed = Number.parseFloat(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function clamp01(value: number): number {
+  if (!Number.isFinite(value)) {
+    return 0;
+  }
+  return Math.max(0, Math.min(1, value));
 }
 
 function applyTabButtonStyle(button: HTMLButtonElement, active: boolean): void {

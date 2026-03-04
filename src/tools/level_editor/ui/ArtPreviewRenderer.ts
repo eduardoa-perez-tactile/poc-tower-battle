@@ -1,5 +1,6 @@
 import { MapRenderer } from "../../../render/MapRenderer";
 import { SpriteAtlas } from "../../../render/SpriteAtlas";
+import type { ResolvedFactionTintConfig } from "../../../render/FactionTintConfig";
 import type { LevelEditorArtPreviewPayload } from "../services/artPreview";
 
 type ArtAssetState = "idle" | "loading" | "ready" | "error";
@@ -65,6 +66,10 @@ export class ArtPreviewRenderer {
   constructor() {
     this.mapRenderer = new MapRenderer();
     this.spriteDrawnTowerIds = new Set<string>();
+  }
+
+  setFactionTintConfig(config: ResolvedFactionTintConfig): void {
+    this.mapRenderer.setFactionTintConfig(config);
   }
 
   draw(
