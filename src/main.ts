@@ -16,7 +16,9 @@ import { buildRuntimeLevelFromLevel } from "./levels/adapter";
 import { cloneOptionalTerrain, cloneOptionalVisuals } from "./levels/LevelVisuals";
 import { findLevelById, findStageById, loadLevelRegistry } from "./levels/registry";
 import type { StageRegistryEntry } from "./levels/types";
-import type { CampaignMissionRuntimeMeta } from "./campaign/CampaignTypes";
+import { buildLevelJsonFromCampaignMap } from "./campaign/CampaignLoader";
+import type { CampaignMapDefinition, CampaignMissionRuntimeMeta, CampaignSpecV2, ResolvedCampaignWavePlan } from "./campaign/CampaignTypes";
+import type { LevelJson, LevelTilePalette } from "./levels/types";
 import { BALANCE_CONFIG } from "./meta/BalanceConfig";
 import {
   computeBaseMetaModifiers,
@@ -194,6 +196,7 @@ const MAP_READABILITY_OVERLAY_KEY = "tower-battle.map-readability-overlay.enable
 const MAP_READABILITY_LEGEND_KEY = "tower-battle.map-readability-overlay.legend";
 const LEVEL_EDITOR_WORKSPACE_STORAGE_KEY = "tower-battle.level-editor.workspace.v1";
 const TOWER_ARCHETYPE_DOC_PATH = "/data/towerArchetypes.json";
+const CAMPAIGN_DOC_PATH = "/data/campaign/campaign_v2.json";
 void bootstrap();
 
 async function bootstrap(): Promise<void> {
@@ -639,7 +642,16 @@ async function bootstrap(): Promise<void> {
       stopMission();
       const difficultyTierConfig = waveContent.difficultyTiers.difficultyTiers[DEFAULT_DIFFICULTY_TIER];
       const baseBonuses = computeBaseMetaModifiers(app.metaProfile, upgradeCatalog, ascensionCatalog, []);
-      const baseLevel = buildRuntimeLevelFromLevel(levelEntry.level, {
+      const levelFromEditorSnapshot = await buildCampaignLevelFromEditorSnapshot(
+        app.selectedStageId,
+        app.selectedLevelId,
+        levelEntry.level,
+        levelEntry.path,
+        mission,
+        missionMeta,
+      );
+      const levelForMission = levelFromEditorSnapshot ?? levelEntry.level;
+      const baseLevel = buildRuntimeLevelFromLevel(levelForMission, {
         viewport: {
           width: canvas.clientWidth || window.innerWidth,
           height: canvas.clientHeight || window.innerHeight,
@@ -2994,6 +3006,121 @@ function isTowerArchetypeCatalogShape(value: unknown): value is TowerArchetypeCa
     isObject(value.archetypes.BANK) &&
     isObject(value.archetypes.OBELISK)
   );
+}
+
+async function buildCampaignLevelFromEditorSnapshot(
+  stageId: string,
+  levelId: string,
+  fallbackLevel: LevelJson,
+  mapPath: string,
+  mission: LevelJson["missions"][number],
+  missionMeta: CampaignMissionRuntimeMeta | null,
+): Promise<LevelJson | null> {
+  const tilePalette = resolveCampaignTilePaletteFromEditorSnapshot(stageId, levelId);
+  if (!tilePalette) {
+    return null;
+  }
+
+  const map = await fetchCampaignMapDefinition(mapPath);
+  if (!map) {
+    return null;
+  }
+
+  const resolvedWavePlan: ResolvedCampaignWavePlan = {
+    preset: missionMeta?.wavePlan.preset ?? mission.waveSetId,
+    waves: missionMeta?.wavePlan.waves ?? 6,
+    missionDifficultyScalar: missionMeta?.wavePlan.missionDifficultyScalar ?? mission.difficulty ?? 1,
+    firstAppearanceWave: missionMeta?.wavePlan.firstAppearanceWave ?? 1,
+    minibossWave: missionMeta?.wavePlan.minibossWave ?? undefined,
+    bossEnabled: missionMeta?.wavePlan.bossEnabled ?? false,
+  };
+
+  return buildLevelJsonFromCampaignMap(
+    stageId,
+    levelId,
+    fallbackLevel.name,
+    mission.objectiveText,
+    map,
+    resolvedWavePlan,
+    mission.missionId,
+    mission.tutorialId,
+    tilePalette,
+  );
+}
+
+function resolveCampaignTilePaletteFromEditorSnapshot(stageId: string, levelId: string): LevelTilePalette | null {
+  const campaign = parseCampaignSpecFromEditorSnapshot();
+  if (!campaign) {
+    return null;
+  }
+
+  const stage = campaign.stages.find((entry) => entry.id === stageId);
+  if (!stage) {
+    return null;
+  }
+  const level = stage.levels.find((entry) => entry.id === levelId);
+  if (!level) {
+    return null;
+  }
+
+  return stage.tilePalette ?? level.tilePalette ?? null;
+}
+
+function parseCampaignSpecFromEditorSnapshot(): CampaignSpecV2 | null {
+  if (typeof localStorage === "undefined") {
+    return null;
+  }
+
+  const rawSnapshot = localStorage.getItem(LEVEL_EDITOR_WORKSPACE_STORAGE_KEY);
+  if (!rawSnapshot) {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(rawSnapshot) as unknown;
+    if (!isObject(parsed) || !Array.isArray(parsed.docs)) {
+      return null;
+    }
+    const campaignDoc = parsed.docs.find((entry) =>
+      isObject(entry) &&
+      entry.path === CAMPAIGN_DOC_PATH &&
+      typeof entry.currentRaw === "string",
+    ) as { currentRaw: string } | undefined;
+    if (!campaignDoc) {
+      return null;
+    }
+    const campaign = JSON.parse(campaignDoc.currentRaw) as unknown;
+    if (!isCampaignSpecShape(campaign)) {
+      return null;
+    }
+    return campaign;
+  } catch {
+    return null;
+  }
+}
+
+async function fetchCampaignMapDefinition(path: string): Promise<CampaignMapDefinition | null> {
+  try {
+    const response = await fetch(path);
+    if (!response.ok) {
+      return null;
+    }
+    const map = (await response.json()) as unknown;
+    if (!isCampaignMapShape(map)) {
+      return null;
+    }
+    return map;
+  } catch {
+    return null;
+  }
+}
+
+function isCampaignSpecShape(value: unknown): value is CampaignSpecV2 {
+  return isObject(value) && value.version === 2 && Array.isArray(value.stages);
+}
+
+function isCampaignMapShape(value: unknown): value is CampaignMapDefinition {
+  return isObject(value) && typeof value.id === "string" && Array.isArray(value.nodes) && Array.isArray(value.links);
 }
 
 function isObject(value: unknown): value is Record<string, unknown> {

@@ -154,7 +154,7 @@ export function selectionToOwningDocId(selection: LevelEditorSelection): string 
   return selection.docId;
 }
 
-function mutateCampaignStage(
+export function mutateCampaignStage(
   workspace: LevelEditorWorkspace,
   docId: string,
   stageIndex: number,
