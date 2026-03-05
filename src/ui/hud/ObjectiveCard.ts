@@ -1,9 +1,11 @@
 import type { ObjectiveCardVM } from "./types";
+import type { HudLayoutRuntime } from "./layout";
 
 export interface ObjectiveCardController {
   element: HTMLDivElement;
   update: (vm: ObjectiveCardVM) => void;
   reset: () => void;
+  setLayout: (layout: HudLayoutRuntime) => void;
 }
 
 export function createObjectiveCard(): ObjectiveCardController {
@@ -29,6 +31,11 @@ export function createObjectiveCard(): ObjectiveCardController {
 
   return {
     element: root,
+    setLayout(layout): void {
+      root.style.left = `${layout.edgePad}px`;
+      root.style.bottom = `${layout.edgePad}px`;
+      root.style.maxWidth = `min(320px, calc(100vw - ${layout.edgePad * 2}px))`;
+    },
     update(vm): void {
       title.textContent = vm.title;
       progressFill.style.width = `${Math.round(vm.progress01 * 100)}%`;

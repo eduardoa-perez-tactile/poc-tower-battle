@@ -1,9 +1,11 @@
 import type { TopBarVM } from "./types";
+import type { HudLayoutRuntime } from "./layout";
 
 export interface TopBarZoneController {
   element: HTMLDivElement;
   update: (vm: TopBarVM) => void;
   reset: () => void;
+  setLayout: (layout: HudLayoutRuntime) => void;
 }
 
 export interface TopBarZoneOptions {
@@ -72,6 +74,11 @@ export function createTopBarZone(options: TopBarZoneOptions): TopBarZoneControll
 
   return {
     element: root,
+    setLayout(layout): void {
+      root.style.top = `${layout.topZoneTopPx}px`;
+      root.style.left = `${layout.edgePad}px`;
+      root.style.right = `${layout.edgePad}px`;
+    },
     update(vm): void {
       missionTitle.textContent = vm.missionTitle;
       wave.textContent = vm.waveLabel;

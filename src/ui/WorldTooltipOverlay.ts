@@ -14,6 +14,7 @@ export interface WorldTooltipOverlayOptions {
   isDraggingLink: () => boolean;
   isTowerTooltipsEnabled: () => boolean;
   isEnemyTooltipsEnabled: () => boolean;
+  isDebugDetailsEnabled: () => boolean;
   getBossTooltipState: () => BossTooltipState | null;
   enemyArchetypesById: ReadonlyMap<string, EnemyArchetypeDefinition>;
 }
@@ -22,6 +23,8 @@ interface HoverTowerData {
   tower: Tower;
   incomingFriendlyCount: number;
   incomingEnemyCount: number;
+  incomingPacketCount: number;
+  outgoingPacketCount: number;
   incomingPlayerUnits: number;
   incomingEnemyUnits: number;
   incomingNeutralUnits: number;
@@ -186,7 +189,7 @@ export class WorldTooltipOverlay {
       const hoveredTower = world.getTowerAtPoint(this.pointerCanvasPos.x, this.pointerCanvasPos.y);
       if (hoveredTower) {
         const towerData = this.collectTowerData(world, hoveredTower);
-        this.showTowerTooltip(towerData, dragging);
+        this.showTowerTooltip(towerData, this.options.isDebugDetailsEnabled());
         this.hoveredAnchorWorld = {
           x: hoveredTower.x,
           y: hoveredTower.y - TOWER_RADIUS_PX,
@@ -228,27 +231,36 @@ export class WorldTooltipOverlay {
   private collectTowerData(world: World, tower: Tower): HoverTowerData {
     let incomingFriendlyCount = 0;
     let incomingEnemyCount = 0;
+    let incomingPacketCount = 0;
+    let outgoingPacketCount = 0;
     let incomingPlayerUnits = 0;
     let incomingEnemyUnits = 0;
     let incomingNeutralUnits = 0;
 
     for (const packet of world.packets) {
       const link = world.getLinkById(packet.linkId);
-      if (!link || link.toTowerId !== tower.id) {
+      if (!link) {
         continue;
       }
-      if (packet.owner === tower.owner) {
-        incomingFriendlyCount += 1;
-      } else {
-        incomingEnemyCount += 1;
+      if (link.toTowerId === tower.id) {
+        incomingPacketCount += 1;
+        if (packet.owner === tower.owner) {
+          incomingFriendlyCount += 1;
+        } else {
+          incomingEnemyCount += 1;
+        }
+
+        if (packet.owner === "player") {
+          incomingPlayerUnits += packet.count;
+        } else if (packet.owner === "enemy") {
+          incomingEnemyUnits += packet.count;
+        } else {
+          incomingNeutralUnits += packet.count;
+        }
       }
 
-      if (packet.owner === "player") {
-        incomingPlayerUnits += packet.count;
-      } else if (packet.owner === "enemy") {
-        incomingEnemyUnits += packet.count;
-      } else {
-        incomingNeutralUnits += packet.count;
+      if (link.fromTowerId === tower.id) {
+        outgoingPacketCount += 1;
       }
     }
 
@@ -274,6 +286,8 @@ export class WorldTooltipOverlay {
       tower,
       incomingFriendlyCount,
       incomingEnemyCount,
+      incomingPacketCount,
+      outgoingPacketCount,
       incomingPlayerUnits,
       incomingEnemyUnits,
       incomingNeutralUnits,
@@ -325,11 +339,13 @@ export class WorldTooltipOverlay {
     };
   }
 
-  private showTowerTooltip(data: HoverTowerData, minimalMode: boolean): void {
+  private showTowerTooltip(data: HoverTowerData, showDebugDetails: boolean): void {
     const ownerLabel = ownerText(data.tower.owner);
     const outgoingVisible = data.outgoingTargets.slice(0, 3);
     const outgoingOverflow = Math.max(0, data.outgoingTargets.length - outgoingVisible.length);
     const controlState = resolveTowerControlState(data);
+    const incomingText = String(data.incomingPacketCount);
+    const outgoingText = String(data.outgoingPacketCount);
 
     const signature = [
       "tower",
@@ -347,7 +363,9 @@ export class WorldTooltipOverlay {
       data.statusChips.join(","),
       controlState.statusLabel,
       controlState.ruleHint ?? "",
-      minimalMode ? "minimal" : "full",
+      incomingText,
+      outgoingText,
+      showDebugDetails ? "debug" : "minimal",
     ].join("|");
 
     if (signature !== this.contentSignature) {
@@ -355,7 +373,7 @@ export class WorldTooltipOverlay {
 
       const title = document.createElement("div");
       title.className = "world-tooltip-title";
-      title.textContent = `${data.tower.id} (${ownerLabel})`;
+      title.textContent = `${data.tower.id} (${data.tower.archetype})`;
       this.tooltip.appendChild(title);
 
       const mainValue = document.createElement("div");
@@ -363,14 +381,18 @@ export class WorldTooltipOverlay {
       mainValue.textContent = `Troops ${Math.round(data.tower.troops)} • Regen ${data.tower.regenRate.toFixed(2)}/s`;
       this.tooltip.appendChild(mainValue);
 
-      if (!minimalMode) {
+      this.tooltip.appendChild(createTooltipRow("Incoming", incomingText));
+      this.tooltip.appendChild(createTooltipRow("Outgoing", outgoingText));
+
+      if (showDebugDetails) {
+        this.tooltip.appendChild(createTooltipRow("Owner", ownerLabel));
         this.tooltip.appendChild(createTooltipRow("Tower", data.tower.archetype));
 
-        const incomingText =
+        const detailedIncomingText =
           data.incomingFriendlyCount + data.incomingEnemyCount > 0
             ? `F ${data.incomingFriendlyCount} / E ${data.incomingEnemyCount}`
             : "?";
-        this.tooltip.appendChild(createTooltipRow("Incoming", incomingText));
+        this.tooltip.appendChild(createTooltipRow("Incoming Mix", detailedIncomingText));
         this.tooltip.appendChild(createTooltipRow("Links", `${data.outgoingLinkCount}/${data.maxOutgoingLinks}`));
         this.tooltip.appendChild(createTooltipRow("Linking", "Can link to adjacent towers only."));
         if (data.maxOutgoingLinks > 1) {

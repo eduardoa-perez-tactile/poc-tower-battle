@@ -1,9 +1,14 @@
 import { TOWER_RADIUS_PX, type Owner } from "../../sim/World";
 import { useWorldToScreen } from "../worldToScreen";
 import { createObjectiveCard, type ObjectiveCardController } from "./ObjectiveCard";
+import { computeHudLayout, type HudLayoutRuntime } from "./layout";
 import { createTopBarZone, type TopBarZoneController } from "./TopBarZone";
-import { Toasts } from "./Toasts";
-import { createTowerInspectorPanel, type TowerInspectorPanelController } from "./TowerInspectorPanel";
+import { AlertManager } from "./Toasts";
+import {
+  createTowerInspectorPanel,
+  type TowerInspectorPanelController,
+  type TowerInspectorUpdateOptions,
+} from "./TowerInspectorPanel";
 import type { HudOverlayToggles, HudToastInput, HudVM, OverlayVM, TowerOverlayVM } from "./types";
 import { createWaveIntelPanel, type WaveIntelPanelController } from "./WaveIntelPanel";
 
@@ -23,12 +28,16 @@ export class GameplayHUD {
   private readonly objectiveCard: ObjectiveCardController;
   private readonly towerInspector: TowerInspectorPanelController;
   private readonly overlays: TacticalOverlayLayer;
-  private readonly toasts = new Toasts();
+  private readonly alerts = new AlertManager();
   private lastOverlayVm: OverlayVM | null = null;
+  private currentLayout: HudLayoutRuntime | null;
   private overlayToggles: HudOverlayToggles = {
     regenNumbers: false,
     captureRings: false,
     clusterHighlight: false,
+  };
+  private readonly onWindowResize = (): void => {
+    this.applyLayout();
   };
 
   constructor(options: GameplayHUDOptions) {
@@ -52,6 +61,9 @@ export class GameplayHUD {
       this.objectiveCard.element,
       this.towerInspector.element,
     );
+    this.currentLayout = null;
+    this.applyLayout();
+    window.addEventListener("resize", this.onWindowResize);
   }
 
   getElement(): HTMLDivElement {
@@ -65,11 +77,13 @@ export class GameplayHUD {
     }
   }
 
-  update(vm: HudVM): void {
+  update(vm: HudVM, options: TowerInspectorUpdateOptions): void {
+    this.applyLayout();
+    this.alerts.setVisible(true);
     this.topBar.update(vm.topBar);
     this.waveIntel.update(vm.waveIntel);
     this.objectiveCard.update(vm.objective);
-    this.towerInspector.update(vm.context.towerInspect);
+    this.towerInspector.update(vm.context.towerInspect, options);
     this.lastOverlayVm = vm.overlays;
     this.overlays.update(vm.overlays, this.overlayToggles);
   }
@@ -80,22 +94,49 @@ export class GameplayHUD {
   }
 
   pushToast(input: HudToastInput): void {
-    this.toasts.pushToast(input);
+    this.alerts.pushToast(input);
+  }
+
+  toggleAlertsLog(): void {
+    this.alerts.toggleLog();
+  }
+
+  closeAlertsLog(): void {
+    this.alerts.closeLog();
+  }
+
+  isAlertsLogOpen(): boolean {
+    return this.alerts.isLogOpen();
   }
 
   reset(): void {
+    this.alerts.setVisible(false);
     this.topBar.reset();
     this.waveIntel.reset();
     this.objectiveCard.reset();
     this.towerInspector.reset();
     this.clearOverlays();
-    this.toasts.clear();
+    this.alerts.clear();
   }
 
   dispose(): void {
+    window.removeEventListener("resize", this.onWindowResize);
     this.overlays.dispose();
-    this.toasts.dispose();
+    this.alerts.dispose();
     this.root.remove();
+  }
+
+  private applyLayout(): void {
+    const nextLayout = computeHudLayout(window.innerWidth, window.innerHeight);
+    if (this.currentLayout && areLayoutsEqual(this.currentLayout, nextLayout)) {
+      return;
+    }
+    this.currentLayout = nextLayout;
+    this.topBar.setLayout(nextLayout);
+    this.waveIntel.setLayout(nextLayout);
+    this.objectiveCard.setLayout(nextLayout);
+    this.towerInspector.setLayout(nextLayout);
+    this.alerts.setLayout(nextLayout);
   }
 }
 
@@ -160,7 +201,7 @@ class TacticalOverlayLayer {
 
       const label = document.createElement("div");
       label.className = "hud-overlay-regen";
-      label.textContent = `+${tower.regenPerSec.toFixed(1)}/s`;
+      label.textContent = `▲${tower.regenPerSec.toFixed(1)}`;
       label.style.left = `${point.x}px`;
       label.style.top = `${point.y}px`;
       fragment.appendChild(label);
@@ -201,12 +242,6 @@ class TacticalOverlayLayer {
       const breach = document.createElement("div");
       breach.className = "hud-overlay-capture-breach";
       ring.appendChild(breach);
-
-      const label = document.createElement("div");
-      label.className = "hud-overlay-capture-label";
-      label.textContent = tower.capture.phaseLabel;
-      label.style.opacity = (0.62 + clamp01(tower.capture.takeoverProgress01) * 0.38).toFixed(2);
-      ring.appendChild(label);
 
       fragment.appendChild(ring);
     }
@@ -251,4 +286,15 @@ function toOwnerColor(owner: Owner): string {
 
 function clamp01(value: number): number {
   return Math.max(0, Math.min(1, value));
+}
+
+function areLayoutsEqual(left: HudLayoutRuntime, right: HudLayoutRuntime): boolean {
+  return left.viewportW === right.viewportW
+    && left.viewportH === right.viewportH
+    && left.edgePad === right.edgePad
+    && left.rightWidth === right.rightWidth
+    && left.maxAlertsVisible === right.maxAlertsVisible
+    && left.towerCenterMode === right.towerCenterMode
+    && left.towerForceCompact === right.towerForceCompact
+    && left.runIntelAutoCollapseSections === right.runIntelAutoCollapseSections;
 }

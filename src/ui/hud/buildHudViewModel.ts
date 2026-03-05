@@ -8,6 +8,7 @@ export interface BuildHudViewModelInput {
   missionTitle: string;
   objectiveText: string;
   selectedTowerId: string | null;
+  hoveredTowerId: string | null;
   missionPaused: boolean;
   missionSpeedMul: 1 | 2;
   overlayRegenEnabled: boolean;
@@ -85,7 +86,8 @@ export function buildHudViewModel(input: BuildHudViewModelInput): HudVM {
     incomingByTower.set(targetTower.id, traffic);
   }
 
-  const selectedTower = input.selectedTowerId ? towerById.get(input.selectedTowerId) ?? null : null;
+  const inspectTowerId = input.selectedTowerId ?? input.hoveredTowerId;
+  const selectedTower = inspectTowerId ? towerById.get(inspectTowerId) ?? null : null;
   const playerTowers = world.towers.filter((tower) => tower.owner === "player");
   const totalRegenPerSec = playerTowers.reduce((sum, tower) => sum + sanitizeNumber(tower.effectiveRegen), 0);
   const largestClusterSize = playerTowers.reduce((best, tower) => Math.max(best, tower.territoryClusterSize ?? 0), 0);
@@ -116,6 +118,7 @@ export function buildHudViewModel(input: BuildHudViewModelInput): HudVM {
       collapsedLabel: `Wave ${waveLabel} | ${stateLabel}`,
       waveLabel,
       stateLabel,
+      countdownLabel: getCountdownLabel(telemetry),
       enemyComposition: (telemetry?.nextWavePreview ?? []).map((entry) => ({
         id: `${entry.enemyId}-${entry.count}`,
         icon: entry.icon || "•",
