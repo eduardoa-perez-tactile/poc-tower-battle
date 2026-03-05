@@ -55,10 +55,10 @@ const CAPTURE_THICKNESS = 3;
 const BADGE_SCALE = 1.0;
 const LINK_BADGE_OFFSET = 8;
 const LINK_BADGE_MIN_SHOW = 2;
-const BADGE_OFFSET_X = -0.46;
-const BADGE_OFFSET_Y = -0.57;
-const REGEN_OFFSET_X = -0.43;
-const REGEN_OFFSET_Y = -0.12;
+const BADGE_CENTER_OFFSET_X = 0;
+const BADGE_CENTER_OFFSET_Y = -0.35;
+const REGEN_ANCHOR_OFFSET_X = -0.35;
+const REGEN_ANCHOR_OFFSET_Y = 0.25;
 const STATUS_OFFSET_Y = 0.9;
 const TOWER_ID_OFFSET_Y = -0.92;
 const SELECTION_EXPAND = 5;
@@ -651,8 +651,8 @@ export class MapOverlay {
     const jitterRadius = OVERLAY_THEME.badge.jitterRadiusPx * BADGE_SCALE * scale;
     const jitterX = Math.cos(angle) * jitterRadius;
     const jitterY = Math.sin(angle) * jitterRadius * 0.6;
-    const anchorX = plateX + plateW * BADGE_OFFSET_X + jitterX;
-    const anchorY = plateY + plateH * BADGE_OFFSET_Y + jitterY;
+    const badgeCenterX = plateX + plateW * BADGE_CENTER_OFFSET_X + jitterX;
+    const badgeCenterY = plateY + plateH * BADGE_CENTER_OFFSET_Y + jitterY;
 
     const troopValue = Number.isFinite(tower.troops) ? tower.troops : 0;
     const countText = formatCompactCount(troopValue);
@@ -664,6 +664,8 @@ export class MapOverlay {
     const countWidth = this.measureTextCached(ctx, countText, this.badgeFont);
     const width = countWidth + OVERLAY_THEME.badge.paddingXPx * 2;
     const height = OVERLAY_THEME.badge.fontSizePx + OVERLAY_THEME.badge.paddingYPx * 2;
+    const anchorX = badgeCenterX - width * 0.5;
+    const anchorY = badgeCenterY - height * 0.5;
     this.drawRoundedRect(ctx, anchorX, anchorY, width, height, OVERLAY_THEME.badge.cornerRadiusPx);
     ctx.fillStyle = ownerColors.badgeFill;
     ctx.fill();
@@ -681,8 +683,8 @@ export class MapOverlay {
       ctx.font = this.badgeSubFont;
       ctx.textAlign = "left";
       ctx.textBaseline = "alphabetic";
-      const regenX = plateX + plateW * REGEN_OFFSET_X;
-      const regenY = plateY + plateH * REGEN_OFFSET_Y;
+      const regenX = plateX + plateW * REGEN_ANCHOR_OFFSET_X;
+      const regenY = plateY + plateH * REGEN_ANCHOR_OFFSET_Y;
       const regenWidth = this.measureTextCached(ctx, regenText, this.badgeSubFont);
       this.drawRoundedRect(ctx, regenX - 4, regenY - 11, regenWidth + 8, 14, 5);
       ctx.fillStyle = "rgba(3, 8, 13, 0.62)";
