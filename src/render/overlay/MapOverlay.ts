@@ -396,7 +396,7 @@ export class MapOverlay {
         OVERLAY_THEME.ownerColors[tower.owner].ring,
       );
       this.drawTowerBadge(ctx, tower, plateX, plateY, plateW, plateH, viewportTransform.scale);
-      this.drawTowerStatusLabel(ctx, tower, plateX, plateY, plateH);
+      this.drawTowerStatusLabel(ctx, tower, plateX, plateY, plateH, hovered || selected || isDragSource);
 
       if (overlayState.showDebugIds) {
         this.drawTowerIdLabel(ctx, tower.id, plateX, plateY, plateH);
@@ -641,7 +641,11 @@ export class MapOverlay {
     plateX: number,
     plateY: number,
     plateH: number,
+    showLabel: boolean,
   ): void {
+    if (!showLabel) {
+      return;
+    }
     const phase = getTowerControlPhase(tower);
     if (phase === "stable") {
       return;
