@@ -2,6 +2,7 @@ import type { Owner } from "../../sim/World";
 
 export type HudTone = "neutral" | "warning" | "success";
 export type HudToastType = "info" | "warning" | "success" | "danger";
+export type HudAlertPriority = "info" | "warning" | "critical";
 
 export interface EnemyCompositionItemVM {
   id: string;
@@ -110,4 +111,8 @@ export interface HudToastInput {
   title: string;
   body: string;
   ttl?: number;
+  priority?: HudAlertPriority;
+  icon?: string;
+  dedupeKey?: string;
+  timestampMs?: number;
 }

@@ -1221,6 +1221,8 @@ async function bootstrap(): Promise<void> {
         title: "Link Validation",
         body: "All active links connect adjacent towers.",
         ttl: 1800,
+        icon: "✅",
+        dedupeKey: "debug|link-validation|ok",
       });
       return;
     }
@@ -1234,6 +1236,8 @@ async function bootstrap(): Promise<void> {
           ? `${result.invalidLinkIds.length} non-adjacent link(s): ${sample}`
           : "Found non-adjacent links.",
       ttl: 3200,
+      icon: "⚠",
+      dedupeKey: "debug|link-validation|failed",
     });
     console.error("[LinkRules] Invalid runtime links", result.invalidLinkIds);
   };
@@ -1381,6 +1385,8 @@ async function bootstrap(): Promise<void> {
         title: `${skill.name} Cooling Down`,
         body: `${skill.cooldownRemainingSec.toFixed(1)}s remaining.`,
         ttl: 1500,
+        icon: "⏳",
+        dedupeKey: `skill|cooldown|${skill.id}`,
       });
       return true;
     }
@@ -1395,6 +1401,8 @@ async function bootstrap(): Promise<void> {
         title: "No Target Tower",
         body: "Select a player tower before casting this skill.",
         ttl: 1700,
+        icon: "🏰",
+        dedupeKey: `skill|missing-target|${skill.id}`,
       });
       return true;
     }
@@ -1406,6 +1414,8 @@ async function bootstrap(): Promise<void> {
         title: "Skill Cast Failed",
         body: "Command was not accepted by the skill manager.",
         ttl: 1700,
+        icon: "⚠",
+        dedupeKey: `skill|cast-failed|${skill.id}`,
       });
     }
     return true;
@@ -1582,6 +1592,11 @@ async function bootstrap(): Promise<void> {
     }
 
     if (key === "Escape") {
+      if (!isTyping && app.screen === "mission" && gameplayHud.isAlertsLogOpen()) {
+        gameplayHud.closeAlertsLog();
+        event.preventDefault();
+        return;
+      }
       if (debugUiStore.getState().debugOpen) {
         debugUiStore.setState({ debugOpen: false });
         event.preventDefault();
@@ -1619,6 +1634,12 @@ async function bootstrap(): Promise<void> {
     }
 
     if (!isTyping && castSkillByHotkey(key)) {
+      event.preventDefault();
+      return;
+    }
+
+    if (!isTyping && app.screen === "mission" && (key === "a" || key === "A") && !event.repeat) {
+      gameplayHud.toggleAlertsLog();
       event.preventDefault();
       return;
     }
@@ -2589,6 +2610,8 @@ function syncMissionHud(app: AppState, debugState: DebugUiState, gameplayHud: Ga
       title: "Link Rejected",
       body: message,
       ttl: 1600,
+      icon: "⚠",
+      dedupeKey: `link|rejected|${message}`,
     });
   }
 
@@ -2621,6 +2644,8 @@ function runTutorialHintFeed(
       title: "Hint",
       body: hint,
       ttl: 3200,
+      icon: "💡",
+      dedupeKey: `tutorial|hint|${hint}`,
     });
   }
 }
@@ -3873,11 +3898,24 @@ function toMissionToast(entry: MissionEventEntry): HudToastInput {
     warning: "warning",
     success: "success",
   };
+  const iconByTone: Record<MissionEventEntry["tone"], string> = {
+    neutral: "•",
+    warning: "⚠",
+    success: "🏰",
+  };
+  const ttlByTone: Record<MissionEventEntry["tone"], number> = {
+    neutral: 2500,
+    warning: 4000,
+    success: 2500,
+  };
+  const dedupeKey = `${entry.tone}|${entry.message.trim().toLowerCase()}`;
   return {
     type: typeByTone[entry.tone],
-    title: entry.tone === "warning" ? "Threat Alert" : entry.tone === "success" ? "Tactical Update" : "Command",
+    title: "",
     body: entry.message,
-    ttl: entry.tone === "warning" ? 2400 : 2200,
+    ttl: ttlByTone[entry.tone],
+    icon: iconByTone[entry.tone],
+    dedupeKey,
   };
 }
 

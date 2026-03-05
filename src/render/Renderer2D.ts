@@ -48,6 +48,7 @@ const PACKET_COLORS: Record<Owner, string> = {
 
 const DEFAULT_USE_UNIT_SPRITES = true;
 const SPRITE_FALLBACK_EPSILON = 0.01;
+const PACKET_OPACITY = 0.75;
 
 interface PacketMotionState {
   x: number;
@@ -608,6 +609,7 @@ export class Renderer2D {
 
   private drawPacket(world: World, packet: UnitPacket, position: Vec2): void {
     this.ctx.save();
+    this.ctx.globalAlpha = PACKET_OPACITY;
     const packetRadius = Math.max(4, 8 * packet.sizeScale);
     const hasSpriteAtlas = this.useUnitSprites && this.unitSpriteAtlas.isReady();
     const visualArchetypeIds = resolvePacketUnitArchetypeCandidates(packet);

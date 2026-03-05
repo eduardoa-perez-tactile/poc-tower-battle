@@ -62,7 +62,7 @@ const COUNT_FONT_MAX_PX = 18;
 const LINK_BADGE_T = 0.58;
 const LINK_BADGE_OFFSET_PX = 10;
 const LINK_BADGE_REPOSITION_STEP_T = 0.08;
-const LINK_BADGE_MIN_DIST_TO_TOWER_PX = 26;
+const LINK_BADGE_MIN_TOWER_DIST = 28;
 const LINK_BADGE_MIN_SHOW = 2;
 const BADGE_CENTER_OFFSET_X = 0;
 const BADGE_CENTER_OFFSET_Y = -0.35;
@@ -429,7 +429,7 @@ export class MapOverlay {
     let sx = 0;
     let sy = 0;
     let placed = false;
-    const minDistPx = LINK_BADGE_MIN_DIST_TO_TOWER_PX * Math.max(1, viewportTransform.scale);
+    const minDistPx = LINK_BADGE_MIN_TOWER_DIST * Math.max(1, viewportTransform.scale);
 
     for (let attempt = 0; attempt < 4; attempt += 1) {
       if (!samplePointAndDirectionOnPolyline(link.points, t, this.tmpPoint, this.tmpDir)) {
@@ -767,10 +767,12 @@ export class MapOverlay {
       const regenY = plateY + plateH * REGEN_ANCHOR_OFFSET_Y;
       const regenWidth = this.measureTextCached(ctx, regenText, this.badgeSubFont);
       this.drawRoundedRect(ctx, regenX - 4, regenY - 11, regenWidth + 8, 14, 5);
-      ctx.fillStyle = "rgba(3, 8, 13, 0.62)";
+      ctx.fillStyle = "rgba(3, 8, 13, 0.46)";
       ctx.fill();
+      ctx.globalAlpha = 0.78;
       ctx.fillStyle = OVERLAY_THEME.badge.regenTextColor;
       ctx.fillText(regenText, regenX, regenY);
+      ctx.globalAlpha = 1;
     }
     ctx.restore();
   }
