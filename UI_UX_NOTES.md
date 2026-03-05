@@ -9,17 +9,43 @@
 - Mission HUD is modular and lives in `src/ui/hud/`.
 - Composition root: `GameplayHUD` (`src/ui/hud/GameplayHUD.ts`).
 - Zones:
-- `TopBarZone` (mission/wave/state, gold/towers/regen, pause/speed, overlay mini-toggles)
-- `WaveIntelPanel` (collapsible right-side wave intelligence)
-- `ObjectiveCard` (bottom-left objective + progress + waves secured + cluster status)
-- `TowerInspectorPanel` (bottom-right, visible only when tower is selected)
-- Data binding is built in `buildHudViewModel.ts` and selected tower id still comes from `InputController.getSelectedTowerId()`.
+- `TopBarZone` (mission/wave/state, gold/towers/regen, pause/speed, overlay mini-toggles).
+- `WaveIntelPanel` (persistent compact right-top "Run Intel" panel with collapsible `Modifiers` and `Boss` sections).
+- `ObjectiveCard` (bottom-left objective + progress + waves secured + cluster status).
+- `TowerInspectorPanel` (adaptive right-bottom; compact essentials by default with on-demand `Details` mode).
+- `AlertManager` floating overlay (`src/ui/hud/Toasts.ts`) for temporary alerts + log drawer.
+- Data binding is built in `buildHudViewModel.ts`.
+- Tower inspector source is `selectedTowerId ?? hoveredTowerId`:
+- Selected tower remains pinned.
+- Hovered tower fills the panel when no selection exists.
 - Capture communication model (phase-aware):
 - `stable` (no hostile pressure), `contested` (defenders being reduced), `breaching` (tower HP being reduced).
 - Capture overlay renders dual-ring progress:
 - `--capture-pressure` for defender pressure.
 - `--capture-breach` for post-defender HP breach.
 - `--capture-takeover` for label emphasis.
+
+## HUD layout system
+- Central layout policy is in `src/ui/hud/layout.ts`.
+- Primary constants:
+- `EDGE_PAD`, `PANEL_GAP`, `RIGHT_COL_WIDTH`, `MAX_ALERTS_VISIBLE`, `MAX_ALERT_STACK_HEIGHT_VH`, `MAP_SAFE_MARGIN_RIGHT`.
+- Runtime sizing uses responsive clamps (`rightWidth = clamp(280, viewportW * 0.22, 360)`).
+- Small-screen behavior:
+- `<1100px`: narrower right column, fewer visible alerts, auto-collapsed Run Intel sections.
+- `<900px`: tower panel shifts to bottom-center and is forced compact.
+
+## Alerts system v2
+- Alerts are decoupled from right-column intel and rendered as a separate floating stack.
+- Behavior:
+- max visible alerts are layout-driven (typically 3, 2 on narrow screens),
+- stack height is capped (`18vh`),
+- dedupe by key with counters (`xN`),
+- priority ordering (`critical > warning > info`),
+- TTL auto-fade and removal,
+- optional log drawer toggle with unread badge.
+- Keyboard:
+- `A` toggles alerts log.
+- `Esc` closes alerts log before pause/debug handlers.
 
 ## Territory visual indicators
 - Renderer draws cluster feedback in `src/render/Renderer2D.ts`.
@@ -32,9 +58,8 @@
 - Tower tooltip content is assembled in `WorldTooltipOverlay.showTowerTooltip()`.
 - Enemy tooltip content is assembled in `WorldTooltipOverlay.showEnemyTooltip()`.
 - To add fields, extend `collectTowerData()` or `pickEnemyPacket()` and append rows/chips with `createTooltipRow()` / `createTooltipChipRow()`.
-- Tower tooltip now includes a derived control row and capture rule hint:
-- `Control: Stable/Contested/Breaching (...)`
-- `Capture: Control transfers only when HP reaches 0.`
+- Tower tooltip now defaults to compact gameplay essentials (id/name, troops, regen, incoming/outgoing traffic).
+- Verbose tower details are debug-gated.
 
 ## Enemy descriptions data
 - Enemy one-line descriptions are read from `description` in:
