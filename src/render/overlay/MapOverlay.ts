@@ -45,10 +45,14 @@ export interface MapOverlayIsoContext {
 const ISO_TILE_HEIGHT_RATIO = 0.5;
 const PLATE_W_MUL = 0.95;
 const PLATE_H_MUL = 0.95;
-const PLATE_INSET_MUL = 0.8;
-const PLATE_Y_OFFSET = 0.1;
-const PLATE_BASE_ALPHA = 0.3;
+const PLATE_INSET_MUL = 0.82;
+const PLATE_Y_OFFSET_MUL = 0.1;
+const PLATE_FILL_ALPHA = 0.18;
+const PLATE_OUTLINE_ALPHA = 0.55;
 const PLATE_INSET_ALPHA = 0.24;
+const SELECT_OUTLINE_THICKNESS = 3;
+const CAPTURE_THICKNESS = 3;
+const BADGE_SCALE = 1.0;
 const BADGE_OFFSET_X = -0.46;
 const BADGE_OFFSET_Y = -0.57;
 const REGEN_OFFSET_X = -0.43;
@@ -94,6 +98,7 @@ export class MapOverlay {
       insetColor: "",
       insetAlpha: 0,
       outlineColor: "",
+      outlineAlpha: 1,
       outlineWidth: 0,
       glowColor: "",
       glowWidth: 0,
@@ -143,7 +148,7 @@ export class MapOverlay {
       const sx = toScreenX(tower.x, viewportTransform);
       const sy = toScreenY(tower.y, viewportTransform);
       const plateX = sx;
-      const plateY = sy + tile.tileH * PLATE_Y_OFFSET;
+      const plateY = sy + tile.tileH * PLATE_Y_OFFSET_MUL;
       const hovered = interaction.hoveredTowerId === tower.id;
       const selected = interaction.selectedTowerId === tower.id;
       const isDragSource = interaction.dragSourceId === tower.id && interaction.isDraggingLink;
@@ -361,7 +366,7 @@ export class MapOverlay {
       const sx = toScreenX(tower.x, viewportTransform);
       const sy = toScreenY(tower.y, viewportTransform);
       const plateX = sx;
-      const plateY = sy + tile.tileH * PLATE_Y_OFFSET;
+      const plateY = sy + tile.tileH * PLATE_Y_OFFSET_MUL;
       const hovered = interaction.hoveredTowerId === tower.id;
       const selected = interaction.selectedTowerId === tower.id;
       const isDragSource = interaction.dragSourceId === tower.id && interaction.isDraggingLink;
@@ -416,10 +421,11 @@ export class MapOverlay {
       (selected ? OVERLAY_THEME.ring.selectedExtraWidthPx : 0);
     const style = this.isoPlateStyleScratch;
     style.fillColor = ownerColors.ring;
-    style.fillAlpha = PLATE_BASE_ALPHA + (hovered ? 0.06 : 0);
+    style.fillAlpha = PLATE_FILL_ALPHA + (hovered ? 0.06 : 0);
     style.insetColor = ownerColors.glow;
     style.insetAlpha = PLATE_INSET_ALPHA + (selected ? 0.1 : 0);
     style.outlineColor = ownerColors.ring;
+    style.outlineAlpha = PLATE_OUTLINE_ALPHA + (hovered ? 0.18 : 0) + (selected ? 0.2 : 0);
     style.outlineWidth = outlineWidth;
     style.glowColor = ownerColors.glow;
     style.glowWidth = OVERLAY_THEME.ring.glowWidthPx * (selected ? 1.3 : 1);
@@ -458,7 +464,7 @@ export class MapOverlay {
       plateW + 2,
       plateH + 2,
       phase === "breaching" ? "rgba(255, 178, 122, 0.92)" : "rgba(255, 226, 170, 0.85)",
-      2.2 + pulse * 0.8,
+      CAPTURE_THICKNESS + pulse * 0.8,
     );
     ctx.setLineDash([]);
     if (phase === "breaching") {
@@ -529,7 +535,7 @@ export class MapOverlay {
         plateW + SELECTION_EXPAND,
         plateH + SELECTION_EXPAND,
         "rgba(235, 247, 255, 0.85)",
-        selected ? 2.8 : 2.1,
+        SELECT_OUTLINE_THICKNESS + (selected ? pulse * 0.8 : 0.25),
       );
     }
 
@@ -584,7 +590,7 @@ export class MapOverlay {
   ): void {
     const ownerColors = OVERLAY_THEME.ownerColors[tower.owner];
     const angle = this.badgeAngleByTowerId.get(tower.id) ?? 0;
-    const jitterRadius = OVERLAY_THEME.badge.jitterRadiusPx * scale;
+    const jitterRadius = OVERLAY_THEME.badge.jitterRadiusPx * BADGE_SCALE * scale;
     const jitterX = Math.cos(angle) * jitterRadius;
     const jitterY = Math.sin(angle) * jitterRadius * 0.6;
     const anchorX = plateX + plateW * BADGE_OFFSET_X + jitterX;
@@ -925,6 +931,7 @@ interface IsoPlateStyle {
   insetColor: string;
   insetAlpha: number;
   outlineColor: string;
+  outlineAlpha: number;
   outlineWidth: number;
   glowColor: string;
   glowWidth: number;
@@ -978,11 +985,13 @@ function drawIsoPlate(
 
   traceDiamond(ctx, cx, cy, w, h);
   ctx.strokeStyle = style.outlineColor;
+  ctx.globalAlpha = clamp01(style.outlineAlpha);
   ctx.lineWidth = style.outlineWidth;
   if (style.dashed) {
     ctx.setLineDash(OVERLAY_THEME.ring.neutralDash);
   }
   ctx.stroke();
+  ctx.globalAlpha = 1;
   ctx.setLineDash([]);
   ctx.restore();
 }
