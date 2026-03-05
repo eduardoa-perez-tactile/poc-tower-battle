@@ -53,6 +53,8 @@ const PLATE_INSET_ALPHA = 0.24;
 const SELECT_OUTLINE_THICKNESS = 3;
 const CAPTURE_THICKNESS = 3;
 const BADGE_SCALE = 1.0;
+const LINK_BADGE_OFFSET = 8;
+const LINK_BADGE_MIN_SHOW = 2;
 const BADGE_OFFSET_X = -0.46;
 const BADGE_OFFSET_Y = -0.57;
 const REGEN_OFFSET_X = -0.43;
@@ -72,6 +74,7 @@ const BREACH_CORNER_INSET = 5;
 export class MapOverlay {
   private readonly towerById: Map<string, Tower>;
   private readonly outgoingLinkCountByTowerId: Map<string, number>;
+  private readonly packetCountByLinkId: Map<string, number>;
   private readonly badgeAngleByTowerId: Map<string, number>;
   private readonly textWidthCache: Map<string, number>;
   private readonly tmpPoint: Vec2;
@@ -82,11 +85,13 @@ export class MapOverlay {
   private readonly badgeSubFont: string;
   private readonly legendFont: string;
   private readonly linkLevelFont: string;
+  private readonly linkPacketFont: string;
   private readonly pointerHintFont: string;
 
   constructor() {
     this.towerById = new Map<string, Tower>();
     this.outgoingLinkCountByTowerId = new Map<string, number>();
+    this.packetCountByLinkId = new Map<string, number>();
     this.badgeAngleByTowerId = new Map<string, number>();
     this.textWidthCache = new Map<string, number>();
     this.tmpPoint = { x: 0, y: 0 };
@@ -109,6 +114,7 @@ export class MapOverlay {
     this.badgeSubFont = `600 ${Math.max(10, OVERLAY_THEME.badge.fontSizePx - 2)}px ${OVERLAY_THEME.fontFamily}`;
     this.legendFont = `600 ${OVERLAY_THEME.legend.fontSizePx}px ${OVERLAY_THEME.fontFamily}`;
     this.linkLevelFont = `700 ${OVERLAY_THEME.link.levelFontSizePx}px ${OVERLAY_THEME.fontFamily}`;
+    this.linkPacketFont = `700 ${Math.max(10, OVERLAY_THEME.link.levelFontSizePx)}px ${OVERLAY_THEME.fontFamily}`;
     this.pointerHintFont = `600 12px ${OVERLAY_THEME.fontFamily}`;
   }
 
@@ -211,6 +217,19 @@ export class MapOverlay {
     overlayState: MapOverlayDrawState,
     viewportTransform: OverlayViewportTransform,
   ): void {
+    this.packetCountByLinkId.clear();
+    for (const packet of overlayState.world.packets) {
+      if (packet.hasWorldPosition || packet.count <= 0) {
+        continue;
+      }
+      const link = overlayState.world.getLinkById(packet.linkId);
+      if (!link || link.hideInRender || link.points.length < 2) {
+        continue;
+      }
+      const previous = this.packetCountByLinkId.get(link.id) ?? 0;
+      this.packetCountByLinkId.set(link.id, previous + 1);
+    }
+
     for (const link of overlayState.world.links) {
       if (link.hideInRender || link.points.length < 2) {
         continue;
@@ -237,6 +256,7 @@ export class MapOverlay {
       }
 
       this.drawLinkLevelBadge(ctx, link, viewportTransform);
+      this.drawLinkPacketBadge(ctx, link, viewportTransform);
       if (shouldShowFlowMarkers(link, overlayState.interaction, this.towerById)) {
         this.drawFlowMarkers(ctx, link, ownerColors.flow, overlayState.timeSec, viewportTransform);
       }
@@ -342,6 +362,44 @@ export class MapOverlay {
     ctx.fill();
     ctx.fillStyle = "rgba(222, 228, 236, 0.96)";
     ctx.fillText(link.id, sx, sy + 14);
+  }
+
+  private drawLinkPacketBadge(
+    ctx: CanvasRenderingContext2D,
+    link: Link,
+    viewportTransform: OverlayViewportTransform,
+  ): void {
+    const packetCount = this.packetCountByLinkId.get(link.id) ?? 0;
+    if (packetCount < LINK_BADGE_MIN_SHOW) {
+      return;
+    }
+    if (!samplePointAndDirectionOnPolyline(link.points, 0.58, this.tmpPoint, this.tmpDir)) {
+      return;
+    }
+    const dirLen = Math.hypot(this.tmpDir.x, this.tmpDir.y);
+    if (dirLen <= 0.001) {
+      return;
+    }
+    const nx = -this.tmpDir.y / dirLen;
+    const ny = this.tmpDir.x / dirLen;
+    const sx = toScreenX(this.tmpPoint.x, viewportTransform) + nx * LINK_BADGE_OFFSET;
+    const sy = toScreenY(this.tmpPoint.y, viewportTransform) + ny * LINK_BADGE_OFFSET;
+    const text = formatCompactCount(packetCount);
+    ctx.font = this.linkPacketFont;
+    const textWidth = this.measureTextCached(ctx, text, this.linkPacketFont);
+    const width = textWidth + 10;
+    const height = 13;
+    this.drawRoundedRect(ctx, sx - width * 0.5, sy - height * 0.5, width, height, 5);
+    ctx.fillStyle = "rgba(7, 12, 20, 0.9)";
+    ctx.fill();
+    ctx.strokeStyle = "rgba(228, 237, 246, 0.55)";
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    ctx.font = this.linkPacketFont;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillStyle = "rgba(245, 249, 252, 0.98)";
+    ctx.fillText(text, sx, sy + 0.25);
   }
 
   private drawTowerForeground(

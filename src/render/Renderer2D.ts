@@ -645,7 +645,6 @@ export class Renderer2D {
           if (packet.isElite) {
             this.drawEliteSpriteRing(position, packetRadius);
           }
-          this.drawPacketCountLabel(position, packet.count);
           this.ctx.restore();
           return;
         }
@@ -679,7 +678,6 @@ export class Renderer2D {
         if (packet.isElite) {
           this.drawEliteSpriteRing(position, packetRadius);
         }
-        this.drawPacketCountLabel(position, packet.count);
         this.ctx.restore();
         return;
       }
@@ -691,7 +689,6 @@ export class Renderer2D {
     this.ctx.fill();
 
     this.drawPacketOutline(position, packetRadius, packet.isElite);
-    this.drawPacketCountLabel(position, packet.count);
     if (packet.icon) {
       this.ctx.font = "bold 10px Arial";
       this.ctx.fillStyle = "#ffffff";
@@ -716,14 +713,6 @@ export class Renderer2D {
     this.ctx.beginPath();
     this.ctx.arc(position.x, position.y, packetRadius + 1, 0, Math.PI * 2);
     this.ctx.stroke();
-  }
-
-  private drawPacketCountLabel(position: Vec2, count: number): void {
-    this.ctx.fillStyle = "#ffffff";
-    this.ctx.font = "11px Arial";
-    this.ctx.textAlign = "center";
-    this.ctx.textBaseline = "middle";
-    this.ctx.fillText(String(Math.max(0, Math.round(count))), position.x, position.y - 14);
   }
 
   private drawTelegraphs(waveRenderState: WaveRenderState): void {
