@@ -1633,13 +1633,13 @@ async function bootstrap(): Promise<void> {
       }
     }
 
-    if (!isTyping && castSkillByHotkey(key)) {
+    if (!isTyping && app.screen === "mission" && (key === "l" || key === "L") && !event.repeat) {
+      gameplayHud.toggleAlertsLog();
       event.preventDefault();
       return;
     }
 
-    if (!isTyping && app.screen === "mission" && (key === "a" || key === "A") && !event.repeat) {
-      gameplayHud.toggleAlertsLog();
+    if (!isTyping && castSkillByHotkey(key)) {
       event.preventDefault();
       return;
     }
