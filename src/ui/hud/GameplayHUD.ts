@@ -1,9 +1,9 @@
 import { TOWER_RADIUS_PX, type Owner } from "../../sim/World";
 import { useWorldToScreen } from "../worldToScreen";
+import { AlertLogManager, normalizeHudToastInput } from "../alerts/AlertLogManager";
 import { createObjectiveCard, type ObjectiveCardController } from "./ObjectiveCard";
 import { computeHudLayout, type HudLayoutRuntime } from "./layout";
 import { createTopBarZone, type TopBarZoneController } from "./TopBarZone";
-import { AlertManager } from "./Toasts";
 import {
   createTowerInspectorPanel,
   type TowerInspectorPanelController,
@@ -28,7 +28,7 @@ export class GameplayHUD {
   private readonly objectiveCard: ObjectiveCardController;
   private readonly towerInspector: TowerInspectorPanelController;
   private readonly overlays: TacticalOverlayLayer;
-  private readonly alerts = new AlertManager();
+  private readonly alerts = new AlertLogManager();
   private lastOverlayVm: OverlayVM | null = null;
   private currentLayout: HudLayoutRuntime | null;
   private overlayToggles: HudOverlayToggles = {
@@ -84,6 +84,9 @@ export class GameplayHUD {
     this.waveIntel.update(vm.waveIntel);
     this.objectiveCard.update(vm.objective);
     this.towerInspector.update(vm.context.towerInspect, options);
+    if (this.currentLayout) {
+      this.alerts.setLayout(this.currentLayout);
+    }
     this.lastOverlayVm = vm.overlays;
     this.overlays.update(vm.overlays, this.overlayToggles);
   }
@@ -94,7 +97,7 @@ export class GameplayHUD {
   }
 
   pushToast(input: HudToastInput): void {
-    this.alerts.pushToast(input);
+    this.alerts.push(normalizeHudToastInput(input));
   }
 
   toggleAlertsLog(): void {
