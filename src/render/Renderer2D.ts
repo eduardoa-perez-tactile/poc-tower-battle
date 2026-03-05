@@ -176,6 +176,25 @@ export class Renderer2D {
     const hasArtContent = this.mapTerrain !== null || this.mapVisuals !== null;
     const shouldRenderArt = this.renderArtMap && hasArtContent;
     const shouldRenderTerrainArt = true;
+    const overlayViewport = {
+      offsetX: 0,
+      offsetY: 0,
+      scale: 1,
+      viewportWidth: viewport.width,
+      viewportHeight: viewport.height,
+    };
+    const overlayDrawState = {
+      world,
+      interaction,
+      showLegend: this.showMapOverlayLegend,
+      showDebugIds: this.showMapDebugOverlay,
+      timeSec: renderTimeSec,
+    };
+    const overlayIsoContext = {
+      mapRenderData: this.mapRenderData,
+      terrainTileSize: this.mapTerrain?.tileSize ?? null,
+    };
+
     if (shouldRenderArt) {
       if (shouldRenderTerrainArt && this.mapTerrain) {
         this.mapRenderer.renderTerrain(this.ctx, this.mapTerrain, this.spriteAtlas, {
@@ -185,14 +204,6 @@ export class Renderer2D {
           height: viewport.height,
         });
       }
-      this.mapRenderer.renderTowerSprites(
-        this.ctx,
-        world.towers,
-        this.mapVisuals ?? undefined,
-        this.spriteAtlas,
-        this.spriteDrawnTowerIds,
-        this.towerArchetypeVisuals ?? undefined,
-      );
     } else {
       this.spriteDrawnTowerIds.clear();
     }
@@ -205,6 +216,21 @@ export class Renderer2D {
     const showDebugMapOverlay = !shouldRenderArt || this.showMapDebugOverlay;
     if (showDebugMapOverlay) {
       this.drawStaticGraphEdges();
+    }
+
+    if (this.showMapReadabilityOverlay) {
+      this.mapOverlay.drawTowerUnderlay(this.ctx, overlayDrawState, overlayViewport, overlayIsoContext);
+    }
+
+    if (shouldRenderArt) {
+      this.mapRenderer.renderTowerSprites(
+        this.ctx,
+        world.towers,
+        this.mapVisuals ?? undefined,
+        this.spriteAtlas,
+        this.spriteDrawnTowerIds,
+        this.towerArchetypeVisuals ?? undefined,
+      );
     }
 
     const shouldDrawLegacyOverlay = !this.showMapReadabilityOverlay;
@@ -248,23 +274,7 @@ export class Renderer2D {
     }
 
     if (this.showMapReadabilityOverlay) {
-      this.mapOverlay.draw(
-        this.ctx,
-        {
-          world,
-          interaction,
-          showLegend: this.showMapOverlayLegend,
-          showDebugIds: this.showMapDebugOverlay,
-          timeSec: renderTimeSec,
-        },
-        {
-          offsetX: 0,
-          offsetY: 0,
-          scale: 1,
-          viewportWidth: viewport.width,
-          viewportHeight: viewport.height,
-        },
-      );
+      this.mapOverlay.drawForeground(this.ctx, overlayDrawState, overlayViewport, overlayIsoContext);
     }
 
     if (shouldDrawLegacyOverlay && interaction.preview) {
