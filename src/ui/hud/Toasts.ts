@@ -1,6 +1,7 @@
+import { MAX_ALERTS_VISIBLE } from "./layout";
+import type { HudLayoutRuntime } from "./layout";
 import type { HudAlertPriority, HudToastInput } from "./types";
 
-const ALERT_STACK_MAX = 3;
 const DEDUPE_WINDOW_MS = 4000;
 const ALERT_TTL_INFO_MS = 2500;
 const ALERT_TTL_WARN_MS = 4000;
@@ -62,6 +63,7 @@ export class AlertManager {
   private drawerOpen: boolean;
   private lastNewAlertCreatedAtMs: number;
   private queueTimer: number | null;
+  private maxVisible: number;
 
   constructor() {
     this.root = document.createElement("div");
@@ -108,6 +110,7 @@ export class AlertManager {
     this.drawerOpen = false;
     this.lastNewAlertCreatedAtMs = 0;
     this.queueTimer = null;
+    this.maxVisible = MAX_ALERTS_VISIBLE;
     this.renderLog();
   }
 
@@ -116,6 +119,16 @@ export class AlertManager {
     if (!visible) {
       this.closeLog();
     }
+  }
+
+  setLayout(layout: HudLayoutRuntime): void {
+    this.root.style.top = `${layout.edgePad}px`;
+    this.root.style.right = `${layout.edgePad}px`;
+    this.root.style.width = `${Math.round(layout.rightWidth)}px`;
+    this.stack.style.maxHeight = `${layout.maxAlertStackHeightVh}vh`;
+    this.maxVisible = layout.maxAlertsVisible;
+    this.trimActiveAlertsToMax();
+    this.renderStack();
   }
 
   pushToast(input: HudToastInput): void {
@@ -274,7 +287,7 @@ export class AlertManager {
   }
 
   private makeRoomFor(incomingPriority: HudAlertPriority): boolean {
-    if (this.activeByKey.size < ALERT_STACK_MAX) {
+    if (this.activeByKey.size < this.maxVisible) {
       return true;
     }
 
@@ -389,6 +402,28 @@ export class AlertManager {
     this.stack.replaceChildren(fragment);
   }
 
+  private trimActiveAlertsToMax(): void {
+    while (this.activeByKey.size > this.maxVisible) {
+      const active = [...this.activeByKey.values()];
+      const oldestInfo = pickOldestByPriority(active, "info");
+      if (oldestInfo) {
+        this.removeAlert(oldestInfo.dedupeKey);
+        continue;
+      }
+      const oldestWarning = pickOldestByPriority(active, "warning");
+      if (oldestWarning) {
+        this.removeAlert(oldestWarning.dedupeKey);
+        continue;
+      }
+      const oldestCritical = pickOldestByPriority(active, "critical");
+      if (oldestCritical) {
+        this.removeAlert(oldestCritical.dedupeKey);
+        continue;
+      }
+      break;
+    }
+  }
+
   private recordHistory(event: AlertEvent, mergedInActive: boolean): void {
     const existing = this.historyByKey.get(event.dedupeKey);
     if (existing) {
@@ -424,9 +459,12 @@ export class AlertManager {
   private refreshUnreadIndicator(): void {
     this.toggleButton.classList.toggle("has-unread", this.unreadCount > 0);
     if (this.unreadCount > 0) {
-      this.toggleButton.dataset.unreadCount = String(Math.min(this.unreadCount, 99));
+      const visibleCount = Math.min(this.unreadCount, 99);
+      this.toggleButton.dataset.unreadCount = String(visibleCount);
+      this.toggleButton.textContent = `Alerts ${visibleCount}`;
     } else {
       this.toggleButton.removeAttribute("data-unread-count");
+      this.toggleButton.textContent = "Alerts";
     }
   }
 

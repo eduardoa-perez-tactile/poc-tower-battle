@@ -30,6 +30,7 @@ export interface WaveIntelVM {
   collapsedLabel: string;
   waveLabel: string;
   stateLabel: "LIVE" | "PREP" | "COMPLETE";
+  countdownLabel: string | null;
   enemyComposition: EnemyCompositionItemVM[];
   modifiers: string[];
   bossPreview: string | null;

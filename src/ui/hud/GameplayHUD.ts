@@ -1,9 +1,14 @@
 import { TOWER_RADIUS_PX, type Owner } from "../../sim/World";
 import { useWorldToScreen } from "../worldToScreen";
 import { createObjectiveCard, type ObjectiveCardController } from "./ObjectiveCard";
+import { computeHudLayout, type HudLayoutRuntime } from "./layout";
 import { createTopBarZone, type TopBarZoneController } from "./TopBarZone";
 import { AlertManager } from "./Toasts";
-import { createTowerInspectorPanel, type TowerInspectorPanelController } from "./TowerInspectorPanel";
+import {
+  createTowerInspectorPanel,
+  type TowerInspectorPanelController,
+  type TowerInspectorUpdateOptions,
+} from "./TowerInspectorPanel";
 import type { HudOverlayToggles, HudToastInput, HudVM, OverlayVM, TowerOverlayVM } from "./types";
 import { createWaveIntelPanel, type WaveIntelPanelController } from "./WaveIntelPanel";
 
@@ -25,10 +30,14 @@ export class GameplayHUD {
   private readonly overlays: TacticalOverlayLayer;
   private readonly alerts = new AlertManager();
   private lastOverlayVm: OverlayVM | null = null;
+  private currentLayout: HudLayoutRuntime | null;
   private overlayToggles: HudOverlayToggles = {
     regenNumbers: false,
     captureRings: false,
     clusterHighlight: false,
+  };
+  private readonly onWindowResize = (): void => {
+    this.applyLayout();
   };
 
   constructor(options: GameplayHUDOptions) {
@@ -52,6 +61,9 @@ export class GameplayHUD {
       this.objectiveCard.element,
       this.towerInspector.element,
     );
+    this.currentLayout = null;
+    this.applyLayout();
+    window.addEventListener("resize", this.onWindowResize);
   }
 
   getElement(): HTMLDivElement {
@@ -65,12 +77,13 @@ export class GameplayHUD {
     }
   }
 
-  update(vm: HudVM): void {
+  update(vm: HudVM, options: TowerInspectorUpdateOptions): void {
+    this.applyLayout();
     this.alerts.setVisible(true);
     this.topBar.update(vm.topBar);
     this.waveIntel.update(vm.waveIntel);
     this.objectiveCard.update(vm.objective);
-    this.towerInspector.update(vm.context.towerInspect);
+    this.towerInspector.update(vm.context.towerInspect, options);
     this.lastOverlayVm = vm.overlays;
     this.overlays.update(vm.overlays, this.overlayToggles);
   }
@@ -107,9 +120,23 @@ export class GameplayHUD {
   }
 
   dispose(): void {
+    window.removeEventListener("resize", this.onWindowResize);
     this.overlays.dispose();
     this.alerts.dispose();
     this.root.remove();
+  }
+
+  private applyLayout(): void {
+    const nextLayout = computeHudLayout(window.innerWidth, window.innerHeight);
+    if (this.currentLayout && areLayoutsEqual(this.currentLayout, nextLayout)) {
+      return;
+    }
+    this.currentLayout = nextLayout;
+    this.topBar.setLayout(nextLayout);
+    this.waveIntel.setLayout(nextLayout);
+    this.objectiveCard.setLayout(nextLayout);
+    this.towerInspector.setLayout(nextLayout);
+    this.alerts.setLayout(nextLayout);
   }
 }
 
@@ -259,4 +286,15 @@ function toOwnerColor(owner: Owner): string {
 
 function clamp01(value: number): number {
   return Math.max(0, Math.min(1, value));
+}
+
+function areLayoutsEqual(left: HudLayoutRuntime, right: HudLayoutRuntime): boolean {
+  return left.viewportW === right.viewportW
+    && left.viewportH === right.viewportH
+    && left.edgePad === right.edgePad
+    && left.rightWidth === right.rightWidth
+    && left.maxAlertsVisible === right.maxAlertsVisible
+    && left.towerCenterMode === right.towerCenterMode
+    && left.towerForceCompact === right.towerForceCompact
+    && left.runIntelAutoCollapseSections === right.runIntelAutoCollapseSections;
 }

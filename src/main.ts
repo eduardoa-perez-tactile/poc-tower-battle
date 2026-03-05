@@ -2596,6 +2596,7 @@ function syncMissionHud(app: AppState, debugState: DebugUiState, gameplayHud: Ga
     missionTitle: getMissionHudTitle(app),
     objectiveText: getMissionHudObjective(app),
     selectedTowerId: app.inputController?.getSelectedTowerId() ?? null,
+    hoveredTowerId: app.inputController?.getHoveredTowerId() ?? null,
     missionPaused: app.missionPaused,
     missionSpeedMul: app.missionSpeedMul,
     overlayRegenEnabled: debugState.showOverlayRegenNumbers,
@@ -2622,7 +2623,10 @@ function syncMissionHud(app: AppState, debugState: DebugUiState, gameplayHud: Ga
     gameplayHud.pushToast(toast);
   });
 
-  gameplayHud.update(vm);
+  gameplayHud.update(vm, {
+    debugExpanded: debugState.debugOpen || debugState.showMapDebugOverlay,
+    forceCompact: window.innerHeight < 760 || window.innerWidth < 900,
+  });
 }
 
 function runTutorialHintFeed(
