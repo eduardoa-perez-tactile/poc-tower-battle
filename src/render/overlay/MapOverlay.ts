@@ -4,6 +4,7 @@ import type {
   LinkCandidateState,
   PointerHint,
 } from "../../input/InputController";
+import type { GridRenderData } from "../../levels/runtime";
 import { TOWER_RADIUS_PX, type Link, type Tower, type Vec2, type World } from "../../sim/World";
 import { formatCompactCount, formatRegenPerSec } from "./format";
 import { OVERLAY_THEME } from "./overlayTheme";
@@ -35,12 +36,44 @@ export interface MapOverlayDrawState {
   timeSec: number;
 }
 
+export interface MapOverlayIsoContext {
+  mapRenderData: GridRenderData | null;
+  terrainTileSize: number | null;
+}
+
+// Tower-plate tuning constants (kept local for quick visual iteration).
+const ISO_TILE_HEIGHT_RATIO = 0.5;
+const PLATE_W_MUL = 0.95;
+const PLATE_H_MUL = 0.95;
+const PLATE_INSET_MUL = 0.8;
+const PLATE_Y_OFFSET = 0.1;
+const PLATE_BASE_ALPHA = 0.3;
+const PLATE_INSET_ALPHA = 0.24;
+const BADGE_OFFSET_X = -0.46;
+const BADGE_OFFSET_Y = -0.57;
+const REGEN_OFFSET_X = -0.43;
+const REGEN_OFFSET_Y = -0.12;
+const STATUS_OFFSET_Y = 0.9;
+const TOWER_ID_OFFSET_Y = -0.92;
+const SELECTION_EXPAND = 5;
+const CANDIDATE_VALID_EXPAND = 4;
+const CANDIDATE_INVALID_EXPAND = 3;
+const PIP_EDGE_INSET = 0.16;
+const PIP_RADIUS = 2.8;
+const PIP_SPACING = 1;
+const PIP_MAX_VISIBLE = 8;
+const BREACH_CORNER_SLASH = 8;
+const BREACH_CORNER_INSET = 5;
+
 export class MapOverlay {
   private readonly towerById: Map<string, Tower>;
+  private readonly outgoingLinkCountByTowerId: Map<string, number>;
   private readonly badgeAngleByTowerId: Map<string, number>;
   private readonly textWidthCache: Map<string, number>;
   private readonly tmpPoint: Vec2;
   private readonly tmpDir: Vec2;
+  private readonly dynamicDash: [number, number];
+  private readonly isoPlateStyleScratch: IsoPlateStyle;
   private readonly badgeFont: string;
   private readonly badgeSubFont: string;
   private readonly legendFont: string;
@@ -49,10 +82,24 @@ export class MapOverlay {
 
   constructor() {
     this.towerById = new Map<string, Tower>();
+    this.outgoingLinkCountByTowerId = new Map<string, number>();
     this.badgeAngleByTowerId = new Map<string, number>();
     this.textWidthCache = new Map<string, number>();
     this.tmpPoint = { x: 0, y: 0 };
     this.tmpDir = { x: 1, y: 0 };
+    this.dynamicDash = [1, 1];
+    this.isoPlateStyleScratch = {
+      fillColor: "",
+      fillAlpha: 0,
+      insetColor: "",
+      insetAlpha: 0,
+      outlineColor: "",
+      outlineWidth: 0,
+      glowColor: "",
+      glowWidth: 0,
+      dashed: false,
+      insetScale: PLATE_INSET_MUL,
+    };
     this.badgeFont = `${OVERLAY_THEME.badge.fontWeight} ${OVERLAY_THEME.badge.fontSizePx}px ${OVERLAY_THEME.fontFamily}`;
     this.badgeSubFont = `600 ${Math.max(10, OVERLAY_THEME.badge.fontSizePx - 2)}px ${OVERLAY_THEME.fontFamily}`;
     this.legendFont = `600 ${OVERLAY_THEME.legend.fontSizePx}px ${OVERLAY_THEME.fontFamily}`;
@@ -65,9 +112,65 @@ export class MapOverlay {
     overlayState: MapOverlayDrawState,
     viewportTransform: OverlayViewportTransform,
   ): void {
-    this.prepareTowerLookup(overlayState.world.towers);
+    const isoContext: MapOverlayIsoContext = {
+      mapRenderData: null,
+      terrainTileSize: null,
+    };
+    this.drawTowerUnderlay(ctx, overlayState, viewportTransform, isoContext);
+    this.drawForeground(ctx, overlayState, viewportTransform, isoContext);
+  }
+
+  drawTowerUnderlay(
+    ctx: CanvasRenderingContext2D,
+    overlayState: MapOverlayDrawState,
+    viewportTransform: OverlayViewportTransform,
+    isoContext: MapOverlayIsoContext,
+  ): void {
+    this.prepareTowerLookup(overlayState.world);
+    const tile = getIsoTileSize(
+      isoContext.mapRenderData,
+      isoContext.terrainTileSize,
+      viewportTransform.scale,
+    );
+    const plateW = tile.tileW * PLATE_W_MUL;
+    const plateH = tile.tileH * PLATE_H_MUL;
+    const interaction = overlayState.interaction;
+
+    for (const tower of overlayState.world.towers) {
+      if (!Number.isFinite(tower.x) || !Number.isFinite(tower.y)) {
+        continue;
+      }
+      const sx = toScreenX(tower.x, viewportTransform);
+      const sy = toScreenY(tower.y, viewportTransform);
+      const plateX = sx;
+      const plateY = sy + tile.tileH * PLATE_Y_OFFSET;
+      const hovered = interaction.hoveredTowerId === tower.id;
+      const selected = interaction.selectedTowerId === tower.id;
+      const isDragSource = interaction.dragSourceId === tower.id && interaction.isDraggingLink;
+
+      this.drawTowerPlateUnderlay(
+        ctx,
+        tower,
+        plateX,
+        plateY,
+        plateW,
+        plateH,
+        hovered,
+        selected || isDragSource,
+      );
+      this.drawTowerControlEdgeOverlay(ctx, tower, plateX, plateY, plateW, plateH, overlayState.timeSec);
+    }
+  }
+
+  drawForeground(
+    ctx: CanvasRenderingContext2D,
+    overlayState: MapOverlayDrawState,
+    viewportTransform: OverlayViewportTransform,
+    isoContext: MapOverlayIsoContext,
+  ): void {
+    this.prepareTowerLookup(overlayState.world);
     this.drawLinks(ctx, overlayState, viewportTransform);
-    this.drawTowers(ctx, overlayState, viewportTransform);
+    this.drawTowerForeground(ctx, overlayState, viewportTransform, isoContext);
     this.drawSuggestedLink(ctx, overlayState, viewportTransform);
     this.drawPreviewLink(ctx, overlayState.interaction.preview, viewportTransform);
     this.drawPointerHint(ctx, overlayState.interaction.pointerHint, viewportTransform);
@@ -76,13 +179,25 @@ export class MapOverlay {
     }
   }
 
-  private prepareTowerLookup(towers: ReadonlyArray<Tower>): void {
+  private prepareTowerLookup(world: World): void {
     this.towerById.clear();
-    for (const tower of towers) {
+    this.outgoingLinkCountByTowerId.clear();
+    for (const tower of world.towers) {
       this.towerById.set(tower.id, tower);
+      this.outgoingLinkCountByTowerId.set(tower.id, 0);
       if (!this.badgeAngleByTowerId.has(tower.id)) {
         this.badgeAngleByTowerId.set(tower.id, angleFromId(tower.id));
       }
+    }
+    for (const link of world.links) {
+      if (link.isScripted) {
+        continue;
+      }
+      const previous = this.outgoingLinkCountByTowerId.get(link.fromTowerId);
+      if (previous === undefined) {
+        continue;
+      }
+      this.outgoingLinkCountByTowerId.set(link.fromTowerId, previous + 1);
     }
   }
 
@@ -224,11 +339,19 @@ export class MapOverlay {
     ctx.fillText(link.id, sx, sy + 14);
   }
 
-  private drawTowers(
+  private drawTowerForeground(
     ctx: CanvasRenderingContext2D,
     overlayState: MapOverlayDrawState,
     viewportTransform: OverlayViewportTransform,
+    isoContext: MapOverlayIsoContext,
   ): void {
+    const tile = getIsoTileSize(
+      isoContext.mapRenderData,
+      isoContext.terrainTileSize,
+      viewportTransform.scale,
+    );
+    const plateW = tile.tileW * PLATE_W_MUL;
+    const plateH = tile.tileH * PLATE_H_MUL;
     const interaction = overlayState.interaction;
     const candidateMap = interaction.dragOverlay?.candidateStateByTowerId ?? null;
     for (const tower of overlayState.world.towers) {
@@ -237,131 +360,226 @@ export class MapOverlay {
       }
       const sx = toScreenX(tower.x, viewportTransform);
       const sy = toScreenY(tower.y, viewportTransform);
-      const radius = Math.max(
-        (TOWER_RADIUS_PX + 6) * viewportTransform.scale,
-        OVERLAY_THEME.ring.baseRadiusPx * viewportTransform.scale,
-      );
+      const plateX = sx;
+      const plateY = sy + tile.tileH * PLATE_Y_OFFSET;
       const hovered = interaction.hoveredTowerId === tower.id;
       const selected = interaction.selectedTowerId === tower.id;
       const isDragSource = interaction.dragSourceId === tower.id && interaction.isDraggingLink;
-      const contested = Number.isFinite(tower.hp) && tower.hp < tower.maxHp;
       const candidateState = candidateMap?.[tower.id] ?? null;
-      this.drawTowerRing(
+      this.drawTowerAffordanceOverlays(
         ctx,
-        sx,
-        sy,
-        radius,
-        tower,
-        contested,
+        plateX,
+        plateY,
+        plateW,
+        plateH,
         hovered,
         selected || isDragSource,
         candidateState,
         overlayState.timeSec,
       );
-      this.drawTowerBadge(ctx, tower, sx, sy, radius, viewportTransform.scale);
+
+      const maxLinks = overlayState.world.getMaxOutgoingLinksForTower(tower.id);
+      const activeLinks = this.outgoingLinkCountByTowerId.get(tower.id) ?? 0;
+      drawLinkPips(
+        ctx,
+        plateX,
+        plateY,
+        plateW,
+        plateH,
+        maxLinks,
+        activeLinks,
+        OVERLAY_THEME.ownerColors[tower.owner].ring,
+      );
+      this.drawTowerBadge(ctx, tower, plateX, plateY, plateW, plateH, viewportTransform.scale);
+      this.drawTowerStatusLabel(ctx, tower, plateX, plateY, plateH);
+
       if (overlayState.showDebugIds) {
-        this.drawTowerIdLabel(ctx, tower.id, sx, sy, radius);
+        this.drawTowerIdLabel(ctx, tower.id, plateX, plateY, plateH);
       }
     }
   }
 
-  private drawTowerRing(
+  private drawTowerPlateUnderlay(
     ctx: CanvasRenderingContext2D,
-    sx: number,
-    sy: number,
-    radius: number,
     tower: Tower,
-    contested: boolean,
+    plateX: number,
+    plateY: number,
+    plateW: number,
+    plateH: number,
+    hovered: boolean,
+    selected: boolean,
+  ): void {
+    const ownerColors = OVERLAY_THEME.ownerColors[tower.owner];
+    const outlineWidth =
+      OVERLAY_THEME.ring.baseWidthPx +
+      (hovered ? OVERLAY_THEME.ring.hoverExtraWidthPx : 0) +
+      (selected ? OVERLAY_THEME.ring.selectedExtraWidthPx : 0);
+    const style = this.isoPlateStyleScratch;
+    style.fillColor = ownerColors.ring;
+    style.fillAlpha = PLATE_BASE_ALPHA + (hovered ? 0.06 : 0);
+    style.insetColor = ownerColors.glow;
+    style.insetAlpha = PLATE_INSET_ALPHA + (selected ? 0.1 : 0);
+    style.outlineColor = ownerColors.ring;
+    style.outlineWidth = outlineWidth;
+    style.glowColor = ownerColors.glow;
+    style.glowWidth = OVERLAY_THEME.ring.glowWidthPx * (selected ? 1.3 : 1);
+    style.dashed = tower.owner === "neutral";
+    style.insetScale = PLATE_INSET_MUL;
+    drawIsoPlate(ctx, plateX, plateY, plateW, plateH, style);
+  }
+
+  private drawTowerControlEdgeOverlay(
+    ctx: CanvasRenderingContext2D,
+    tower: Tower,
+    plateX: number,
+    plateY: number,
+    plateW: number,
+    plateH: number,
+    timeSec: number,
+  ): void {
+    const phase = getTowerControlPhase(tower);
+    if (phase === "stable") {
+      return;
+    }
+    const pulse = 0.5 + 0.5 * Math.sin(timeSec * Math.PI * 2 * OVERLAY_THEME.animation.pulseHz);
+    const hp01 = clamp01(sanitizeNumber(tower.hp) / Math.max(1, sanitizeNumber(tower.maxHp)));
+    const progress01 = phase === "breaching" ? clamp01(1 - hp01) : 0.22 + pulse * 0.18;
+    const perimeter = getIsoPerimeterLength(plateW + 2, plateH + 2);
+
+    ctx.save();
+    this.dynamicDash[0] = Math.max(8, perimeter * progress01);
+    this.dynamicDash[1] = Math.max(10, perimeter);
+    ctx.setLineDash(this.dynamicDash);
+    ctx.lineDashOffset = -timeSec * OVERLAY_THEME.animation.contestedDashSpeed * 24;
+    drawIsoSelection(
+      ctx,
+      plateX,
+      plateY,
+      plateW + 2,
+      plateH + 2,
+      phase === "breaching" ? "rgba(255, 178, 122, 0.92)" : "rgba(255, 226, 170, 0.85)",
+      2.2 + pulse * 0.8,
+    );
+    ctx.setLineDash([]);
+    if (phase === "breaching") {
+      this.drawBreachCornerSlashes(ctx, plateX, plateY, plateW, plateH);
+    }
+    ctx.restore();
+  }
+
+  private drawBreachCornerSlashes(
+    ctx: CanvasRenderingContext2D,
+    plateX: number,
+    plateY: number,
+    plateW: number,
+    plateH: number,
+  ): void {
+    const topX = plateX;
+    const topY = plateY - plateH * 0.5;
+    const rightX = plateX + plateW * 0.5;
+    const rightY = plateY;
+    const bottomX = plateX;
+    const bottomY = plateY + plateH * 0.5;
+    const leftX = plateX - plateW * 0.5;
+    const leftY = plateY;
+
+    ctx.strokeStyle = "rgba(255, 166, 106, 0.95)";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(topX + BREACH_CORNER_INSET, topY + BREACH_CORNER_INSET);
+    ctx.lineTo(
+      topX + BREACH_CORNER_INSET + BREACH_CORNER_SLASH,
+      topY + BREACH_CORNER_INSET + BREACH_CORNER_SLASH * 0.5,
+    );
+    ctx.moveTo(rightX - BREACH_CORNER_INSET, rightY + BREACH_CORNER_INSET);
+    ctx.lineTo(
+      rightX - BREACH_CORNER_INSET - BREACH_CORNER_SLASH * 0.5,
+      rightY + BREACH_CORNER_INSET + BREACH_CORNER_SLASH,
+    );
+    ctx.moveTo(bottomX - BREACH_CORNER_INSET, bottomY - BREACH_CORNER_INSET);
+    ctx.lineTo(
+      bottomX - BREACH_CORNER_INSET - BREACH_CORNER_SLASH,
+      bottomY - BREACH_CORNER_INSET - BREACH_CORNER_SLASH * 0.5,
+    );
+    ctx.moveTo(leftX + BREACH_CORNER_INSET, leftY - BREACH_CORNER_INSET);
+    ctx.lineTo(
+      leftX + BREACH_CORNER_INSET + BREACH_CORNER_SLASH * 0.5,
+      leftY - BREACH_CORNER_INSET - BREACH_CORNER_SLASH,
+    );
+    ctx.stroke();
+  }
+
+  private drawTowerAffordanceOverlays(
+    ctx: CanvasRenderingContext2D,
+    plateX: number,
+    plateY: number,
+    plateW: number,
+    plateH: number,
     hovered: boolean,
     selected: boolean,
     candidateState: LinkCandidateState | null,
     timeSec: number,
   ): void {
-    const ownerColors = OVERLAY_THEME.ownerColors[tower.owner];
     const pulse = 0.5 + 0.5 * Math.sin(timeSec * Math.PI * 2 * OVERLAY_THEME.animation.pulseHz);
-    const ringWidth =
-      OVERLAY_THEME.ring.baseWidthPx +
-      (hovered ? OVERLAY_THEME.ring.hoverExtraWidthPx : 0) +
-      (selected ? OVERLAY_THEME.ring.selectedExtraWidthPx : 0);
-
-    ctx.save();
-    ctx.beginPath();
-    ctx.arc(sx, sy, radius, 0, Math.PI * 2);
-    ctx.strokeStyle = ownerColors.glow;
-    ctx.lineWidth = ringWidth + OVERLAY_THEME.ring.glowWidthPx * (selected ? 1.3 : 1);
-    ctx.stroke();
-
-    ctx.beginPath();
-    ctx.arc(sx, sy, radius, 0, Math.PI * 2);
-    ctx.strokeStyle = ownerColors.ring;
-    ctx.lineWidth = ringWidth;
-    if (tower.owner === "neutral") {
-      ctx.setLineDash(OVERLAY_THEME.ring.neutralDash);
-    }
-    if (contested) {
-      ctx.setLineDash(OVERLAY_THEME.ring.contestedDash);
-      ctx.lineDashOffset = -timeSec * OVERLAY_THEME.animation.contestedDashSpeed * 20;
-      ctx.lineWidth += 0.8 + pulse;
-    }
-    ctx.stroke();
-    ctx.setLineDash([]);
-
-    if (selected) {
-      this.drawSelectionWedge(ctx, sx, sy, radius, ownerColors.ring);
+    if (hovered || selected) {
+      drawIsoSelection(
+        ctx,
+        plateX,
+        plateY,
+        plateW + SELECTION_EXPAND,
+        plateH + SELECTION_EXPAND,
+        "rgba(235, 247, 255, 0.85)",
+        selected ? 2.8 : 2.1,
+      );
     }
 
     if (candidateState === "valid") {
-      ctx.beginPath();
-      ctx.arc(sx, sy, radius + 5, 0, Math.PI * 2);
-      ctx.strokeStyle = OVERLAY_THEME.affordance.validRingColor;
-      ctx.lineWidth = 2.8 + pulse * 1.2;
-      ctx.stroke();
-    } else if (candidateState === "invalid") {
-      ctx.beginPath();
-      ctx.arc(sx, sy, radius + 4, 0, Math.PI * 2);
-      ctx.strokeStyle = OVERLAY_THEME.affordance.invalidRingColor;
-      ctx.lineWidth = 2.3;
-      ctx.setLineDash([6, 4]);
-      ctx.stroke();
+      drawIsoSelection(
+        ctx,
+        plateX,
+        plateY,
+        plateW + CANDIDATE_VALID_EXPAND,
+        plateH + CANDIDATE_VALID_EXPAND,
+        OVERLAY_THEME.affordance.validRingColor,
+        2.8 + pulse * 1.2,
+      );
+      return;
+    }
+
+    if (candidateState === "invalid") {
+      ctx.save();
+      this.dynamicDash[0] = 6;
+      this.dynamicDash[1] = 4;
+      ctx.setLineDash(this.dynamicDash);
+      drawIsoSelection(
+        ctx,
+        plateX,
+        plateY,
+        plateW + CANDIDATE_INVALID_EXPAND,
+        plateH + CANDIDATE_INVALID_EXPAND,
+        OVERLAY_THEME.affordance.invalidRingColor,
+        2.3,
+      );
       ctx.setLineDash([]);
       ctx.strokeStyle = OVERLAY_THEME.affordance.invalidCrossColor;
       ctx.lineWidth = 2;
       ctx.beginPath();
-      ctx.moveTo(sx - 8, sy - 8);
-      ctx.lineTo(sx + 8, sy + 8);
-      ctx.moveTo(sx + 8, sy - 8);
-      ctx.lineTo(sx - 8, sy + 8);
+      ctx.moveTo(plateX - 8, plateY - 8);
+      ctx.lineTo(plateX + 8, plateY + 8);
+      ctx.moveTo(plateX + 8, plateY - 8);
+      ctx.lineTo(plateX - 8, plateY + 8);
       ctx.stroke();
+      ctx.restore();
     }
-    ctx.restore();
-  }
-
-  private drawSelectionWedge(
-    ctx: CanvasRenderingContext2D,
-    sx: number,
-    sy: number,
-    radius: number,
-    color: string,
-  ): void {
-    const wedgeR = radius + OVERLAY_THEME.ring.selectionWedgeSizePx;
-    const a0 = -Math.PI * 0.36;
-    const a1 = -Math.PI * 0.16;
-    ctx.fillStyle = color;
-    ctx.beginPath();
-    ctx.moveTo(sx, sy);
-    ctx.arc(sx, sy, wedgeR, a0, a1);
-    ctx.closePath();
-    ctx.globalAlpha = 0.2;
-    ctx.fill();
-    ctx.globalAlpha = 1;
   }
 
   private drawTowerBadge(
     ctx: CanvasRenderingContext2D,
     tower: Tower,
-    sx: number,
-    sy: number,
-    radius: number,
+    plateX: number,
+    plateY: number,
+    plateW: number,
+    plateH: number,
     scale: number,
   ): void {
     const ownerColors = OVERLAY_THEME.ownerColors[tower.owner];
@@ -369,8 +587,8 @@ export class MapOverlay {
     const jitterRadius = OVERLAY_THEME.badge.jitterRadiusPx * scale;
     const jitterX = Math.cos(angle) * jitterRadius;
     const jitterY = Math.sin(angle) * jitterRadius * 0.6;
-    const anchorX = sx + OVERLAY_THEME.badge.anchorOffsetXPx * scale + jitterX;
-    const anchorY = sy + OVERLAY_THEME.badge.anchorOffsetYPx * scale - radius * 0.02 + jitterY;
+    const anchorX = plateX + plateW * BADGE_OFFSET_X + jitterX;
+    const anchorY = plateY + plateH * BADGE_OFFSET_Y + jitterY;
 
     const troopValue = Number.isFinite(tower.troops) ? tower.troops : 0;
     const countText = formatCompactCount(troopValue);
@@ -380,24 +598,9 @@ export class MapOverlay {
     ctx.save();
     ctx.font = this.badgeFont;
     const countWidth = this.measureTextCached(ctx, countText, this.badgeFont);
-    let regenWidth = 0;
-    if (regenText) {
-      regenWidth = this.measureTextCached(ctx, regenText, this.badgeSubFont);
-    }
-    const width =
-      countWidth +
-      (regenWidth > 0 ? regenWidth + 6 : 0) +
-      OVERLAY_THEME.badge.paddingXPx * 2;
+    const width = countWidth + OVERLAY_THEME.badge.paddingXPx * 2;
     const height = OVERLAY_THEME.badge.fontSizePx + OVERLAY_THEME.badge.paddingYPx * 2;
-
-    this.drawRoundedRect(
-      ctx,
-      anchorX,
-      anchorY,
-      width,
-      height,
-      OVERLAY_THEME.badge.cornerRadiusPx,
-    );
+    this.drawRoundedRect(ctx, anchorX, anchorY, width, height, OVERLAY_THEME.badge.cornerRadiusPx);
     ctx.fillStyle = ownerColors.badgeFill;
     ctx.fill();
     ctx.strokeStyle = OVERLAY_THEME.badge.outlineColor;
@@ -407,25 +610,58 @@ export class MapOverlay {
     ctx.textAlign = "left";
     ctx.textBaseline = "middle";
     ctx.fillStyle = ownerColors.badgeText;
-    const textX = anchorX + OVERLAY_THEME.badge.paddingXPx;
-    const textY = anchorY + height / 2 + 0.25;
     ctx.font = this.badgeFont;
-    ctx.fillText(countText, textX, textY);
+    ctx.fillText(countText, anchorX + OVERLAY_THEME.badge.paddingXPx, anchorY + height / 2 + 0.25);
 
     if (regenText) {
       ctx.font = this.badgeSubFont;
+      ctx.textAlign = "left";
+      ctx.textBaseline = "alphabetic";
+      const regenX = plateX + plateW * REGEN_OFFSET_X;
+      const regenY = plateY + plateH * REGEN_OFFSET_Y;
+      const regenWidth = this.measureTextCached(ctx, regenText, this.badgeSubFont);
+      this.drawRoundedRect(ctx, regenX - 4, regenY - 11, regenWidth + 8, 14, 5);
+      ctx.fillStyle = "rgba(3, 8, 13, 0.62)";
+      ctx.fill();
       ctx.fillStyle = OVERLAY_THEME.badge.regenTextColor;
-      ctx.fillText(regenText, textX + countWidth + 6, textY);
+      ctx.fillText(regenText, regenX, regenY);
     }
+    ctx.restore();
+  }
+
+  private drawTowerStatusLabel(
+    ctx: CanvasRenderingContext2D,
+    tower: Tower,
+    plateX: number,
+    plateY: number,
+    plateH: number,
+  ): void {
+    const phase = getTowerControlPhase(tower);
+    if (phase === "stable") {
+      return;
+    }
+    const text = phase === "breaching" ? "BREACHING" : "CONTESTED";
+    const y = plateY + plateH * STATUS_OFFSET_Y;
+    const font = "700 10px Arial, sans-serif";
+    ctx.save();
+    ctx.font = font;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "alphabetic";
+    const width = this.measureTextCached(ctx, text, font);
+    this.drawRoundedRect(ctx, plateX - width * 0.5 - 6, y - 11, width + 12, 14, 6);
+    ctx.fillStyle = "rgba(3, 8, 13, 0.64)";
+    ctx.fill();
+    ctx.fillStyle = phase === "breaching" ? "#ffc78a" : "#ffe6b2";
+    ctx.fillText(text, plateX, y);
     ctx.restore();
   }
 
   private drawTowerIdLabel(
     ctx: CanvasRenderingContext2D,
     towerId: string,
-    sx: number,
-    sy: number,
-    radius: number,
+    plateX: number,
+    plateY: number,
+    plateH: number,
   ): void {
     ctx.save();
     ctx.font = "600 10px Arial, sans-serif";
@@ -433,13 +669,13 @@ export class MapOverlay {
     ctx.textBaseline = "alphabetic";
     const textWidth = this.measureTextCached(ctx, towerId, ctx.font);
     const bgWidth = textWidth + 8;
-    const x = sx - bgWidth / 2;
-    const y = sy - radius - 18;
+    const x = plateX - bgWidth / 2;
+    const y = plateY + plateH * TOWER_ID_OFFSET_Y - 18;
     this.drawRoundedRect(ctx, x, y, bgWidth, 12, 4);
     ctx.fillStyle = "rgba(2, 5, 9, 0.64)";
     ctx.fill();
     ctx.fillStyle = "rgba(222, 228, 236, 0.96)";
-    ctx.fillText(towerId, sx, y + 10);
+    ctx.fillText(towerId, plateX, y + 10);
     ctx.restore();
   }
 
@@ -545,10 +781,10 @@ export class MapOverlay {
 
     this.drawLegendSwatch(ctx, x + 10, y + 28, OVERLAY_THEME.ownerColors.player.ring, "Player");
     this.drawLegendSwatch(ctx, x + 10, y + 46, OVERLAY_THEME.ownerColors.enemy.ring, "Enemy");
-    this.drawLegendDashed(ctx, x + 10, y + 64, OVERLAY_THEME.ownerColors.neutral.ring, "Neutral (dashed)");
+    this.drawLegendDashed(ctx, x + 10, y + 64, OVERLAY_THEME.ownerColors.neutral.ring, "Neutral plate");
 
     ctx.fillStyle = OVERLAY_THEME.legend.textColor;
-    ctx.fillText("Pulse = contested", x + 10, y + 88);
+    ctx.fillText("Edge pulse = contested", x + 10, y + 88);
     ctx.fillText("O toggle overlay", x + 10, y + 104);
     ctx.restore();
   }
@@ -681,6 +917,181 @@ export class MapOverlay {
     this.textWidthCache.set(key, width);
     return width;
   }
+}
+
+interface IsoPlateStyle {
+  fillColor: string;
+  fillAlpha: number;
+  insetColor: string;
+  insetAlpha: number;
+  outlineColor: string;
+  outlineWidth: number;
+  glowColor: string;
+  glowWidth: number;
+  dashed: boolean;
+  insetScale: number;
+}
+
+function getIsoTileSize(
+  mapRenderData: GridRenderData | null,
+  terrainTileSize: number | null,
+  scale: number,
+): { tileW: number; tileH: number } {
+  const baseTile = Math.max(1, mapRenderData?.cellSize ?? terrainTileSize ?? TOWER_RADIUS_PX * 2.1);
+  const tileW = Math.max(TOWER_RADIUS_PX * 1.7, baseTile * Math.max(0.2, scale));
+  return {
+    tileW,
+    tileH: tileW * ISO_TILE_HEIGHT_RATIO,
+  };
+}
+
+function drawIsoPlate(
+  ctx: CanvasRenderingContext2D,
+  cx: number,
+  cy: number,
+  w: number,
+  h: number,
+  style: IsoPlateStyle,
+): void {
+  ctx.save();
+  if (style.glowWidth > 0.01) {
+    traceDiamond(ctx, cx, cy, w, h);
+    ctx.strokeStyle = style.glowColor;
+    ctx.lineWidth = style.outlineWidth + style.glowWidth;
+    ctx.stroke();
+  }
+
+  traceDiamond(ctx, cx, cy, w, h);
+  ctx.globalAlpha = clamp01(style.fillAlpha);
+  ctx.fillStyle = style.fillColor;
+  ctx.fill();
+  ctx.globalAlpha = 1;
+
+  const insetScale = clamp(style.insetScale, 0.4, 0.95);
+  const insetW = w * insetScale;
+  const insetH = h * insetScale;
+  traceDiamond(ctx, cx, cy, insetW, insetH);
+  ctx.globalAlpha = clamp01(style.insetAlpha);
+  ctx.fillStyle = style.insetColor;
+  ctx.fill();
+  ctx.globalAlpha = 1;
+
+  traceDiamond(ctx, cx, cy, w, h);
+  ctx.strokeStyle = style.outlineColor;
+  ctx.lineWidth = style.outlineWidth;
+  if (style.dashed) {
+    ctx.setLineDash(OVERLAY_THEME.ring.neutralDash);
+  }
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.restore();
+}
+
+function drawIsoSelection(
+  ctx: CanvasRenderingContext2D,
+  cx: number,
+  cy: number,
+  w: number,
+  h: number,
+  color: string,
+  width: number,
+): void {
+  ctx.save();
+  traceDiamond(ctx, cx, cy, w, h);
+  ctx.strokeStyle = color;
+  ctx.lineWidth = width;
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawLinkPips(
+  ctx: CanvasRenderingContext2D,
+  cx: number,
+  cy: number,
+  plateW: number,
+  plateH: number,
+  maxLinks: number,
+  activeLinks: number,
+  tint: string,
+): void {
+  const safeMax = clamp(Math.floor(maxLinks), 0, 64);
+  if (safeMax <= 0) {
+    return;
+  }
+  const visible = clamp(safeMax, 1, PIP_MAX_VISIBLE);
+  const topX = cx;
+  const topY = cy - plateH * 0.5;
+  const rightX = cx + plateW * 0.5;
+  const rightY = cy;
+  const activeVisible = clamp(Math.round((activeLinks / safeMax) * visible), 0, visible);
+  const spacingMul = (1 - PIP_EDGE_INSET * 2) / Math.max(1, visible - 1);
+
+  ctx.save();
+  for (let i = 0; i < visible; i += 1) {
+    const t = clamp(PIP_EDGE_INSET + i * spacingMul * PIP_SPACING, 0.06, 0.94);
+    const px = topX + (rightX - topX) * t;
+    const py = topY + (rightY - topY) * t;
+    ctx.beginPath();
+    ctx.arc(px, py, PIP_RADIUS, 0, Math.PI * 2);
+    if (i < activeVisible) {
+      ctx.fillStyle = tint;
+      ctx.fill();
+    } else {
+      ctx.fillStyle = "rgba(10, 14, 19, 0.55)";
+      ctx.fill();
+      ctx.strokeStyle = "rgba(232, 240, 248, 0.58)";
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    }
+  }
+  ctx.restore();
+}
+
+function traceDiamond(
+  ctx: CanvasRenderingContext2D,
+  cx: number,
+  cy: number,
+  w: number,
+  h: number,
+): void {
+  const halfW = w * 0.5;
+  const halfH = h * 0.5;
+  ctx.beginPath();
+  ctx.moveTo(cx, cy - halfH);
+  ctx.lineTo(cx + halfW, cy);
+  ctx.lineTo(cx, cy + halfH);
+  ctx.lineTo(cx - halfW, cy);
+  ctx.closePath();
+}
+
+function getIsoPerimeterLength(w: number, h: number): number {
+  const edge = Math.hypot(w * 0.5, h * 0.5);
+  return edge * 4;
+}
+
+function getTowerControlPhase(tower: Tower): "stable" | "contested" | "breaching" {
+  const defendersBroken = sanitizeNumber(tower.troops) <= 0.001;
+  const hp01 = clamp01(sanitizeNumber(tower.hp) / Math.max(1, sanitizeNumber(tower.maxHp)));
+  const damaged = hp01 < 0.999;
+  if (defendersBroken && damaged) {
+    return "breaching";
+  }
+  if (damaged) {
+    return "contested";
+  }
+  return "stable";
+}
+
+function sanitizeNumber(value: number): number {
+  return Number.isFinite(value) ? value : 0;
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, value));
+}
+
+function clamp01(value: number): number {
+  return clamp(value, 0, 1);
 }
 
 function shouldShowFlowMarkers(
