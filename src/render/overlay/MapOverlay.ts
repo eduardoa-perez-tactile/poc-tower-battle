@@ -53,13 +53,21 @@ const PLATE_INSET_ALPHA = 0.24;
 const SELECT_OUTLINE_THICKNESS = 3;
 const CAPTURE_THICKNESS = 3;
 const BADGE_SCALE = 1.0;
-const LINK_BADGE_OFFSET = 8;
+const COUNT_BADGE_R_MUL = 1.15;
+const COUNT_FONT_PX = 14;
+const COUNT_TEXT_STROKE_PX = 3;
+const COUNT_TEXT_FILL_ALPHA = 1.0;
+const COUNT_FONT_MIN_PX = 12;
+const COUNT_FONT_MAX_PX = 18;
+const LINK_BADGE_T = 0.58;
+const LINK_BADGE_OFFSET_PX = 10;
+const LINK_BADGE_REPOSITION_STEP_T = 0.08;
+const LINK_BADGE_MIN_DIST_TO_TOWER_PX = 26;
 const LINK_BADGE_MIN_SHOW = 2;
 const BADGE_CENTER_OFFSET_X = 0;
 const BADGE_CENTER_OFFSET_Y = -0.35;
 const REGEN_ANCHOR_OFFSET_X = -0.35;
 const REGEN_ANCHOR_OFFSET_Y = 0.25;
-const STATUS_OFFSET_Y = 0.9;
 const TOWER_ID_OFFSET_Y = -0.92;
 const SELECTION_EXPAND = 5;
 const CANDIDATE_VALID_EXPAND = 4;
@@ -68,20 +76,23 @@ const PIP_EDGE_INSET = 0.16;
 const PIP_RADIUS = 2.8;
 const PIP_SPACING = 1;
 const PIP_MAX_VISIBLE = 8;
-const BREACH_CORNER_SLASH = 8;
-const BREACH_CORNER_INSET = 5;
+const BREACH_PROGRESS_WIDTH_PX = 4.2;
+const BREACH_PROGRESS_BASE_ALPHA = 0.45;
+const CONTESTED_EDGE_BASE_ALPHA = 0.7;
 
 export class MapOverlay {
   private readonly towerById: Map<string, Tower>;
   private readonly outgoingLinkCountByTowerId: Map<string, number>;
   private readonly packetCountByLinkId: Map<string, number>;
+  private readonly incomingPlayerUnitsByTowerId: Map<string, number>;
+  private readonly incomingEnemyUnitsByTowerId: Map<string, number>;
+  private readonly incomingNeutralUnitsByTowerId: Map<string, number>;
   private readonly badgeAngleByTowerId: Map<string, number>;
   private readonly textWidthCache: Map<string, number>;
   private readonly tmpPoint: Vec2;
   private readonly tmpDir: Vec2;
   private readonly dynamicDash: [number, number];
   private readonly isoPlateStyleScratch: IsoPlateStyle;
-  private readonly badgeFont: string;
   private readonly badgeSubFont: string;
   private readonly legendFont: string;
   private readonly linkLevelFont: string;
@@ -92,6 +103,9 @@ export class MapOverlay {
     this.towerById = new Map<string, Tower>();
     this.outgoingLinkCountByTowerId = new Map<string, number>();
     this.packetCountByLinkId = new Map<string, number>();
+    this.incomingPlayerUnitsByTowerId = new Map<string, number>();
+    this.incomingEnemyUnitsByTowerId = new Map<string, number>();
+    this.incomingNeutralUnitsByTowerId = new Map<string, number>();
     this.badgeAngleByTowerId = new Map<string, number>();
     this.textWidthCache = new Map<string, number>();
     this.tmpPoint = { x: 0, y: 0 };
@@ -110,7 +124,6 @@ export class MapOverlay {
       dashed: false,
       insetScale: PLATE_INSET_MUL,
     };
-    this.badgeFont = `${OVERLAY_THEME.badge.fontWeight} ${OVERLAY_THEME.badge.fontSizePx}px ${OVERLAY_THEME.fontFamily}`;
     this.badgeSubFont = `600 ${Math.max(10, OVERLAY_THEME.badge.fontSizePx - 2)}px ${OVERLAY_THEME.fontFamily}`;
     this.legendFont = `600 ${OVERLAY_THEME.legend.fontSizePx}px ${OVERLAY_THEME.fontFamily}`;
     this.linkLevelFont = `700 ${OVERLAY_THEME.link.levelFontSizePx}px ${OVERLAY_THEME.fontFamily}`;
@@ -193,9 +206,15 @@ export class MapOverlay {
   private prepareTowerLookup(world: World): void {
     this.towerById.clear();
     this.outgoingLinkCountByTowerId.clear();
+    this.incomingPlayerUnitsByTowerId.clear();
+    this.incomingEnemyUnitsByTowerId.clear();
+    this.incomingNeutralUnitsByTowerId.clear();
     for (const tower of world.towers) {
       this.towerById.set(tower.id, tower);
       this.outgoingLinkCountByTowerId.set(tower.id, 0);
+      this.incomingPlayerUnitsByTowerId.set(tower.id, 0);
+      this.incomingEnemyUnitsByTowerId.set(tower.id, 0);
+      this.incomingNeutralUnitsByTowerId.set(tower.id, 0);
       if (!this.badgeAngleByTowerId.has(tower.id)) {
         this.badgeAngleByTowerId.set(tower.id, angleFromId(tower.id));
       }
@@ -209,6 +228,37 @@ export class MapOverlay {
         continue;
       }
       this.outgoingLinkCountByTowerId.set(link.fromTowerId, previous + 1);
+    }
+
+    for (const packet of world.packets) {
+      if (!Number.isFinite(packet.count) || packet.count <= 0) {
+        continue;
+      }
+      const link = world.getLinkById(packet.linkId);
+      if (!link || link.hideInRender || link.points.length < 2) {
+        continue;
+      }
+      if (!this.towerById.has(link.toTowerId)) {
+        continue;
+      }
+
+      const count = packet.count;
+      if (packet.owner === "player") {
+        this.incomingPlayerUnitsByTowerId.set(
+          link.toTowerId,
+          (this.incomingPlayerUnitsByTowerId.get(link.toTowerId) ?? 0) + count,
+        );
+      } else if (packet.owner === "enemy") {
+        this.incomingEnemyUnitsByTowerId.set(
+          link.toTowerId,
+          (this.incomingEnemyUnitsByTowerId.get(link.toTowerId) ?? 0) + count,
+        );
+      } else {
+        this.incomingNeutralUnitsByTowerId.set(
+          link.toTowerId,
+          (this.incomingNeutralUnitsByTowerId.get(link.toTowerId) ?? 0) + count,
+        );
+      }
     }
   }
 
@@ -373,17 +423,56 @@ export class MapOverlay {
     if (packetCount < LINK_BADGE_MIN_SHOW) {
       return;
     }
-    if (!samplePointAndDirectionOnPolyline(link.points, 0.58, this.tmpPoint, this.tmpDir)) {
+    const fromTower = this.towerById.get(link.fromTowerId);
+    const toTower = this.towerById.get(link.toTowerId);
+    let t = LINK_BADGE_T;
+    let sx = 0;
+    let sy = 0;
+    let placed = false;
+    const minDistPx = LINK_BADGE_MIN_DIST_TO_TOWER_PX * Math.max(1, viewportTransform.scale);
+
+    for (let attempt = 0; attempt < 4; attempt += 1) {
+      if (!samplePointAndDirectionOnPolyline(link.points, t, this.tmpPoint, this.tmpDir)) {
+        break;
+      }
+      const dirLen = Math.hypot(this.tmpDir.x, this.tmpDir.y);
+      if (dirLen <= 0.001) {
+        break;
+      }
+      const nx = -this.tmpDir.y / dirLen;
+      const ny = this.tmpDir.x / dirLen;
+      const candidateX = toScreenX(this.tmpPoint.x, viewportTransform) + nx * LINK_BADGE_OFFSET_PX;
+      const candidateY = toScreenY(this.tmpPoint.y, viewportTransform) + ny * LINK_BADGE_OFFSET_PX;
+      sx = candidateX;
+      sy = candidateY;
+      placed = true;
+
+      if (!fromTower || !toTower) {
+        break;
+      }
+
+      const fromCenterX = toScreenX(fromTower.x, viewportTransform);
+      const fromCenterY = toScreenY(fromTower.y, viewportTransform);
+      const toCenterX = toScreenX(toTower.x, viewportTransform);
+      const toCenterY = toScreenY(toTower.y, viewportTransform);
+      const fromDist = Math.hypot(candidateX - fromCenterX, candidateY - fromCenterY);
+      const toDist = Math.hypot(candidateX - toCenterX, candidateY - toCenterY);
+      if (fromDist >= minDistPx && toDist >= minDistPx) {
+        break;
+      }
+
+      const moveTowardTarget = fromDist < toDist;
+      t = clamp(
+        t + (moveTowardTarget ? LINK_BADGE_REPOSITION_STEP_T : -LINK_BADGE_REPOSITION_STEP_T),
+        0.2,
+        0.82,
+      );
+    }
+
+    if (!placed) {
       return;
     }
-    const dirLen = Math.hypot(this.tmpDir.x, this.tmpDir.y);
-    if (dirLen <= 0.001) {
-      return;
-    }
-    const nx = -this.tmpDir.y / dirLen;
-    const ny = this.tmpDir.x / dirLen;
-    const sx = toScreenX(this.tmpPoint.x, viewportTransform) + nx * LINK_BADGE_OFFSET;
-    const sy = toScreenY(this.tmpPoint.y, viewportTransform) + ny * LINK_BADGE_OFFSET;
+
     const text = formatCompactCount(packetCount);
     ctx.font = this.linkPacketFont;
     const textWidth = this.measureTextCached(ctx, text, this.linkPacketFont);
@@ -454,7 +543,6 @@ export class MapOverlay {
         OVERLAY_THEME.ownerColors[tower.owner].ring,
       );
       this.drawTowerBadge(ctx, tower, plateX, plateY, plateW, plateH, viewportTransform.scale);
-      this.drawTowerStatusLabel(ctx, tower, plateX, plateY, plateH, hovered || selected || isDragSource);
 
       if (overlayState.showDebugIds) {
         this.drawTowerIdLabel(ctx, tower.id, plateX, plateY, plateH);
@@ -505,72 +593,40 @@ export class MapOverlay {
     if (phase === "stable") {
       return;
     }
+    const threatOwner = this.getPressureOwner(tower);
+    const ownerColor = OVERLAY_THEME.ownerColors[tower.owner].ring;
+    const threatColor = threatOwner ? OVERLAY_THEME.ownerColors[threatOwner].ring : "rgba(255, 196, 130, 0.94)";
     const pulse = 0.5 + 0.5 * Math.sin(timeSec * Math.PI * 2 * OVERLAY_THEME.animation.pulseHz);
-    const hp01 = clamp01(sanitizeNumber(tower.hp) / Math.max(1, sanitizeNumber(tower.maxHp)));
-    const progress01 = phase === "breaching" ? clamp01(1 - hp01) : 0.22 + pulse * 0.18;
-    const perimeter = getIsoPerimeterLength(plateW + 2, plateH + 2);
+    if (phase === "contested") {
+      drawSplitIsoEdge(
+        ctx,
+        plateX,
+        plateY,
+        plateW + 2,
+        plateH + 2,
+        ownerColor,
+        threatColor,
+        CONTESTED_EDGE_BASE_ALPHA + pulse * 0.2,
+        CAPTURE_THICKNESS + 0.4 + pulse * 0.8,
+      );
+      return;
+    }
 
-    ctx.save();
-    this.dynamicDash[0] = Math.max(8, perimeter * progress01);
-    this.dynamicDash[1] = Math.max(10, perimeter);
-    ctx.setLineDash(this.dynamicDash);
-    ctx.lineDashOffset = -timeSec * OVERLAY_THEME.animation.contestedDashSpeed * 24;
-    drawIsoSelection(
+    const hp01 = clamp01(sanitizeNumber(tower.hp) / Math.max(1, sanitizeNumber(tower.maxHp)));
+    const progress01 = clamp01(1 - hp01);
+    const baseColor = withAlpha(threatColor, BREACH_PROGRESS_BASE_ALPHA + pulse * 0.1);
+
+    drawDiamondStroke(ctx, plateX, plateY, plateW + 2, plateH + 2, baseColor, 2.2 + pulse * 0.5);
+    drawDiamondProgressStroke(
       ctx,
       plateX,
       plateY,
       plateW + 2,
       plateH + 2,
-      phase === "breaching" ? "rgba(255, 178, 122, 0.92)" : "rgba(255, 226, 170, 0.85)",
-      CAPTURE_THICKNESS + pulse * 0.8,
+      Math.max(0.05, progress01),
+      threatColor,
+      BREACH_PROGRESS_WIDTH_PX + pulse * 0.9,
     );
-    ctx.setLineDash([]);
-    if (phase === "breaching") {
-      this.drawBreachCornerSlashes(ctx, plateX, plateY, plateW, plateH);
-    }
-    ctx.restore();
-  }
-
-  private drawBreachCornerSlashes(
-    ctx: CanvasRenderingContext2D,
-    plateX: number,
-    plateY: number,
-    plateW: number,
-    plateH: number,
-  ): void {
-    const topX = plateX;
-    const topY = plateY - plateH * 0.5;
-    const rightX = plateX + plateW * 0.5;
-    const rightY = plateY;
-    const bottomX = plateX;
-    const bottomY = plateY + plateH * 0.5;
-    const leftX = plateX - plateW * 0.5;
-    const leftY = plateY;
-
-    ctx.strokeStyle = "rgba(255, 166, 106, 0.95)";
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(topX + BREACH_CORNER_INSET, topY + BREACH_CORNER_INSET);
-    ctx.lineTo(
-      topX + BREACH_CORNER_INSET + BREACH_CORNER_SLASH,
-      topY + BREACH_CORNER_INSET + BREACH_CORNER_SLASH * 0.5,
-    );
-    ctx.moveTo(rightX - BREACH_CORNER_INSET, rightY + BREACH_CORNER_INSET);
-    ctx.lineTo(
-      rightX - BREACH_CORNER_INSET - BREACH_CORNER_SLASH * 0.5,
-      rightY + BREACH_CORNER_INSET + BREACH_CORNER_SLASH,
-    );
-    ctx.moveTo(bottomX - BREACH_CORNER_INSET, bottomY - BREACH_CORNER_INSET);
-    ctx.lineTo(
-      bottomX - BREACH_CORNER_INSET - BREACH_CORNER_SLASH,
-      bottomY - BREACH_CORNER_INSET - BREACH_CORNER_SLASH * 0.5,
-    );
-    ctx.moveTo(leftX + BREACH_CORNER_INSET, leftY - BREACH_CORNER_INSET);
-    ctx.lineTo(
-      leftX + BREACH_CORNER_INSET + BREACH_CORNER_SLASH * 0.5,
-      leftY - BREACH_CORNER_INSET - BREACH_CORNER_SLASH,
-    );
-    ctx.stroke();
   }
 
   private drawTowerAffordanceOverlays(
@@ -658,26 +714,50 @@ export class MapOverlay {
     const countText = formatCompactCount(troopValue);
     const regenValue = Number.isFinite(tower.effectiveRegen) ? tower.effectiveRegen : tower.regenRate;
     const regenText = tower.owner === "player" ? formatRegenPerSec(regenValue) : "";
+    const countFontSizePx = clamp(Math.round(COUNT_FONT_PX * Math.max(0.85, scale)), COUNT_FONT_MIN_PX, COUNT_FONT_MAX_PX);
+    const countFont = `${OVERLAY_THEME.badge.fontWeight} ${countFontSizePx}px ${OVERLAY_THEME.fontFamily}`;
+    const countPaddingX = (OVERLAY_THEME.badge.paddingXPx + 2) * COUNT_BADGE_R_MUL;
+    const countPaddingY = (OVERLAY_THEME.badge.paddingYPx + 1) * COUNT_BADGE_R_MUL;
 
     ctx.save();
-    ctx.font = this.badgeFont;
-    const countWidth = this.measureTextCached(ctx, countText, this.badgeFont);
-    const width = countWidth + OVERLAY_THEME.badge.paddingXPx * 2;
-    const height = OVERLAY_THEME.badge.fontSizePx + OVERLAY_THEME.badge.paddingYPx * 2;
+    ctx.font = countFont;
+    const countWidth = this.measureTextCached(ctx, countText, countFont);
+    const width = Math.max(22, countWidth + countPaddingX * 2);
+    const height = Math.max(18, countFontSizePx + countPaddingY * 2);
     const anchorX = badgeCenterX - width * 0.5;
     const anchorY = badgeCenterY - height * 0.5;
+
+    this.drawRoundedRect(
+      ctx,
+      anchorX - 2,
+      anchorY - 1.5,
+      width + 4,
+      height + 3,
+      OVERLAY_THEME.badge.cornerRadiusPx + 2,
+    );
+    ctx.fillStyle = "rgba(0, 0, 0, 0.28)";
+    ctx.fill();
+
     this.drawRoundedRect(ctx, anchorX, anchorY, width, height, OVERLAY_THEME.badge.cornerRadiusPx);
     ctx.fillStyle = ownerColors.badgeFill;
     ctx.fill();
     ctx.strokeStyle = OVERLAY_THEME.badge.outlineColor;
-    ctx.lineWidth = OVERLAY_THEME.badge.outlineWidthPx;
+    ctx.lineWidth = Math.max(2, OVERLAY_THEME.badge.outlineWidthPx + 0.8);
     ctx.stroke();
 
     ctx.textAlign = "left";
     ctx.textBaseline = "middle";
+    ctx.font = countFont;
+    ctx.lineJoin = "round";
+    ctx.lineWidth = COUNT_TEXT_STROKE_PX;
+    ctx.strokeStyle = "rgba(0, 0, 0, 0.9)";
+    const textX = anchorX + countPaddingX;
+    const textY = anchorY + height / 2 + 0.25;
+    ctx.strokeText(countText, textX, textY);
+    ctx.globalAlpha = COUNT_TEXT_FILL_ALPHA;
     ctx.fillStyle = ownerColors.badgeText;
-    ctx.font = this.badgeFont;
-    ctx.fillText(countText, anchorX + OVERLAY_THEME.badge.paddingXPx, anchorY + height / 2 + 0.25);
+    ctx.fillText(countText, textX, textY);
+    ctx.globalAlpha = 1;
 
     if (regenText) {
       ctx.font = this.badgeSubFont;
@@ -692,37 +772,6 @@ export class MapOverlay {
       ctx.fillStyle = OVERLAY_THEME.badge.regenTextColor;
       ctx.fillText(regenText, regenX, regenY);
     }
-    ctx.restore();
-  }
-
-  private drawTowerStatusLabel(
-    ctx: CanvasRenderingContext2D,
-    tower: Tower,
-    plateX: number,
-    plateY: number,
-    plateH: number,
-    showLabel: boolean,
-  ): void {
-    if (!showLabel) {
-      return;
-    }
-    const phase = getTowerControlPhase(tower);
-    if (phase === "stable") {
-      return;
-    }
-    const text = phase === "breaching" ? "BREACHING" : "CONTESTED";
-    const y = plateY + plateH * STATUS_OFFSET_Y;
-    const font = "700 10px Arial, sans-serif";
-    ctx.save();
-    ctx.font = font;
-    ctx.textAlign = "center";
-    ctx.textBaseline = "alphabetic";
-    const width = this.measureTextCached(ctx, text, font);
-    this.drawRoundedRect(ctx, plateX - width * 0.5 - 6, y - 11, width + 12, 14, 6);
-    ctx.fillStyle = "rgba(3, 8, 13, 0.64)";
-    ctx.fill();
-    ctx.fillStyle = phase === "breaching" ? "#ffc78a" : "#ffe6b2";
-    ctx.fillText(text, plateX, y);
     ctx.restore();
   }
 
@@ -854,7 +903,7 @@ export class MapOverlay {
     this.drawLegendDashed(ctx, x + 10, y + 64, OVERLAY_THEME.ownerColors.neutral.ring, "Neutral plate");
 
     ctx.fillStyle = OVERLAY_THEME.legend.textColor;
-    ctx.fillText("Edge pulse = contested", x + 10, y + 88);
+    ctx.fillText("Split edge = contested", x + 10, y + 88);
     ctx.fillText("O toggle overlay", x + 10, y + 104);
     ctx.restore();
   }
@@ -986,6 +1035,39 @@ export class MapOverlay {
     const width = ctx.measureText(text).width;
     this.textWidthCache.set(key, width);
     return width;
+  }
+
+  private getPressureOwner(tower: Tower): "player" | "enemy" | "neutral" | null {
+    const playerIncoming = this.incomingPlayerUnitsByTowerId.get(tower.id) ?? 0;
+    const enemyIncoming = this.incomingEnemyUnitsByTowerId.get(tower.id) ?? 0;
+    const neutralIncoming = this.incomingNeutralUnitsByTowerId.get(tower.id) ?? 0;
+
+    if (tower.owner === "player") {
+      if (enemyIncoming >= neutralIncoming && enemyIncoming > 0.001) {
+        return "enemy";
+      }
+      if (neutralIncoming > 0.001) {
+        return "neutral";
+      }
+      return null;
+    }
+    if (tower.owner === "enemy") {
+      if (playerIncoming >= neutralIncoming && playerIncoming > 0.001) {
+        return "player";
+      }
+      if (neutralIncoming > 0.001) {
+        return "neutral";
+      }
+      return null;
+    }
+
+    if (playerIncoming >= enemyIncoming && playerIncoming > 0.001) {
+      return "player";
+    }
+    if (enemyIncoming > 0.001) {
+      return "enemy";
+    }
+    return null;
   }
 }
 
@@ -1140,6 +1222,165 @@ function traceDiamond(
 function getIsoPerimeterLength(w: number, h: number): number {
   const edge = Math.hypot(w * 0.5, h * 0.5);
   return edge * 4;
+}
+
+function drawSplitIsoEdge(
+  ctx: CanvasRenderingContext2D,
+  cx: number,
+  cy: number,
+  w: number,
+  h: number,
+  leftColor: string,
+  rightColor: string,
+  alpha: number,
+  width: number,
+): void {
+  const halfW = w * 0.5;
+  const halfH = h * 0.5;
+  const topX = cx;
+  const topY = cy - halfH;
+  const rightX = cx + halfW;
+  const rightY = cy;
+  const bottomX = cx;
+  const bottomY = cy + halfH;
+  const leftX = cx - halfW;
+  const leftY = cy;
+
+  ctx.save();
+  ctx.globalAlpha = clamp01(alpha);
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  ctx.lineWidth = width;
+
+  ctx.strokeStyle = leftColor;
+  ctx.beginPath();
+  ctx.moveTo(topX, topY);
+  ctx.lineTo(leftX, leftY);
+  ctx.lineTo(bottomX, bottomY);
+  ctx.stroke();
+
+  ctx.strokeStyle = rightColor;
+  ctx.beginPath();
+  ctx.moveTo(topX, topY);
+  ctx.lineTo(rightX, rightY);
+  ctx.lineTo(bottomX, bottomY);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawDiamondStroke(
+  ctx: CanvasRenderingContext2D,
+  cx: number,
+  cy: number,
+  w: number,
+  h: number,
+  color: string,
+  width: number,
+): void {
+  ctx.save();
+  traceDiamond(ctx, cx, cy, w, h);
+  ctx.strokeStyle = color;
+  ctx.lineWidth = width;
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawDiamondProgressStroke(
+  ctx: CanvasRenderingContext2D,
+  cx: number,
+  cy: number,
+  w: number,
+  h: number,
+  progress01: number,
+  color: string,
+  width: number,
+): void {
+  const progress = clamp01(progress01);
+  if (progress <= 0.001) {
+    return;
+  }
+
+  const halfW = w * 0.5;
+  const halfH = h * 0.5;
+  const topX = cx;
+  const topY = cy - halfH;
+  const rightX = cx + halfW;
+  const rightY = cy;
+  const bottomX = cx;
+  const bottomY = cy + halfH;
+  const leftX = cx - halfW;
+  const leftY = cy;
+  const edgeLen = Math.hypot(halfW, halfH);
+
+  let remaining = getIsoPerimeterLength(w, h) * progress;
+  ctx.save();
+  ctx.strokeStyle = color;
+  ctx.lineWidth = width;
+  ctx.lineJoin = "round";
+  ctx.lineCap = "round";
+  ctx.beginPath();
+  ctx.moveTo(topX, topY);
+
+  let drawLen = Math.min(edgeLen, remaining);
+  let t = drawLen / edgeLen;
+  let x = topX + (rightX - topX) * t;
+  let y = topY + (rightY - topY) * t;
+  ctx.lineTo(x, y);
+  remaining -= drawLen;
+  if (remaining <= 0.001) {
+    ctx.stroke();
+    ctx.restore();
+    return;
+  }
+
+  drawLen = Math.min(edgeLen, remaining);
+  t = drawLen / edgeLen;
+  x = rightX + (bottomX - rightX) * t;
+  y = rightY + (bottomY - rightY) * t;
+  ctx.lineTo(x, y);
+  remaining -= drawLen;
+  if (remaining <= 0.001) {
+    ctx.stroke();
+    ctx.restore();
+    return;
+  }
+
+  drawLen = Math.min(edgeLen, remaining);
+  t = drawLen / edgeLen;
+  x = bottomX + (leftX - bottomX) * t;
+  y = bottomY + (leftY - bottomY) * t;
+  ctx.lineTo(x, y);
+  remaining -= drawLen;
+  if (remaining <= 0.001) {
+    ctx.stroke();
+    ctx.restore();
+    return;
+  }
+
+  drawLen = Math.min(edgeLen, remaining);
+  t = drawLen / edgeLen;
+  x = leftX + (topX - leftX) * t;
+  y = leftY + (topY - leftY) * t;
+  ctx.lineTo(x, y);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function withAlpha(color: string, alpha: number): string {
+  const safeAlpha = clamp01(alpha);
+  if (!color.startsWith("rgb")) {
+    return color;
+  }
+  if (color.startsWith("rgba(")) {
+    return color.replace(
+      /^rgba\(([^)]+),\s*[\d.]+\)$/,
+      (_, channels: string) => `rgba(${channels}, ${safeAlpha})`,
+    );
+  }
+  if (color.startsWith("rgb(")) {
+    return color.replace(/^rgb\(([^)]+)\)$/, (_, channels: string) => `rgba(${channels}, ${safeAlpha})`);
+  }
+  return color;
 }
 
 function getTowerControlPhase(tower: Tower): "stable" | "contested" | "breaching" {

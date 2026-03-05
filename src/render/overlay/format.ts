@@ -15,7 +15,7 @@ export function formatCompactCount(value: number): string {
 export function formatRegenPerSec(value: number): string {
   const safe = Number.isFinite(value) ? Math.max(0, value) : 0;
   if (safe >= 10) {
-    return `+${safe.toFixed(0)}/s`;
+    return `+${safe.toFixed(0)}`;
   }
-  return `+${safe.toFixed(1)}/s`;
+  return `+${safe.toFixed(1)}`;
 }

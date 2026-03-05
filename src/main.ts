@@ -375,6 +375,10 @@ async function bootstrap(): Promise<void> {
     isDraggingLink: () => app.inputController?.isDragging() ?? false,
     isTowerTooltipsEnabled: () => debugUiStore.getState().showTowerTooltips,
     isEnemyTooltipsEnabled: () => debugUiStore.getState().showEnemyTooltips,
+    isDebugDetailsEnabled: () => {
+      const debugState = debugUiStore.getState();
+      return debugState.debugOpen || debugState.showMapDebugOverlay;
+    },
     getBossTooltipState: () => app.game?.getBossTooltipTelemetry() ?? null,
     enemyArchetypesById,
   });
