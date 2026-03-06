@@ -141,6 +141,28 @@
       "difficulty": 1
     }
   ],
+  "tilePalette": {
+    "waterBase": 396,
+    "grassBase": 324,
+    "road": {
+      "straight": 432,
+      "corner": 433,
+      "t": 434,
+      "cross": 450
+    },
+    "shoreline": {
+      "maskToTileIndex": {
+        "1": 414,
+        "2": 384,
+        "4": 278,
+        "8": 288,
+        "5": 429,
+        "9": 414,
+        "6": 384,
+        "10": 373
+      }
+    }
+  },
   "runtime": {
     "rules": {
       "maxOutgoingLinksPerTower": 2,
