@@ -36,11 +36,14 @@ The editor loads and tracks these assets:
 - `/data/difficulty/ascensions.json`
 - `/data/wave-modifiers.json`
 - `/data/enemyArchetypes.json`
+- `/data/unitArchetypes.json`
 - `/data/towerArchetypes.json` (Tower Dictionary)
 - `/data/waves-handcrafted.json`
 - `/data/wavePacingTargets.json`
 - `/data/missions.json`
+- `/data/gameModes.json`
 - `/levels/v2/map_tXX.json` campaign maps
+- `/levels/skirmish/skirmish_4p.json` skirmish map
 
 ## Resolved Mission Model
 Resolved mission view is produced via runtime-equivalent merge behavior:
@@ -80,9 +83,14 @@ Because browser runtime cannot write into repo paths:
   - Campaign mission duplication (cloned level entry in campaign file).
 
 ## Map Preview Editing
-For mission selections, the preview map is editable:
+Map preview behavior is shared across `Levels` and `Campaign` editing contexts for consistency.
+For mission/level selections, the preview map is editable:
 - Drag node: move node position (snaps to integer grid coordinates).
 - Drag background: pan camera.
 - Mouse wheel: zoom camera.
 - `Reset View`: reset pan/zoom to fitted framing.
 - Grid overlay: visible cell grid to support precise node placement.
+
+## Unit Archetypes Live Preview
+- Unit archetype preview uses the same atlas/direction rendering conventions as runtime packet rendering.
+- Vertical facings are remapped for atlas draw rows (`up`/`down`) so editor preview matches in-game movement visuals.

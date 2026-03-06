@@ -124,7 +124,14 @@ User-generated levels are saved to localStorage and exported as JSON downloads.
 - `owner`:
   - `player`
   - `enemy`
+  - `red`
+  - `green`
+  - `yellow`
   - `neutral`
+
+Notes:
+- Campaign/story content typically uses `player` + `enemy` + `neutral`.
+- Skirmish/free-for-all maps can seed multiple active factions (`player`, `red`, `green`, `yellow`).
 
 ## Mission semantics
 

@@ -1,7 +1,7 @@
 # Tower Battle PoC Spec (Current Scope)
 
 ## Goal
-Build a playable browser strategy prototype with tower-link control, mission-based runs, meta progression, enemy/wave variety, retention systems, and connected-cluster territory bonuses.
+Build a playable browser strategy prototype with tower-link control, mission-based runs, local skirmish matches, meta progression, enemy/wave variety, retention systems, and connected-cluster territory bonuses.
 
 ## Tech Stack
 - TypeScript (strict)
@@ -10,13 +10,14 @@ Build a playable browser strategy prototype with tower-link control, mission-bas
 - Minimal DOM overlay (no React)
 
 ## Core gameplay systems
-- Top-down node map with player/enemy/neutral towers.
+- Top-down node map with faction-owned and neutral towers (supports `player`, `enemy`, `red`, `green`, `yellow`).
 - Player draws outgoing links from owned towers to redirect pressure.
 - Towers regenerate and send grouped troop packets.
 - Packets move, fight, siege, and capture towers.
 - Connected clusters of owned towers grant positional bonuses while thresholds are met.
 - Enemy AI periodically retargets attacks.
-- Mission progression is organized into seeded runs with persistent meta bonuses.
+- Story mission progression is organized into seeded runs with persistent meta bonuses.
+- Skirmish mode runs a free-for-all elimination match with one human faction and multiple AI factions.
 
 ## Territory control extension
 - Cluster definition: connected component of owned towers through active links.
@@ -66,16 +67,21 @@ Build a playable browser strategy prototype with tower-link control, mission-bas
 - Packet damage uses `damageTaken = incomingDamage * (1 - effectiveArmor)` with multiplicative armor-source stacking.
 - Arrival resolves reinforcement or capture flow.
 - Win condition in missions with wave director: survive until full wave program is completed.
-- Lose condition: player owns zero towers.
+- Lose condition in missions: player owns zero towers.
+- Win condition in skirmish: `player` is last faction with owned towers.
+- Lose condition in skirmish: `player` owns zero towers.
 
 ## Data-driven assets
 - `levels/level01.json`
+- `levels/skirmish/skirmish_4p.json`
 - `public/data/missions.json`
+- `public/data/gameModes.json`
 - `public/data/upgrades.json`
 - `public/data/skills.json`
 - `public/data/ascensions.json`
 - `public/data/unlocks.json`
 - `public/data/enemyArchetypes.json`
+- `public/data/unitArchetypes.json`
 - `public/data/wave-modifiers.json`
 - `public/data/waves-handcrafted.json`
 - `public/data/wave-balance.json`
