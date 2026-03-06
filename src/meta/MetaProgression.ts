@@ -1,5 +1,6 @@
 import { DIFFICULTY_TIER_IDS, type DifficultyTierId } from "../config/Difficulty";
 import type { TowerArchetype } from "../sim/DepthTypes";
+import { toPublicPath } from "../utils/publicPath";
 import {
   createDefaultMetaModifiers,
   type MetaModifiers,
@@ -1054,7 +1055,7 @@ function parseRequirement(value: unknown, unlockIndex: number, reqIndex: number)
 }
 
 async function fetchJson(path: string): Promise<unknown> {
-  const response = await fetch(path);
+  const response = await fetch(toPublicPath(path));
   if (!response.ok) {
     throw new Error(`Failed to load ${path} (${response.status} ${response.statusText})`);
   }

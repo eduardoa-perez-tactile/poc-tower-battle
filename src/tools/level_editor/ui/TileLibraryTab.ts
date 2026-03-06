@@ -8,6 +8,7 @@ import {
 } from "../../../levels/TilePalette";
 import type { LevelTilePalette } from "../../../levels/types";
 import type { SpriteCatalog } from "../../../render/SpriteAtlas";
+import { toPublicPath } from "../../../utils/publicPath";
 import type { LevelEditorWorkspace } from "../model/types";
 import { mutateCampaignStage } from "../services/workspaceMutations";
 
@@ -1211,10 +1212,6 @@ function loadImage(path: string): Promise<HTMLImageElement> {
     image.onerror = () => reject(new Error(`Failed to load image: ${path}`));
     image.src = path;
   });
-}
-
-function toPublicPath(path: string): string {
-  return path.startsWith("/") ? path : `/${path}`;
 }
 
 function clampInt(value: number, min: number, max: number): number {

@@ -1,4 +1,5 @@
 import type { TerrainData } from "../types/Terrain";
+import { toPublicPath } from "../utils/publicPath";
 
 export interface SpriteTilesheetMeta {
   image: string;
@@ -43,7 +44,7 @@ export interface DrawBuildingFrameParams {
 }
 
 export async function loadSpriteCatalog(path = "/data/art/sprites.json"): Promise<SpriteCatalog> {
-  const response = await fetch(path);
+  const response = await fetch(toPublicPath(path));
   if (!response.ok) {
     throw new Error(`Failed to load sprite catalog (${response.status} ${response.statusText})`);
   }
@@ -389,10 +390,6 @@ function loadImage(path: string): Promise<HTMLImageElement> {
     image.onerror = () => reject(new Error(`Failed to load image: ${path}`));
     image.src = path;
   });
-}
-
-function toPublicPath(path: string): string {
-  return path.startsWith("/") ? path : `/${path}`;
 }
 
 function isObject(value: unknown): value is Record<string, unknown> {

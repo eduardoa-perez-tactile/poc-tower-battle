@@ -8,6 +8,7 @@ import {
   type RunUnlockSnapshot,
 } from "../save/Schema";
 import { DEFAULT_DIFFICULTY_TIER } from "../config/Difficulty";
+import { toPublicPath } from "../utils/publicPath";
 
 export interface MissionTemplate {
   id: string;
@@ -29,7 +30,7 @@ export interface CreateRunStateOptions {
 }
 
 export async function loadMissionCatalog(path = "/data/missions.json"): Promise<MissionTemplate[]> {
-  const response = await fetch(path);
+  const response = await fetch(toPublicPath(path));
   if (!response.ok) {
     throw new Error(`Failed to load mission catalog (${response.status} ${response.statusText})`);
   }

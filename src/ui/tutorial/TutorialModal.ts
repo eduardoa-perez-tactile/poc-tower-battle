@@ -1,5 +1,6 @@
 import { createButton } from "../../components/ui/primitives";
 import type { TutorialController } from "../../tutorial/TutorialController";
+import { toPublicPath } from "../../utils/publicPath";
 
 export interface TutorialModalOptions {
   controller: TutorialController;
@@ -76,7 +77,7 @@ export function createTutorialModal(options: TutorialModalOptions): HTMLDivEleme
   if (state.currentStep.image) {
     const image = document.createElement("img");
     image.className = "tutorial-modal-image";
-    image.src = state.currentStep.image;
+    image.src = toPublicPath(state.currentStep.image);
     image.alt = `${state.currentStep.heading} illustration`;
     body.appendChild(image);
   }

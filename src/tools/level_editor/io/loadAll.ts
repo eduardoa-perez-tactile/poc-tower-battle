@@ -3,6 +3,7 @@ import type {
   CampaignSpecV2,
   CampaignWavePresetCatalog,
 } from "../../../campaign/CampaignTypes";
+import { toPublicPath } from "../../../utils/publicPath";
 import { isObject, parseJsonSafe } from "../model/json";
 import { CORE_LEVEL_EDITOR_PATHS, isCampaignMapPath, isModernLevelPath } from "../model/pathCatalog";
 import {
@@ -128,7 +129,7 @@ function buildDocument(input: LoadedRaw): LevelEditorDocument {
 
 async function fetchRaw(path: string): Promise<LoadedRaw> {
   try {
-    const response = await fetch(path);
+    const response = await fetch(toPublicPath(path));
     if (!response.ok) {
       return {
         path,
