@@ -36,16 +36,19 @@
 
 ## Data-driven content
 - Mission templates: `public/data/missions.json`
+- Game mode definitions: `public/data/gameModes.json`
 - Persistent upgrade trees: `public/data/upgrades.json`
 - Skills: `public/data/skills.json`
 - Ascensions: `public/data/ascensions.json`
 - Permanent unlock pacing: `public/data/unlocks.json`
 - Enemy archetypes: `public/data/enemyArchetypes.json`
+- Unit archetypes: `public/data/unitArchetypes.json`
 - Unit sprite metadata: `public/data/unitSprites.json`
 - Wave modifiers: `public/data/wave-modifiers.json`
 - Handcrafted waves: `public/data/waves-handcrafted.json`
 - Wave scaling/rewards/elite/boss config: `public/data/wave-balance.json`
 - Baselines/difficulty targets: `public/data/balanceBaselines.json`, `public/data/difficultyTiers.json`, `public/data/wavePacingTargets.json`
+- Skirmish level: `public/levels/skirmish/skirmish_4p.json`
 
 ## Frame/update flow
 - `main.ts` calls `game.frame(dt)` each frame.

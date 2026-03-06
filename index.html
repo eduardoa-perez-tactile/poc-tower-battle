@@ -463,6 +463,151 @@
         border-color: rgba(158, 193, 255, 0.24);
       }
 
+      .play-mode-shell {
+        width: min(95vw, 1040px);
+        gap: 14px;
+      }
+
+      .play-mode-lead {
+        display: grid;
+        gap: 6px;
+        border: 1px solid rgba(153, 187, 244, 0.24);
+        border-radius: 14px;
+        padding: 14px;
+        background:
+          radial-gradient(460px 180px at 8% -14%, rgba(43, 108, 238, 0.22), transparent),
+          linear-gradient(168deg, rgba(12, 21, 36, 0.9), rgba(9, 17, 31, 0.92));
+      }
+
+      .play-mode-lead-title {
+        margin: 0;
+        font-size: clamp(1rem, 1.8vw, 1.2rem);
+        font-weight: 700;
+        color: #eff6ff;
+      }
+
+      .play-mode-lead-body {
+        margin: 0;
+        color: rgba(210, 226, 250, 0.78);
+        font-size: 0.9rem;
+        line-height: 1.5;
+      }
+
+      .play-mode-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 14px;
+      }
+
+      .play-mode-card {
+        position: relative;
+        overflow: hidden;
+        display: grid;
+        align-content: start;
+        gap: 10px;
+        min-height: 260px;
+        border-radius: 16px;
+        border: 1px solid var(--mode-border, rgba(145, 183, 245, 0.3));
+        padding: 16px;
+        background:
+          radial-gradient(280px 180px at 86% -20%, var(--mode-glow, rgba(96, 165, 250, 0.2)), transparent),
+          linear-gradient(160deg, var(--mode-top, rgba(15, 29, 49, 0.9)), var(--mode-bottom, rgba(10, 19, 34, 0.94)));
+        box-shadow: 0 16px 32px rgba(3, 10, 22, 0.45);
+        transition: transform 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
+        cursor: pointer;
+      }
+
+      .play-mode-card:hover {
+        transform: translateY(-2px);
+        border-color: color-mix(in srgb, var(--mode-border, #80b4ff) 90%, #ffffff 10%);
+        box-shadow: 0 22px 40px rgba(2, 10, 22, 0.56);
+      }
+
+      .play-mode-card:focus-visible {
+        outline: 2px solid rgba(188, 221, 255, 0.78);
+        outline-offset: 2px;
+      }
+
+      .play-mode-card.is-story {
+        --mode-top: rgba(13, 30, 54, 0.9);
+        --mode-bottom: rgba(8, 19, 37, 0.94);
+        --mode-border: rgba(119, 184, 255, 0.4);
+        --mode-glow: rgba(56, 189, 248, 0.3);
+      }
+
+      .play-mode-card.is-skirmish {
+        --mode-top: rgba(40, 24, 44, 0.9);
+        --mode-bottom: rgba(24, 16, 34, 0.94);
+        --mode-border: rgba(244, 148, 77, 0.36);
+        --mode-glow: rgba(249, 115, 22, 0.28);
+      }
+
+      .play-mode-card-top {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+      }
+
+      .play-mode-card-kicker {
+        font-size: 0.66rem;
+        text-transform: uppercase;
+        letter-spacing: 0.14em;
+        color: rgba(198, 217, 248, 0.8);
+      }
+
+      .play-mode-card-badge {
+        border-radius: 999px;
+        border: 1px solid rgba(139, 200, 255, 0.4);
+        background: rgba(46, 105, 188, 0.32);
+        color: #e4f2ff;
+        font-size: 0.62rem;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        padding: 3px 8px;
+      }
+
+      .play-mode-card-title {
+        margin: 0;
+        font-size: clamp(1.25rem, 2.2vw, 1.6rem);
+        letter-spacing: 0.01em;
+      }
+
+      .play-mode-card-description {
+        margin: 0;
+        color: rgba(213, 226, 248, 0.79);
+        font-size: 0.9rem;
+        line-height: 1.5;
+      }
+
+      .play-mode-card-tags {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+
+      .play-mode-card-tag {
+        border-radius: 999px;
+        border: 1px solid rgba(154, 188, 240, 0.3);
+        background: rgba(20, 35, 57, 0.66);
+        color: rgba(214, 228, 250, 0.86);
+        font-size: 0.7rem;
+        letter-spacing: 0.03em;
+        padding: 4px 8px;
+      }
+
+      .play-mode-card-action {
+        margin-top: auto;
+        width: fit-content;
+        min-width: 168px;
+      }
+
+      .play-mode-card.is-skirmish .play-mode-card-action.ui-button-secondary {
+        background: rgba(153, 78, 26, 0.3);
+        border-color: rgba(250, 174, 105, 0.36);
+      }
+
       .campaign-info-pill {
         display: grid;
         gap: 2px;
@@ -1117,6 +1262,10 @@
         .campaign-meta-tree-row {
           grid-template-columns: repeat(3, minmax(250px, 84vw));
         }
+
+        .play-mode-grid {
+          grid-template-columns: 1fr;
+        }
       }
 
       @media (max-width: 620px) {
@@ -1128,6 +1277,19 @@
         .campaign-main-menu {
           padding: 12px;
           gap: 12px;
+        }
+
+        .play-mode-shell {
+          width: min(95vw, 520px);
+        }
+
+        .play-mode-card {
+          min-height: 236px;
+          padding: 14px;
+        }
+
+        .play-mode-card-action {
+          width: 100%;
         }
 
         .campaign-level-grid {
@@ -2361,6 +2523,11 @@
         background: rgba(18, 82, 74, 0.82);
       }
 
+      .hud-action-btn.active {
+        border-color: rgba(45, 212, 191, 0.48);
+        background: rgba(18, 82, 74, 0.82);
+      }
+
       .hud-overlay-mini-group {
         display: inline-flex;
         gap: 4px;
@@ -2382,6 +2549,33 @@
       .hud-overlay-mini-btn.active {
         border-color: rgba(45, 212, 191, 0.48);
         background: rgba(18, 82, 74, 0.82);
+      }
+
+      .gameplay-hud.is-panels-hidden .hud-wave-intel,
+      .gameplay-hud.is-panels-hidden .hud-objective-card,
+      .gameplay-hud.is-panels-hidden .hud-tower-inspector {
+        display: none !important;
+      }
+
+      .gameplay-hud.is-panels-hidden .hud-top-bar {
+        left: auto;
+        right: 10px;
+        justify-content: flex-end;
+      }
+
+      .gameplay-hud.is-panels-hidden .hud-top-left,
+      .gameplay-hud.is-panels-hidden .hud-top-center {
+        display: none;
+      }
+
+      .gameplay-hud.is-panels-hidden .hud-top-right .hud-overlay-mini-group,
+      .gameplay-hud.is-panels-hidden .hud-top-right .hud-speed-group,
+      .gameplay-hud.is-panels-hidden .hud-top-right .hud-pause-btn {
+        display: none;
+      }
+
+      .gameplay-hud.is-panels-hidden .hud-top-right {
+        padding: 6px 8px;
       }
 
       .hud-wave-intel {
@@ -3302,6 +3496,10 @@
 
         .hud-wave-intel {
           top: 62px;
+          right: 8px;
+        }
+
+        .gameplay-hud.is-panels-hidden .hud-top-bar {
           right: 8px;
         }
 

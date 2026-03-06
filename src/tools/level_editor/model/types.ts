@@ -42,6 +42,7 @@ export type LevelEditorKnownJson =
 
 export type LevelEditorDocKind =
   | "campaign"
+  | "game-modes"
   | "wave-presets"
   | "faction-tints"
   | "wave-balance"

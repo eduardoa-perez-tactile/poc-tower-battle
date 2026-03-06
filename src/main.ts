@@ -121,10 +121,14 @@ import {
 } from "./difficulty/DifficultyContext";
 import { generateDifficultyReport } from "./debug/DifficultyReport";
 import { createTutorialModal } from "./ui/tutorial/TutorialModal";
+import { getGameModeById, loadGameModeRegistry, type GameModeRegistry } from "./modes/GameModes";
+import { getFactionLabel, isNeutral } from "./sim/Factions";
 
 type Screen =
   | "title"
   | "main-menu"
+  | "play-mode-select"
+  | "skirmish-setup"
   | "profile-snapshot"
   | "meta"
   | "run-map"
@@ -149,7 +153,14 @@ interface RunMissionContext {
   mode: "run";
 }
 
-type MissionContext = CampaignMissionContext | RunMissionContext | null;
+interface SkirmishMissionContext {
+  mode: "skirmish";
+  modeId: string;
+  missionName: string;
+  objectiveText: string;
+}
+
+type MissionContext = CampaignMissionContext | RunMissionContext | SkirmishMissionContext | null;
 
 interface MissionEventEntry {
   id: number;
@@ -176,6 +187,7 @@ interface AppState {
   runSummary: RunSummary | null;
   campaignStages: StageRegistryEntry[];
   campaignMissionMetaByKey: Record<string, CampaignMissionRuntimeMeta>;
+  gameModes: GameModeRegistry;
   campaignProgress: CampaignProgress;
   campaignUnlocks: CampaignUnlocks;
   selectedStageId: string | null;
@@ -193,6 +205,7 @@ interface AppState {
   fps: number;
   missionPaused: boolean;
   missionSpeedMul: 1 | 2;
+  hudPanelsHidden: boolean;
   missionEvents: MissionEventEntry[];
   missionEventSeq: number;
   missionHudSignals: MissionHudSignals;
@@ -212,6 +225,7 @@ const MAP_READABILITY_LEGEND_KEY = "tower-battle.map-readability-overlay.legend"
 const LEVEL_EDITOR_WORKSPACE_STORAGE_KEY = "tower-battle.level-editor.workspace.v1";
 const TOWER_ARCHETYPE_DOC_PATH = "/data/towerArchetypes.json";
 const CAMPAIGN_DOC_PATH = "/data/campaign/campaign_v2.json";
+const SKIRMISH_MODE_ID = "skirmish";
 void bootstrap();
 
 async function bootstrap(): Promise<void> {
@@ -256,6 +270,7 @@ async function bootstrap(): Promise<void> {
     unlockCatalog,
     waveContent,
     factionTintConfig,
+    gameModeRegistry,
     depthContent,
     levelRegistry,
     tutorialRegistry,
@@ -267,6 +282,7 @@ async function bootstrap(): Promise<void> {
     loadUnlockCatalog(),
     loadWaveContent(),
     loadFactionTintConfig(),
+    loadGameModeRegistry(),
     loadDepthContent(),
     loadLevelRegistry(),
     tutorialRegistryPromise,
@@ -296,6 +312,7 @@ async function bootstrap(): Promise<void> {
     runSummary: null,
     campaignStages: levelRegistry.stages,
     campaignMissionMetaByKey: levelRegistry.missionMetaByKey,
+    gameModes: gameModeRegistry,
     campaignProgress,
     campaignUnlocks: computeUnlocks(levelRegistry.stages, campaignProgress),
     selectedStageId: null,
@@ -313,6 +330,7 @@ async function bootstrap(): Promise<void> {
     fps: 0,
     missionPaused: false,
     missionSpeedMul: 1,
+    hudPanelsHidden: false,
     missionEvents: [],
     missionEventSeq: 0,
     missionHudSignals: createDefaultMissionHudSignals(),
@@ -369,6 +387,10 @@ async function bootstrap(): Promise<void> {
     onToggleOverlayCluster: () => {
       debugUiStore.toggle("showOverlayClusterHighlight");
     },
+    onToggleUiPanels: () => {
+      app.hudPanelsHidden = !app.hudPanelsHidden;
+      render();
+    },
   });
 
   const enemyArchetypesById = new Map(
@@ -420,6 +442,9 @@ async function bootstrap(): Promise<void> {
       missionTemplates,
       openMetaScreen,
       openMainMenu,
+      openPlayModeSelect,
+      openSkirmishSetup,
+      startSkirmishMatch,
       openProfileSnapshot,
       openRunMap,
       startCurrentMission,
@@ -583,6 +608,18 @@ async function bootstrap(): Promise<void> {
     render();
   };
 
+  const openPlayModeSelect = (): void => {
+    stopMission();
+    app.screen = "play-mode-select";
+    render();
+  };
+
+  const openSkirmishSetup = (): void => {
+    stopMission();
+    app.screen = "skirmish-setup";
+    render();
+  };
+
   const openLevelSelect = (stageId: string): void => {
     stopMission();
     const stage = findStageById(app.campaignStages, stageId);
@@ -668,6 +705,75 @@ async function bootstrap(): Promise<void> {
       showOverlayClusterHighlight: true,
     });
     return true;
+  };
+
+  const startSkirmishMatch = async (): Promise<void> => {
+    const mode = getGameModeById(app.gameModes, SKIRMISH_MODE_ID);
+    if (!mode || mode.type !== "skirmish" || !mode.skirmish) {
+      showToast(screenRoot, "Skirmish mode config is missing.");
+      return;
+    }
+
+    try {
+      stopMission();
+      const baseLevel = await getLevelByPath(mode.skirmish.levelPath, levelCache);
+      const world = new World(
+        baseLevel.towers,
+        baseLevel.rules.maxOutgoingLinksPerTower,
+        depthContent.linkLevels,
+        baseLevel.initialLinks,
+        1,
+        baseLevel.graphEdges,
+      );
+      const inputController = new InputController(canvas, world);
+      app.inputController = inputController;
+      app.game = new Game(
+        world,
+        renderer,
+        inputController,
+        baseLevel.rules,
+        baseLevel.ai,
+        null,
+        null,
+        {
+          humanOwner: mode.skirmish.humanOwner,
+          aiOwners: mode.skirmish.aiOwners,
+          eliminationOnly: true,
+        },
+      );
+      app.missionResult = null;
+      app.missionReward = null;
+      app.missionPaused = false;
+      app.missionSpeedMul = 1;
+      app.activeDifficultyContext = null;
+      app.difficultyReportMissionIndex = null;
+      app.activeMissionContext = {
+        mode: "skirmish",
+        modeId: mode.id,
+        missionName: mode.label,
+        objectiveText: mode.skirmish.objectiveText,
+      };
+      app.tutorialController = null;
+      app.tutorialHintRunner = null;
+      resetMissionHudUiState(app);
+      gameplayHud.reset();
+      pushMissionEvent(
+        app,
+        "Skirmish deployed. Capture territory and eliminate all rivals.",
+        "neutral",
+        (toast) => gameplayHud.pushToast(toast),
+      );
+      renderer.setMapRenderData(baseLevel.mapRenderData ?? null);
+      renderer.setMapArtData(baseLevel.terrain ?? null, baseLevel.visuals ?? null);
+      app.screen = "mission";
+      syncMissionInputEnabled();
+      if (!ensureMissionOverlayDefaults()) {
+        render();
+      }
+    } catch (error) {
+      console.error("Failed to start skirmish", error);
+      showToast(screenRoot, "Failed to start skirmish. Check console for details.");
+    }
   };
 
   const startCampaignMissionById = async (missionId: string): Promise<void> => {
@@ -973,6 +1079,15 @@ async function bootstrap(): Promise<void> {
       return;
     }
 
+    if (app.activeMissionContext?.mode === "skirmish") {
+      app.missionResult = result;
+      app.missionReward = null;
+      app.missionPaused = false;
+      app.missionSpeedMul = 1;
+      render();
+      return;
+    }
+
     if (!app.runState) {
       return;
     }
@@ -1105,6 +1220,10 @@ async function bootstrap(): Promise<void> {
       app.selectedStageId = app.activeMissionContext.stageId;
       app.selectedLevelId = app.activeMissionContext.levelId;
       void startCampaignMissionById(app.activeMissionContext.missionId);
+      return;
+    }
+    if (app.activeMissionContext?.mode === "skirmish") {
+      void startSkirmishMatch();
       return;
     }
     if (app.runState) {
@@ -1588,6 +1707,7 @@ async function bootstrap(): Promise<void> {
     app.missionReward = null;
     app.missionPaused = false;
     app.missionSpeedMul = 1;
+    app.hudPanelsHidden = false;
     app.tutorialController = null;
     app.tutorialHintRunner = null;
     resetMissionHudUiState(app);
@@ -1678,6 +1798,13 @@ async function bootstrap(): Promise<void> {
       return;
     }
 
+    if (!isTyping && app.screen === "mission" && (key === "u" || key === "U") && !event.repeat) {
+      app.hudPanelsHidden = !app.hudPanelsHidden;
+      render();
+      event.preventDefault();
+      return;
+    }
+
     if (!DEBUG_TOOLS_ENABLED || isTyping) {
       return;
     }
@@ -1759,6 +1886,9 @@ function renderCurrentScreen(
   missionTemplates: MissionTemplate[],
   openMetaScreen: () => void,
   openMainMenu: () => void,
+  openPlayModeSelect: () => void,
+  openSkirmishSetup: () => void,
+  startSkirmishMatch: () => Promise<void>,
   openProfileSnapshot: () => void,
   openRunMap: () => void,
   startCurrentMission: () => Promise<void>,
@@ -1868,7 +1998,7 @@ function renderCurrentScreen(
 
     const actionCard = document.createElement("div");
     actionCard.className = "campaign-main-actions";
-    const campaignBtn = createButton("Play", openStageSelect, {
+    const campaignBtn = createButton("Play", openPlayModeSelect, {
       variant: "primary",
       primaryAction: true,
       hotkey: "Enter",
@@ -1900,6 +2030,116 @@ function renderCurrentScreen(
     layout.appendChild(panel);
     wrapper.appendChild(layout);
     screenRoot.appendChild(wrapper);
+    return;
+  }
+
+  if (app.screen === "play-mode-select") {
+    const panel = document.createElement("div");
+    panel.className = "panel ui-panel menu-panel campaign-shell play-mode-shell";
+    panel.appendChild(createCampaignScreenHeader("Choose Operation", "Play"));
+
+    const lead = document.createElement("section");
+    lead.className = "play-mode-lead";
+    const leadTitle = document.createElement("p");
+    leadTitle.className = "play-mode-lead-title";
+    leadTitle.textContent = "Pick your battlefield.";
+    const leadBody = document.createElement("p");
+    leadBody.className = "play-mode-lead-body";
+    leadBody.textContent = "Story Mode sends you to the World Map. Skirmish drops you into local four-faction elimination.";
+    lead.append(leadTitle, leadBody);
+    panel.appendChild(lead);
+
+    const modeGrid = document.createElement("section");
+    modeGrid.className = "play-mode-grid";
+    modeGrid.append(
+      createPlayModeCard({
+        variant: "story",
+        kicker: "Campaign",
+        title: "Story Mode",
+        description: "Progress through staged territories, missions, and unlock flow on the World Map.",
+        tags: ["World Map", "Mission Progression", "Structured Difficulty"],
+        badge: "Recommended",
+        ctaLabel: "Open World Map",
+        ctaVariant: "primary",
+        hotkey: "Enter",
+        onSelect: openStageSelect,
+      }),
+      createPlayModeCard({
+        variant: "skirmish",
+        kicker: "Local Multiplayer",
+        title: "Skirmish",
+        description: "Free-for-all battle on a large map. Eliminate all rival factions to win.",
+        tags: ["4 Factions", "Elimination Rules", "Chaotic Mid-Game"],
+        ctaLabel: "Open Skirmish",
+        ctaVariant: "secondary",
+        onSelect: openSkirmishSetup,
+      }),
+    );
+    panel.appendChild(modeGrid);
+
+    const footer = document.createElement("div");
+    footer.className = "menu-footer campaign-footer";
+    const backBtn = createButton("Back to Main Menu", openMainMenu, {
+      variant: "ghost",
+      escapeAction: true,
+      hotkey: "Esc",
+    });
+    backBtn.classList.add("campaign-footer-btn");
+    footer.appendChild(backBtn);
+    panel.appendChild(footer);
+    screenRoot.appendChild(wrapCentered(panel));
+    return;
+  }
+
+  if (app.screen === "skirmish-setup") {
+    const mode = getGameModeById(app.gameModes, SKIRMISH_MODE_ID);
+    const skirmishRules = mode?.type === "skirmish" ? mode.skirmish : null;
+    const panel = document.createElement("div");
+    panel.className = "panel ui-panel menu-panel campaign-shell campaign-profile-shell";
+    panel.appendChild(createCampaignScreenHeader(mode?.label ?? "Local Multiplayer", "Skirmish Setup"));
+
+    const brief = document.createElement("section");
+    brief.className = "campaign-progress-card";
+    const briefTitle = document.createElement("p");
+    briefTitle.className = "campaign-progress-title";
+    briefTitle.textContent = "Rules";
+    const briefBody = document.createElement("p");
+    briefBody.className = "campaign-progress-subtitle";
+    briefBody.textContent = mode?.description ?? "Free-for-all elimination.";
+    brief.append(briefTitle, briefBody);
+    panel.appendChild(brief);
+
+    const info = document.createElement("section");
+    info.className = "campaign-profile-card";
+    info.append(
+      createInfoPill("Human", "Blue"),
+      createInfoPill("AI Factions", skirmishRules ? `${skirmishRules.aiOwners.length}` : "--"),
+      createInfoPill("Objective", "Eliminate all opponents"),
+      createInfoPill("Map", "Confluence Basin"),
+    );
+    panel.appendChild(info);
+
+    const footer = document.createElement("div");
+    footer.className = "menu-footer campaign-footer";
+    const startBtn = createButton("Start Match", () => {
+      void startSkirmishMatch();
+    }, {
+      variant: "primary",
+      primaryAction: true,
+      hotkey: "Enter",
+    });
+    startBtn.classList.add("campaign-footer-btn");
+    startBtn.disabled = !skirmishRules;
+    footer.appendChild(startBtn);
+    const backBtn = createButton("Back to Mode Select", openPlayModeSelect, {
+      variant: "ghost",
+      escapeAction: true,
+      hotkey: "Esc",
+    });
+    backBtn.classList.add("campaign-footer-btn");
+    footer.appendChild(backBtn);
+    panel.appendChild(footer);
+    screenRoot.appendChild(wrapCentered(panel));
     return;
   }
 
@@ -1974,7 +2214,7 @@ function renderCurrentScreen(
       stages: app.campaignStages,
       unlocks: app.campaignUnlocks,
       onSelectStage: openLevelSelect,
-      onBack: openMainMenu,
+      onBack: openPlayModeSelect,
     });
     screenRoot.appendChild(wrapCentered(panel));
     return;
@@ -2457,7 +2697,9 @@ function renderCurrentScreen(
       heroSubtitle.className = "mission-result-subtitle";
       heroSubtitle.textContent = app.activeMissionContext?.mode === "campaign"
         ? "Campaign mission report complete."
-        : "Run mission report complete.";
+        : app.activeMissionContext?.mode === "skirmish"
+          ? "Skirmish combat report complete."
+          : "Run mission report complete.";
       heroCopy.append(heroTitle, heroSubtitle);
       hero.append(emblem, heroCopy);
       resultPanel.appendChild(hero);
@@ -2465,12 +2707,23 @@ function renderCurrentScreen(
       const stats = document.createElement("div");
       stats.className = "mission-result-stats";
       stats.append(
-        createMissionResultStat("Mode", app.activeMissionContext?.mode === "campaign" ? "Campaign" : "Run"),
+        createMissionResultStat(
+          "Mode",
+          app.activeMissionContext?.mode === "campaign"
+            ? "Campaign"
+            : app.activeMissionContext?.mode === "skirmish"
+              ? "Local Multiplayer"
+              : "Run",
+        ),
         createMissionResultStat("Outcome", isVictory ? "Victory" : "Defeat"),
         createMissionResultStat("Wave Progress", totalWaves > 0 ? `${completedWaves}/${totalWaves}` : "--"),
         createMissionResultStat(
           "Gold Reward",
-          app.activeMissionContext?.mode === "campaign" ? "Progress Unlocks" : `${rewardValue}`,
+          app.activeMissionContext?.mode === "campaign"
+            ? "Progress Unlocks"
+            : app.activeMissionContext?.mode === "skirmish"
+              ? "--"
+              : `${rewardValue}`,
         ),
       );
       resultPanel.appendChild(stats);
@@ -2508,6 +2761,21 @@ function renderCurrentScreen(
         const stageBtn = createButton("Stage Select", openStageSelect, { variant: "ghost", escapeAction: true, hotkey: "Esc" });
         stageBtn.classList.add("campaign-footer-btn");
         actionRow.appendChild(stageBtn);
+      } else if (app.activeMissionContext?.mode === "skirmish") {
+        const retryBtn = createButton("Retry Match", restartCurrentMission, {
+          variant: "primary",
+          primaryAction: true,
+          hotkey: "Enter",
+        });
+        retryBtn.classList.add("campaign-footer-btn");
+        actionRow.appendChild(retryBtn);
+        const mainMenuBtn = createButton("Main Menu", openMainMenu, {
+          variant: "ghost",
+          escapeAction: true,
+          hotkey: "Esc",
+        });
+        mainMenuBtn.classList.add("campaign-footer-btn");
+        actionRow.appendChild(mainMenuBtn);
       } else {
         if (isVictory && app.runState && app.runState.currentMissionIndex < app.runState.missions.length) {
           const continueBtn = createButton("Continue To Run Map", openRunMap, {
@@ -2618,6 +2886,7 @@ function syncMissionHud(app: AppState, debugState: DebugUiState, gameplayHud: Ga
     overlayRegenEnabled: debugState.showOverlayRegenNumbers,
     overlayCaptureEnabled: debugState.showOverlayCaptureRings,
     overlayClusterEnabled: debugState.showOverlayClusterHighlight,
+    uiPanelsHidden: app.hudPanelsHidden,
   });
 
   const linkFeedback = app.inputController?.drainLinkFeedback() ?? [];
@@ -3666,6 +3935,79 @@ function createInfoPill(label: string, value: string): HTMLDivElement {
   return pill;
 }
 
+function createPlayModeCard(input: {
+  variant: "story" | "skirmish";
+  kicker: string;
+  title: string;
+  description: string;
+  tags: string[];
+  ctaLabel: string;
+  ctaVariant: "primary" | "secondary";
+  onSelect: () => void;
+  badge?: string;
+  hotkey?: string;
+}): HTMLElement {
+  const card = document.createElement("article");
+  card.className = `play-mode-card is-${input.variant}`;
+  card.tabIndex = 0;
+  card.setAttribute("role", "button");
+
+  card.onclick = (event) => {
+    const target = event.target as HTMLElement | null;
+    if (target?.closest(".play-mode-card-action")) {
+      return;
+    }
+    input.onSelect();
+  };
+
+  card.onkeydown = (event) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      input.onSelect();
+    }
+  };
+
+  const top = document.createElement("div");
+  top.className = "play-mode-card-top";
+  const kicker = document.createElement("span");
+  kicker.className = "play-mode-card-kicker";
+  kicker.textContent = input.kicker;
+  top.appendChild(kicker);
+  if (input.badge) {
+    const badge = document.createElement("span");
+    badge.className = "play-mode-card-badge";
+    badge.textContent = input.badge;
+    top.appendChild(badge);
+  }
+
+  const title = document.createElement("h3");
+  title.className = "play-mode-card-title";
+  title.textContent = input.title;
+
+  const description = document.createElement("p");
+  description.className = "play-mode-card-description";
+  description.textContent = input.description;
+
+  const tags = document.createElement("div");
+  tags.className = "play-mode-card-tags";
+  for (const label of input.tags) {
+    const tag = document.createElement("span");
+    tag.className = "play-mode-card-tag";
+    tag.textContent = label;
+    tags.appendChild(tag);
+  }
+
+  const action = createButton(input.ctaLabel, input.onSelect, {
+    variant: input.ctaVariant,
+    ...(input.hotkey ? { hotkey: input.hotkey } : {}),
+    ...(input.hotkey === "Enter" ? { primaryAction: true } : {}),
+  });
+  action.classList.add("play-mode-card-action");
+
+  card.append(top, title, description, tags, action);
+  return card;
+}
+
 function createCampaignScreenHeader(title: string, subtitle: string): HTMLElement {
   const header = document.createElement("header");
   header.className = "campaign-screen-header";
@@ -3811,6 +4153,9 @@ function getMissionHudTitle(app: AppState): string {
   if (app.activeMissionContext?.mode === "campaign") {
     return app.activeMissionContext.missionName;
   }
+  if (app.activeMissionContext?.mode === "skirmish") {
+    return app.activeMissionContext.missionName;
+  }
   if (app.runState) {
     return `${getCurrentMission(app.runState)?.name ?? "Mission"} (${app.runState.currentMissionIndex + 1}/${app.runState.missions.length})`;
   }
@@ -3819,6 +4164,9 @@ function getMissionHudTitle(app: AppState): string {
 
 function getMissionHudObjective(app: AppState): string {
   if (app.activeMissionContext?.mode === "campaign") {
+    return app.activeMissionContext.objectiveText;
+  }
+  if (app.activeMissionContext?.mode === "skirmish") {
     return app.activeMissionContext.objectiveText;
   }
   return "Survive all scheduled waves and keep at least one tower.";
@@ -3966,10 +4314,10 @@ function describeOwner(owner: Owner): string {
   if (owner === "player") {
     return "your command";
   }
-  if (owner === "enemy") {
-    return "enemy command";
+  if (isNeutral(owner)) {
+    return "neutral control";
   }
-  return "neutral control";
+  return getFactionLabel(owner).toLowerCase();
 }
 
 function toMissionToast(entry: MissionEventEntry): HudToastInput {

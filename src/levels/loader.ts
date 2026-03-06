@@ -283,8 +283,17 @@ function parseNodes(value: unknown, grid: LevelGrid, fieldName: string): LevelNo
     }
 
     const owner = asString(entry.owner, `${fieldName}[${index}].owner`);
-    if (owner !== "player" && owner !== "enemy" && owner !== "neutral") {
-      throw new Error(`${fieldName}[${index}].owner must be player, enemy, or neutral`);
+    if (
+      owner !== "player" &&
+      owner !== "enemy" &&
+      owner !== "red" &&
+      owner !== "green" &&
+      owner !== "yellow" &&
+      owner !== "neutral"
+    ) {
+      throw new Error(
+        `${fieldName}[${index}].owner must be player, enemy, red, green, yellow, or neutral`,
+      );
     }
 
     return {

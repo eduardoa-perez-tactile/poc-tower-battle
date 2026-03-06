@@ -6,6 +6,7 @@ import {
   type ResolvedFactionTintConfig,
 } from "./FactionTintConfig";
 import type { DrawBuildingFrameParams, SpriteAtlas } from "./SpriteAtlas";
+import type { Owner } from "../sim/World";
 
 export interface MapCamera {
   x: number;
@@ -19,7 +20,7 @@ export interface TowerVisualAnchor {
   x: number;
   y: number;
   archetype?: string;
-  owner?: "player" | "enemy" | "neutral";
+  owner?: Owner;
 }
 
 export interface TowerArchetypeVisualOverride {
@@ -43,6 +44,9 @@ export class MapRenderer {
     this.factionTints = {
       player: config.player,
       enemy: config.enemy,
+      red: config.red,
+      green: config.green,
+      yellow: config.yellow,
       neutral: config.neutral,
     };
   }

@@ -139,6 +139,7 @@ function appendPresetNodes(nodes: LevelEditorLibraryNode[], workspace: LevelEdit
 
 function appendGlobalNodes(nodes: LevelEditorLibraryNode[], workspace: LevelEditorWorkspace, rootId: string): void {
   const globalDocKinds = new Set([
+    "game-modes",
     "wave-balance",
     "balance-baselines",
     "difficulty-tiers",

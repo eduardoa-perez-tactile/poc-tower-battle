@@ -1,5 +1,6 @@
 import { TOWER_RADIUS_PX, type Tower, type UnitPacket, type Vec2, type World } from "../sim/World";
 import type { EnemyArchetypeDefinition } from "../waves/Definitions";
+import { getFactionLabel, isNeutral } from "../sim/Factions";
 import { clampToViewport, useWorldToScreen } from "./worldToScreen";
 
 export interface BossTooltipState {
@@ -252,10 +253,10 @@ export class WorldTooltipOverlay {
 
         if (packet.owner === "player") {
           incomingPlayerUnits += packet.count;
-        } else if (packet.owner === "enemy") {
-          incomingEnemyUnits += packet.count;
-        } else {
+        } else if (packet.owner === "neutral") {
           incomingNeutralUnits += packet.count;
+        } else {
+          incomingEnemyUnits += packet.count;
         }
       }
 
@@ -303,7 +304,7 @@ export class WorldTooltipOverlay {
     let bestDistSq = Number.POSITIVE_INFINITY;
 
     for (const packet of world.packets) {
-      if (packet.owner !== "enemy") {
+      if (packet.owner === "player" || packet.owner === "neutral") {
         continue;
       }
 
@@ -560,7 +561,7 @@ function resolveTowerControlState(data: HoverTowerData): TowerControlState {
     const neutralPressure = data.incomingNeutralUnits;
     hostileUnits = enemyPressure + neutralPressure;
     attackerLabel = enemyPressure >= neutralPressure ? "enemy pressure" : "neutral pressure";
-  } else if (tower.owner === "enemy") {
+  } else if (tower.owner !== "neutral") {
     const playerPressure = data.incomingPlayerUnits;
     const neutralPressure = data.incomingNeutralUnits;
     hostileUnits = playerPressure + neutralPressure;
@@ -632,8 +633,8 @@ function ownerText(owner: Tower["owner"]): string {
   if (owner === "player") {
     return "Owned";
   }
-  if (owner === "enemy") {
-    return "Enemy";
+  if (!isNeutral(owner)) {
+    return getFactionLabel(owner);
   }
   return "Neutral";
 }

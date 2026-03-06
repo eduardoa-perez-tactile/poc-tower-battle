@@ -79,6 +79,12 @@
 - The mock device status strip and loading bar were removed.
 - Primary CTA is the enlarged `Tap Screen to Begin` prompt.
 
+## Mode selection (Play)
+- Pressing `Play` opens a mode selection screen with two cards:
+- `Story Mode`: enters World Map flow.
+- `Skirmish`: starts local multiplayer free-for-all flow.
+- The selection screen is implemented in `renderCurrentScreen()` (`src/main.ts`) and uses card-style CTA blocks.
+
 ## Mission pause modal style
 - Pause overlay uses `wrapCenteredModal()` in `src/main.ts` to vertically center the popup in gameplay.
 - Modal shell classes are:

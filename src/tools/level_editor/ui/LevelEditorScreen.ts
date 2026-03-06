@@ -1,6 +1,7 @@
 import type { DifficultyTierId } from "../../../config/Difficulty";
 import { createButton } from "../../../components/ui/primitives";
 import type { CampaignSpecV2 } from "../../../campaign/CampaignTypes";
+import type { LevelJson } from "../../../levels/types";
 import {
   parseUnitArchetypeCatalog,
   UNIT_ARCHETYPE_DOC_PATH,
@@ -13,6 +14,7 @@ import {
   resolveFactionTintConfig,
 } from "../../../render/FactionTintConfig";
 import { loadSpriteCatalog, type SpriteCatalog } from "../../../render/SpriteAtlas";
+import type { Owner } from "../../../sim/World";
 import { toPrettyJson } from "../model/json";
 import type {
   LevelEditorIssue,
@@ -51,7 +53,7 @@ interface EditorUiState {
   workspace: LevelEditorWorkspace | null;
   selection: LevelEditorSelection | null;
   activeTab: "levels" | "enemies" | "tutorial" | "tower-dictionary" | "tile-library" | "unit-archetypes";
-  libraryScope: "campaign" | "presets" | "globals";
+  libraryScope: "campaign" | "levels" | "presets" | "globals";
   campaignStageIndex: number;
   campaignLevelIndex: number;
   search: string;
@@ -68,12 +70,13 @@ interface EditablePreviewNode {
   id: string;
   x: number;
   y: number;
-  owner: "player" | "enemy" | "neutral";
+  owner: Owner;
 }
 
 interface EditablePreviewMap {
-  kind: "campaign-map";
+  kind: "editable-map";
   docId: string;
+  sourceKind: "campaign-map" | "level-json" | "legacy-level";
   width: number;
   height: number;
   nodes: EditablePreviewNode[];
@@ -389,6 +392,7 @@ export function renderLevelEditorScreen(props: LevelEditorScreenProps): HTMLDivE
 
     const scopes: Array<{ id: EditorUiState["libraryScope"]; label: string }> = [
       { id: "campaign", label: "Campaign" },
+      { id: "levels", label: "Levels" },
       { id: "presets", label: "Presets" },
       { id: "globals", label: "Global Config" },
     ];
@@ -418,10 +422,13 @@ export function renderLevelEditorScreen(props: LevelEditorScreenProps): HTMLDivE
 
     const helper = document.createElement("p");
     helper.className = "campaign-progress-subtitle";
-    helper.textContent =
-      state.libraryScope === "campaign"
-        ? "Pick stage, then level, then mission to preview."
-        : "Pick an item in this scope to edit.";
+    if (state.libraryScope === "campaign") {
+      helper.textContent = "Pick stage, then level, then mission to preview.";
+    } else if (state.libraryScope === "levels") {
+      helper.textContent = "Pick a standalone level file to preview or edit.";
+    } else {
+      helper.textContent = "Pick an item in this scope to edit.";
+    }
     helper.style.marginTop = "8px";
     helper.style.marginBottom = "0";
     libraryPanel.body.appendChild(helper);
@@ -456,6 +463,8 @@ export function renderLevelEditorScreen(props: LevelEditorScreenProps): HTMLDivE
 
     if (state.libraryScope === "campaign") {
       renderCampaignDrilldown(state.workspace, pickerWrap);
+    } else if (state.libraryScope === "levels") {
+      renderLevelPicker(state.workspace, pickerWrap);
     } else if (state.libraryScope === "presets") {
       renderPresetPicker(state.workspace, pickerWrap);
     } else {
@@ -698,6 +707,39 @@ export function renderLevelEditorScreen(props: LevelEditorScreenProps): HTMLDivE
     container.appendChild(block.root);
   }
 
+  function renderLevelPicker(workspace: LevelEditorWorkspace, container: HTMLElement): void {
+    const docs = workspace.order
+      .map((docId) => workspace.docs[docId])
+      .filter((doc) => doc && (doc.kind === "level-json" || doc.kind === "legacy-level"))
+      .sort((left, right) => left.path.localeCompare(right.path));
+
+    if (docs.length === 0) {
+      container.appendChild(createInfoText("No standalone level files are loaded."));
+      return;
+    }
+
+    const block = createPickerBlock("Select Level File");
+    for (const doc of docs) {
+      if (!doc) {
+        continue;
+      }
+      if (state.search.trim() && !`${doc.label} ${doc.path}`.toLowerCase().includes(state.search.trim().toLowerCase())) {
+        continue;
+      }
+      const selected = state.selection?.type === "file" && state.selection.docId === doc.id;
+      block.list.appendChild(
+        createPickerButton(doc.path, selected, () => {
+          state.selection = {
+            type: "file",
+            docId: doc.id,
+          };
+          renderAll();
+        }),
+      );
+    }
+    container.appendChild(block.root);
+  }
+
   function renderGlobalPicker(workspace: LevelEditorWorkspace, container: HTMLElement): void {
     const docs = workspace.order
       .map((docId) => workspace.docs[docId])
@@ -894,7 +936,7 @@ export function renderLevelEditorScreen(props: LevelEditorScreenProps): HTMLDivE
       return;
     }
 
-    const editableMap = resolveEditableMissionMap(state.workspace, state.selection);
+    const editableMap = resolveEditableMap(state.workspace, state.selection);
     const mapModel = buildMapPreviewModel(state.workspace, state.selection);
     const source = editableMap ?? mapModel;
     if (source) {
@@ -956,7 +998,7 @@ export function renderLevelEditorScreen(props: LevelEditorScreenProps): HTMLDivE
 
       if (editableMap) {
         const controller = attachInteractiveMapPreview(canvas, editableMap, (editedNodes) => {
-          const nextWorkspace = applyEditedMissionNodes(state.workspace!, state.selection!, editedNodes);
+          const nextWorkspace = applyEditedMapNodes(state.workspace!, state.selection!, editedNodes);
           if (nextWorkspace !== state.workspace) {
             state.infoMessage = "Map nodes updated.";
             setWorkspace(nextWorkspace);
@@ -1764,7 +1806,7 @@ function drawMapPreview(canvas: HTMLCanvasElement, map: MapPreviewModel): void {
     const point = toCanvas(node.x, node.y);
     ctx.beginPath();
     ctx.arc(point.x, point.y, 6, 0, Math.PI * 2);
-    ctx.fillStyle = node.owner === "player" ? "#6ea8ff" : node.owner === "enemy" ? "#ff7d7d" : "#a1b6d7";
+    ctx.fillStyle = getPreviewOwnerColor(node.owner);
     ctx.fill();
     ctx.strokeStyle = "rgba(12, 24, 42, 0.9)";
     ctx.lineWidth = 1.2;
@@ -1772,7 +1814,23 @@ function drawMapPreview(canvas: HTMLCanvasElement, map: MapPreviewModel): void {
   }
 }
 
-function resolveEditableMissionMap(
+function getPreviewOwnerColor(owner: MapPreviewModel["nodes"][number]["owner"]): string {
+  if (owner === "player") {
+    return "#6ea8ff";
+  }
+  if (owner === "enemy" || owner === "red") {
+    return "#ff7d7d";
+  }
+  if (owner === "green") {
+    return "#4fd191";
+  }
+  if (owner === "yellow") {
+    return "#f3ca55";
+  }
+  return "#a1b6d7";
+}
+
+function resolveEditableMap(
   workspace: LevelEditorWorkspace,
   selection: LevelEditorSelection,
 ): EditablePreviewMap | null {
@@ -1786,25 +1844,29 @@ function resolveEditableMissionMap(
     if (!mapDoc || !isCampaignMapData(mapDoc.currentData)) {
       return null;
     }
-    return {
-      kind: "campaign-map",
-      docId: mapDoc.id,
-      width: Math.max(1, mapDoc.currentData.size.w),
-      height: Math.max(1, mapDoc.currentData.size.h),
-      nodes: mapDoc.currentData.nodes.map((node) => ({
-        id: node.id,
-        x: node.x,
-        y: node.y,
-        owner: node.owner,
-      })),
-      edges: mapDoc.currentData.links.map((link) => ({ fromId: link.a, toId: link.b })),
-    };
+    return buildEditableCampaignMap(mapDoc.id, mapDoc.currentData);
+  }
+
+  if (selection.type === "file") {
+    const doc = workspace.docs[selection.docId];
+    if (!doc) {
+      return null;
+    }
+    if (doc.kind === "campaign-map" && isCampaignMapData(doc.currentData)) {
+      return buildEditableCampaignMap(doc.id, doc.currentData);
+    }
+    if (doc.kind === "level-json" && isLevelJsonData(doc.currentData)) {
+      return buildEditableLevelJsonMap(doc.id, doc.currentData);
+    }
+    if (doc.kind === "legacy-level" && isLegacyLevelData(doc.currentData)) {
+      return buildEditableLegacyLevelMap(doc.id, doc.currentData);
+    }
   }
 
   return null;
 }
 
-function applyEditedMissionNodes(
+function applyEditedMapNodes(
   workspace: LevelEditorWorkspace,
   selection: LevelEditorSelection,
   editedNodes: EditablePreviewNode[],
@@ -1839,10 +1901,152 @@ function applyEditedMissionNodes(
       }),
     };
 
-    return changed ? setDocumentData(workspace, mapDoc.id, nextMap) : workspace;
+    if (changed) {
+      return setDocumentData(workspace, mapDoc.id, nextMap);
+    }
+    return workspace;
+  }
+
+  if (selection.type === "file") {
+    const doc = workspace.docs[selection.docId];
+    if (!doc) {
+      return workspace;
+    }
+
+    if (doc.kind === "campaign-map" && isCampaignMapData(doc.currentData)) {
+      let changed = false;
+      const nextMap = {
+        ...doc.currentData,
+        nodes: doc.currentData.nodes.map((node) => {
+          const edited = positionById.get(node.id);
+          if (!edited || (node.x === edited.x && node.y === edited.y)) {
+            return node;
+          }
+          changed = true;
+          return {
+            ...node,
+            x: edited.x,
+            y: edited.y,
+          };
+        }),
+      };
+      if (changed) {
+        return setDocumentData(workspace, doc.id, nextMap);
+      }
+      return workspace;
+    }
+
+    if (doc.kind === "level-json" && isLevelJsonData(doc.currentData)) {
+      let changed = false;
+      const nextLevel: LevelJson = {
+        ...doc.currentData,
+        nodes: doc.currentData.nodes.map((node) => {
+          const edited = positionById.get(node.id);
+          if (!edited || (node.x === edited.x && node.y === edited.y)) {
+            return node;
+          }
+          changed = true;
+          return {
+            ...node,
+            x: edited.x,
+            y: edited.y,
+          };
+        }),
+      };
+      if (changed) {
+        return setDocumentData(workspace, doc.id, nextLevel);
+      }
+      return workspace;
+    }
+
+    if (doc.kind === "legacy-level" && isLegacyLevelData(doc.currentData)) {
+      let changed = false;
+      const nextLegacy = {
+        ...doc.currentData,
+        towers: doc.currentData.towers.map((tower) => {
+          const edited = positionById.get(tower.id);
+          if (!edited || (tower.x === edited.x && tower.y === edited.y)) {
+            return tower;
+          }
+          changed = true;
+          return {
+            ...tower,
+            x: edited.x,
+            y: edited.y,
+          };
+        }),
+      };
+      if (changed) {
+        return setDocumentData(workspace, doc.id, nextLegacy);
+      }
+      return workspace;
+    }
   }
 
   return workspace;
+}
+
+function buildEditableCampaignMap(docId: string, map: CampaignMapData): EditablePreviewMap {
+  return {
+    kind: "editable-map",
+    docId,
+    sourceKind: "campaign-map",
+    width: Math.max(1, map.size.w),
+    height: Math.max(1, map.size.h),
+    nodes: map.nodes.map((node) => ({
+      id: node.id,
+      x: node.x,
+      y: node.y,
+      owner: node.owner,
+    })),
+    edges: map.links.map((link) => ({ fromId: link.a, toId: link.b })),
+  };
+}
+
+function buildEditableLevelJsonMap(docId: string, level: LevelJson): EditablePreviewMap {
+  return {
+    kind: "editable-map",
+    docId,
+    sourceKind: "level-json",
+    width: Math.max(1, level.grid.width),
+    height: Math.max(1, level.grid.height),
+    nodes: level.nodes.map((node) => ({
+      id: node.id,
+      x: node.x,
+      y: node.y,
+      owner: node.owner,
+    })),
+    edges: level.edges.map((edge) => ({ fromId: edge.from, toId: edge.to })),
+  };
+}
+
+function buildEditableLegacyLevelMap(docId: string, legacy: LegacyLevelData): EditablePreviewMap | null {
+  const nodes = legacy.towers.filter((tower) => isOwnerValue(tower.owner)).map((tower) => ({
+    id: tower.id,
+    x: tower.x,
+    y: tower.y,
+    owner: tower.owner,
+  }));
+  if (nodes.length === 0) {
+    return null;
+  }
+  const maxX = nodes.reduce((max, node) => Math.max(max, node.x), 1);
+  const maxY = nodes.reduce((max, node) => Math.max(max, node.y), 1);
+  const edges = (legacy.initialLinks ?? [])
+    .filter((link) => typeof link.fromTowerId === "string" && typeof link.toTowerId === "string")
+    .map((link) => ({
+      fromId: link.fromTowerId,
+      toId: link.toTowerId,
+    }));
+  return {
+    kind: "editable-map",
+    docId,
+    sourceKind: "legacy-level",
+    width: Math.max(1, maxX + 1),
+    height: Math.max(1, maxY + 1),
+    nodes,
+    edges,
+  };
 }
 
 function attachInteractiveMapPreview(
@@ -2280,11 +2484,19 @@ function isCampaignSpecData(value: unknown): value is CampaignSpecV2 {
   );
 }
 
-function isCampaignMapData(value: unknown): value is {
+interface CampaignMapData {
+  id: string;
   size: { w: number; h: number };
-  nodes: Array<{ id: string; x: number; y: number; owner: "player" | "enemy" | "neutral" }>;
+  nodes: Array<{ id: string; x: number; y: number; owner: Owner }>;
   links: Array<{ a: string; b: string }>;
-} {
+}
+
+interface LegacyLevelData {
+  towers: Array<{ id: string; x: number; y: number; owner: Owner } & Record<string, unknown>>;
+  initialLinks?: Array<{ fromTowerId: string; toTowerId: string }>;
+}
+
+function isCampaignMapData(value: unknown): value is CampaignMapData {
   return (
     typeof value === "object" &&
     value !== null &&
@@ -2292,7 +2504,99 @@ function isCampaignMapData(value: unknown): value is {
     typeof (value as { size?: { w?: unknown; h?: unknown } }).size?.w === "number" &&
     typeof (value as { size?: { w?: unknown; h?: unknown } }).size?.h === "number" &&
     Array.isArray((value as { nodes?: unknown[] }).nodes) &&
-    Array.isArray((value as { links?: unknown[] }).links)
+    (value as { nodes: unknown[] }).nodes.every(
+      (node) =>
+        typeof node === "object" &&
+        node !== null &&
+        typeof (node as { id?: unknown }).id === "string" &&
+        typeof (node as { x?: unknown }).x === "number" &&
+        typeof (node as { y?: unknown }).y === "number" &&
+        isOwnerValue((node as { owner?: unknown }).owner),
+    ) &&
+    Array.isArray((value as { links?: unknown[] }).links) &&
+    (value as { links: unknown[] }).links.every(
+      (link) =>
+        typeof link === "object" &&
+        link !== null &&
+        typeof (link as { a?: unknown }).a === "string" &&
+        typeof (link as { b?: unknown }).b === "string",
+    )
+  );
+}
+
+function isLevelJsonData(value: unknown): value is LevelJson {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    (value as { version?: unknown }).version === 1 &&
+    typeof (value as { grid?: { width?: unknown; height?: unknown } }).grid?.width === "number" &&
+    typeof (value as { grid?: { width?: unknown; height?: unknown } }).grid?.height === "number" &&
+    Array.isArray((value as { nodes?: unknown[] }).nodes) &&
+    (value as { nodes: unknown[] }).nodes.every(
+      (node) =>
+        typeof node === "object" &&
+        node !== null &&
+        typeof (node as { id?: unknown }).id === "string" &&
+        typeof (node as { x?: unknown }).x === "number" &&
+        typeof (node as { y?: unknown }).y === "number" &&
+        isOwnerValue((node as { owner?: unknown }).owner),
+    ) &&
+    Array.isArray((value as { edges?: unknown[] }).edges) &&
+    (value as { edges: unknown[] }).edges.every(
+      (edge) =>
+        typeof edge === "object" &&
+        edge !== null &&
+        typeof (edge as { from?: unknown }).from === "string" &&
+        typeof (edge as { to?: unknown }).to === "string",
+    )
+  );
+}
+
+function isLegacyLevelData(value: unknown): value is LegacyLevelData {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+  const towers = (value as { towers?: unknown[] }).towers;
+  if (!Array.isArray(towers)) {
+    return false;
+  }
+  if (
+    !towers.every(
+      (tower) =>
+        typeof tower === "object" &&
+        tower !== null &&
+        typeof (tower as { id?: unknown }).id === "string" &&
+        typeof (tower as { x?: unknown }).x === "number" &&
+        typeof (tower as { y?: unknown }).y === "number" &&
+        isOwnerValue((tower as { owner?: unknown }).owner),
+    )
+  ) {
+    return false;
+  }
+  const initialLinks = (value as { initialLinks?: unknown }).initialLinks;
+  if (initialLinks === undefined) {
+    return true;
+  }
+  return (
+    Array.isArray(initialLinks) &&
+    initialLinks.every(
+      (link) =>
+        typeof link === "object" &&
+        link !== null &&
+        typeof (link as { fromTowerId?: unknown }).fromTowerId === "string" &&
+        typeof (link as { toTowerId?: unknown }).toTowerId === "string",
+    )
+  );
+}
+
+function isOwnerValue(value: unknown): value is Owner {
+  return (
+    value === "player" ||
+    value === "enemy" ||
+    value === "red" ||
+    value === "green" ||
+    value === "yellow" ||
+    value === "neutral"
   );
 }
 

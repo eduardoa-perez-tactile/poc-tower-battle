@@ -11,6 +11,7 @@ import type { GridRenderData } from "../../../levels/runtime";
 import type { LevelJson } from "../../../levels/types";
 import type { TerrainData } from "../../../types/Terrain";
 import type { LevelVisualsData } from "../../../types/Visuals";
+import type { Owner } from "../../../sim/World";
 import { parseTowerDictionaryFromRaw } from "../data/TowerDictionaryStore";
 import type { LevelEditorSelection, LevelEditorWorkspace } from "../model/types";
 
@@ -32,7 +33,7 @@ export interface LevelEditorArtPreviewPayload {
     x: number;
     y: number;
     archetype: string;
-    owner: "player" | "enemy" | "neutral";
+    owner: Owner;
   }>;
   towerArtByArchetype: Record<string, LevelEditorTowerArtPreview>;
 }

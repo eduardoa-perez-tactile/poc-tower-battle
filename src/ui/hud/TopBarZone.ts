@@ -14,6 +14,7 @@ export interface TopBarZoneOptions {
   onToggleOverlayRegen: () => void;
   onToggleOverlayCapture: () => void;
   onToggleOverlayCluster: () => void;
+  onToggleUiPanels: () => void;
 }
 
 export function createTopBarZone(options: TopBarZoneOptions): TopBarZoneController {
@@ -50,9 +51,18 @@ export function createTopBarZone(options: TopBarZoneOptions): TopBarZoneControll
 
   const pause = document.createElement("button");
   pause.type = "button";
-  pause.className = "hud-action-btn";
+  pause.className = "hud-action-btn hud-pause-btn";
   pause.onclick = () => {
     options.onTogglePause();
+  };
+
+  const uiToggle = document.createElement("button");
+  uiToggle.type = "button";
+  uiToggle.className = "hud-action-btn hud-ui-toggle-btn";
+  uiToggle.textContent = "Hide UI";
+  uiToggle.title = "Toggle HUD panels (U)";
+  uiToggle.onclick = () => {
+    options.onToggleUiPanels();
   };
 
   const speedGroup = document.createElement("div");
@@ -68,7 +78,7 @@ export function createTopBarZone(options: TopBarZoneOptions): TopBarZoneControll
   const clusterToggle = createOverlayToggle("L", "Toggle cluster glow", options.onToggleOverlayCluster);
   overlayGroup.append(regenToggle, captureToggle, clusterToggle);
 
-  right.append(overlayGroup, pause, speedGroup);
+  right.append(uiToggle, overlayGroup, pause, speedGroup);
 
   root.append(left, center, right);
 
@@ -100,12 +110,15 @@ export function createTopBarZone(options: TopBarZoneOptions): TopBarZoneControll
       regen.value.textContent = `+${vm.totalRegenPerSec.toFixed(1)}`;
 
       pause.textContent = vm.paused ? "Resume" : "Pause";
+      uiToggle.textContent = vm.uiPanelsHidden ? "Show UI" : "Hide UI";
+      uiToggle.classList.toggle("active", vm.uiPanelsHidden);
 
       speed1x.classList.toggle("active", vm.speedMul === 1);
       speed2x.classList.toggle("active", vm.speedMul === 2);
       regenToggle.classList.toggle("active", vm.overlayRegenEnabled);
       captureToggle.classList.toggle("active", vm.overlayCaptureEnabled);
       clusterToggle.classList.toggle("active", vm.overlayClusterEnabled);
+      root.classList.toggle("is-panels-hidden", vm.uiPanelsHidden);
     },
     reset(): void {
       missionTitle.textContent = "Mission";
@@ -122,6 +135,9 @@ export function createTopBarZone(options: TopBarZoneOptions): TopBarZoneControll
       regenToggle.classList.remove("active");
       captureToggle.classList.remove("active");
       clusterToggle.classList.remove("active");
+      uiToggle.textContent = "Hide UI";
+      uiToggle.classList.remove("active");
+      root.classList.remove("is-panels-hidden");
     },
   };
 }

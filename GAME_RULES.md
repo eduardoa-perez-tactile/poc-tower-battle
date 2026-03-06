@@ -121,5 +121,10 @@
 - Gold rewards still apply from mission/run progression systems.
 
 ## Mission end conditions
+- Story/Campaign missions:
 - Win when player captures all enemy towers (immediate victory), or when wave progression is fully completed while the player still owns at least one tower.
 - Lose when player owns zero towers.
+- Skirmish (Local Multiplayer):
+- Win when `player` is the only faction with owned towers remaining.
+- Lose immediately when `player` has no owned towers remaining.
+- AI factions can eliminate each other; match continues until one faction remains.

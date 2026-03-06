@@ -1,4 +1,5 @@
 import { TOWER_RADIUS_PX, type Owner } from "../../sim/World";
+import { getFactionColor } from "../../sim/Factions";
 import { useWorldToScreen } from "../worldToScreen";
 import { AlertLogManager, normalizeHudToastInput } from "../alerts/AlertLogManager";
 import { createObjectiveCard, type ObjectiveCardController } from "./ObjectiveCard";
@@ -19,6 +20,7 @@ export interface GameplayHUDOptions {
   onToggleOverlayRegen: () => void;
   onToggleOverlayCapture: () => void;
   onToggleOverlayCluster: () => void;
+  onToggleUiPanels: () => void;
 }
 
 export class GameplayHUD {
@@ -48,6 +50,7 @@ export class GameplayHUD {
       onToggleOverlayRegen: options.onToggleOverlayRegen,
       onToggleOverlayCapture: options.onToggleOverlayCapture,
       onToggleOverlayCluster: options.onToggleOverlayCluster,
+      onToggleUiPanels: options.onToggleUiPanels,
     });
     this.waveIntel = createWaveIntelPanel();
     this.objectiveCard = createObjectiveCard();
@@ -79,12 +82,14 @@ export class GameplayHUD {
 
   update(vm: HudVM, options: TowerInspectorUpdateOptions): void {
     this.applyLayout();
-    this.alerts.setVisible(true);
+    const uiPanelsHidden = vm.topBar.uiPanelsHidden;
+    this.root.classList.toggle("is-panels-hidden", uiPanelsHidden);
+    this.alerts.setVisible(!uiPanelsHidden);
     this.topBar.update(vm.topBar);
     this.waveIntel.update(vm.waveIntel);
     this.objectiveCard.update(vm.objective);
     this.towerInspector.update(vm.context.towerInspect, options);
-    if (this.currentLayout) {
+    if (!uiPanelsHidden && this.currentLayout) {
       this.alerts.setLayout(this.currentLayout);
     }
     this.lastOverlayVm = vm.overlays;
@@ -113,6 +118,7 @@ export class GameplayHUD {
   }
 
   reset(): void {
+    this.root.classList.remove("is-panels-hidden");
     this.alerts.setVisible(false);
     this.topBar.reset();
     this.waveIntel.reset();
@@ -278,13 +284,8 @@ class TacticalOverlayLayer {
 }
 
 function toOwnerColor(owner: Owner): string {
-  if (owner === "player") {
-    return "rgba(45, 212, 191, 0.95)";
-  }
-  if (owner === "enemy") {
-    return "rgba(248, 113, 113, 0.95)";
-  }
-  return "rgba(148, 163, 184, 0.9)";
+  const color = getFactionColor(owner);
+  return `${color}f2`;
 }
 
 function clamp01(value: number): number {

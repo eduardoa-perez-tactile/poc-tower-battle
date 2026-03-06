@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "modes": [
+    {
+      "id": "campaign",
+      "label": "Campaign",
+      "description": "Tutorial and mission progression.",
+      "type": "campaign"
+    },
+    {
+      "id": "skirmish",
+      "label": "Local Multiplayer",
+      "description": "Free-for-all skirmish. Eliminate all opponents.",
+      "type": "skirmish",
+      "skirmish": {
+        "levelPath": "/levels/skirmish/skirmish_4p.json",
+        "humanOwner": "player",
+        "aiOwners": ["red", "green", "yellow"],
+        "objectiveText": "Eliminate all opponents."
+      }
+    }
+  ]
+}

@@ -15,6 +15,8 @@
 - `public/data/difficultyTiers.json`
 - `public/data/wavePacingTargets.json`
 - `public/data/tutorials/tutorials.json`
+- `public/data/gameModes.json`
+- `public/data/unitArchetypes.json`
 
 ## Level file (`levels/level01.json`)
 
@@ -29,7 +31,7 @@
 - `id`: string
 - `x`: number
 - `y`: number
-- `owner`: `"player" | "enemy" | "neutral"`
+- `owner`: `"player" | "enemy" | "red" | "green" | "yellow" | "neutral"`
 - `maxHp`: number
 - `hp`: number
 - `troops` (or legacy `troopCount`): number
@@ -61,6 +63,19 @@
 - `MissionTemplate.name`: string
 - `MissionTemplate.levelPath`: string
 - `MissionTemplate.baseDifficulty`: number
+
+## Game modes (`public/data/gameModes.json`)
+- Root: `{ version: number, modes: GameModeDefinition[] }`
+- `GameModeDefinition`:
+- `id`: stable mode id (`campaign`, `skirmish`, ...)
+- `label`: menu label
+- `description`: menu subtitle/help text
+- `type`: `"campaign" | "skirmish"`
+- `skirmish` (optional, required for `type: "skirmish"`):
+- `levelPath`: level asset path
+- `humanOwner`: owner id used by local player
+- `aiOwners`: owner ids controlled by AI
+- `objectiveText`: objective copy shown in HUD
 
 ## Tutorial catalog (`public/data/tutorials/tutorials.json`)
 - Root: `{ version: 1, tutorials: TutorialDefinition[] }`

@@ -1,5 +1,6 @@
 import type { CampaignMapDefinition, CampaignSpecV2 } from "../../../campaign/CampaignTypes";
 import type { LevelJson } from "../../../levels/types";
+import type { Owner } from "../../../sim/World";
 import { isObject } from "../model/json";
 import type { LevelEditorSelection, LevelEditorWorkspace } from "../model/types";
 
@@ -10,7 +11,7 @@ export interface MapPreviewModel {
     id: string;
     x: number;
     y: number;
-    owner: "player" | "enemy" | "neutral";
+    owner: Owner;
   }>;
   edges: Array<{ fromX: number; fromY: number; toX: number; toY: number }>;
 }
@@ -148,7 +149,14 @@ function legacyLevelToPreview(value: unknown): MapPreviewModel | null {
         typeof tower.id !== "string" ||
         typeof tower.x !== "number" ||
         typeof tower.y !== "number" ||
-        (tower.owner !== "player" && tower.owner !== "enemy" && tower.owner !== "neutral")
+        (
+          tower.owner !== "player" &&
+          tower.owner !== "enemy" &&
+          tower.owner !== "red" &&
+          tower.owner !== "green" &&
+          tower.owner !== "yellow" &&
+          tower.owner !== "neutral"
+        )
       ) {
         return null;
       }
@@ -166,7 +174,7 @@ function legacyLevelToPreview(value: unknown): MapPreviewModel | null {
         id: string;
         x: number;
         y: number;
-        owner: "player" | "enemy" | "neutral";
+        owner: Owner;
       } => node !== null,
     );
 

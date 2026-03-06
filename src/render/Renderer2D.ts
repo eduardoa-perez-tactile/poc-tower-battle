@@ -29,20 +29,29 @@ import { SpriteAtlas } from "./SpriteAtlas";
 import { UnitSpriteAtlas } from "./UnitSpriteAtlas";
 
 const OWNER_COLORS: Record<Owner, string> = {
-  player: "#2a9d8f",
+  player: "#3b82f6",
   enemy: "#e63946",
+  red: "#e63946",
+  green: "#22c55e",
+  yellow: "#facc15",
   neutral: "#6c757d",
 };
 
 const LINK_COLORS: Record<Owner, string> = {
-  player: "#7ce3d6",
+  player: "#93c5fd",
   enemy: "#ff7b86",
+  red: "#ff7b86",
+  green: "#86efac",
+  yellow: "#fde68a",
   neutral: "#adb5bd",
 };
 
 const PACKET_COLORS: Record<Owner, string> = {
-  player: "#33d9c5",
+  player: "#60a5fa",
   enemy: "#ff5d6a",
+  red: "#ff5d6a",
+  green: "#4ade80",
+  yellow: "#facc15",
   neutral: "#dee2e6",
 };
 
@@ -629,10 +638,11 @@ export class Renderer2D {
         if (!walkAnimation) {
           continue;
         }
+        const atlasFacing = mapFacingForUnitAtlas(facing);
         const effectiveScale = visual?.sizeScale ?? packet.sizeScale;
         const drawn = this.unitSpriteAtlas.drawAnimation(this.ctx, {
           spriteId: walkAnimation.spriteKey,
-          facing,
+          facing: atlasFacing,
           timeSec: packet.ageSec + (packet.spriteAnimPhase ?? 0),
           worldX: position.x,
           worldY: position.y,
@@ -667,10 +677,11 @@ export class Renderer2D {
         this.renderFrameSequence,
       );
       packet.spriteFacing = facing;
+      const atlasFacing = mapFacingForUnitAtlas(facing);
       const drawn = this.unitSpriteAtlas.drawSprite(
         this.ctx,
         packet.spriteId ?? "",
-        facing,
+        atlasFacing,
         packet.ageSec + (packet.spriteAnimPhase ?? 0),
         position.x,
         position.y,
@@ -1025,6 +1036,16 @@ function facingFromDelta(dx: number, dy: number): UnitSpriteFacing {
     return dx >= 0 ? "right" : "left";
   }
   return dy >= 0 ? "down" : "up";
+}
+
+function mapFacingForUnitAtlas(facing: UnitSpriteFacing): UnitSpriteFacing {
+  if (facing === "up") {
+    return "down";
+  }
+  if (facing === "down") {
+    return "up";
+  }
+  return facing;
 }
 
 function resolveFacingFromPolyline(points: Vec2[], progress01: number): UnitSpriteFacing {

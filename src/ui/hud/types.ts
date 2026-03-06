@@ -24,6 +24,7 @@ export interface TopBarVM {
   overlayRegenEnabled: boolean;
   overlayCaptureEnabled: boolean;
   overlayClusterEnabled: boolean;
+  uiPanelsHidden: boolean;
 }
 
 export interface WaveIntelVM {

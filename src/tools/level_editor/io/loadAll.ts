@@ -4,7 +4,7 @@ import type {
   CampaignWavePresetCatalog,
 } from "../../../campaign/CampaignTypes";
 import { isObject, parseJsonSafe } from "../model/json";
-import { CORE_LEVEL_EDITOR_PATHS, isCampaignMapPath } from "../model/pathCatalog";
+import { CORE_LEVEL_EDITOR_PATHS, isCampaignMapPath, isModernLevelPath } from "../model/pathCatalog";
 import {
   LEVEL_EDITOR_WORKSPACE_VERSION,
   type LevelEditorDocKind,
@@ -23,8 +23,8 @@ export async function loadLevelEditorWorkspace(): Promise<LevelEditorWorkspace> 
   const initialPaths = [...CORE_LEVEL_EDITOR_PATHS, ...fallbackCampaignMapPaths()];
   const initialLoads = await Promise.all(initialPaths.map((path) => fetchRaw(path)));
 
-  const campaignLoad = initialLoads.find((entry) => entry.path === "/data/campaign/campaign_v2.json") ?? null;
-  const discoveredPaths = discoverAdditionalPaths(campaignLoad);
+  const loadsByPath = new Map(initialLoads.map((entry) => [entry.path, entry] as const));
+  const discoveredPaths = discoverAdditionalPaths(loadsByPath);
 
   const discoveredLoads = await Promise.all(
     discoveredPaths
@@ -52,9 +52,21 @@ export async function loadLevelEditorWorkspace(): Promise<LevelEditorWorkspace> 
   };
 }
 
-function discoverAdditionalPaths(campaignLoad: LoadedRaw | null): string[] {
+function discoverAdditionalPaths(loadsByPath: ReadonlyMap<string, LoadedRaw>): string[] {
   const discovered = new Set<string>();
 
+  const addIfLevelPath = (path: unknown): void => {
+    if (typeof path !== "string") {
+      return;
+    }
+    const normalized = normalizeLevelPath(path);
+    if (!normalized) {
+      return;
+    }
+    discovered.add(normalized);
+  };
+
+  const campaignLoad = loadsByPath.get("/data/campaign/campaign_v2.json") ?? null;
   if (campaignLoad?.raw) {
     const parsed = parseJsonSafe(campaignLoad.raw);
     if (!parsed.error && isCampaignSpec(parsed.data)) {
@@ -62,6 +74,32 @@ function discoverAdditionalPaths(campaignLoad: LoadedRaw | null): string[] {
         for (const level of stage.levels) {
           discovered.add(`/levels/v2/${level.mapId}.json`);
         }
+      }
+    }
+  }
+
+  const missionCatalogLoad = loadsByPath.get("/data/missions.json") ?? null;
+  if (missionCatalogLoad?.raw) {
+    const parsed = parseJsonSafe(missionCatalogLoad.raw);
+    if (!parsed.error && isObject(parsed.data) && Array.isArray(parsed.data.templates)) {
+      for (const template of parsed.data.templates) {
+        if (!isObject(template)) {
+          continue;
+        }
+        addIfLevelPath(template.levelPath);
+      }
+    }
+  }
+
+  const gameModesLoad = loadsByPath.get("/data/gameModes.json") ?? null;
+  if (gameModesLoad?.raw) {
+    const parsed = parseJsonSafe(gameModesLoad.raw);
+    if (!parsed.error && isObject(parsed.data) && Array.isArray(parsed.data.modes)) {
+      for (const mode of parsed.data.modes) {
+        if (!isObject(mode) || !isObject(mode.skirmish)) {
+          continue;
+        }
+        addIfLevelPath(mode.skirmish.levelPath);
       }
     }
   }
@@ -134,6 +172,9 @@ function resolveKind(path: string, data: unknown | null): LevelEditorDocKind {
   if (path.endsWith("/campaign_v2.json")) {
     return "campaign";
   }
+  if (path.endsWith("/gameModes.json")) {
+    return "game-modes";
+  }
   if (path.endsWith("/presets.json")) {
     return "wave-presets";
   }
@@ -195,6 +236,8 @@ function resolveGroup(kind: LevelEditorDocKind): LevelEditorDocument["group"] {
   switch (kind) {
     case "campaign":
       return "campaign";
+    case "game-modes":
+      return "globals";
     case "level-json":
     case "legacy-level":
       return "levels";
@@ -231,6 +274,18 @@ function isCampaignSpec(value: unknown): value is CampaignSpecV2 {
     Array.isArray(value.stages) &&
     value.stages.every((stage) => isObject(stage) && Array.isArray(stage.levels))
   );
+}
+
+function normalizeLevelPath(path: string): string | null {
+  const trimmed = path.trim();
+  if (trimmed.length === 0) {
+    return null;
+  }
+  const normalized = trimmed.startsWith("/") ? trimmed : `/${trimmed}`;
+  if (isCampaignMapPath(normalized) || isModernLevelPath(normalized)) {
+    return normalized;
+  }
+  return null;
 }
 
 export function isWavePresetCatalog(value: unknown): value is CampaignWavePresetCatalog {
