@@ -2021,36 +2021,47 @@ function renderCurrentScreen(
 
   if (app.screen === "play-mode-select") {
     const panel = document.createElement("div");
-    panel.className = "panel ui-panel menu-panel campaign-shell campaign-profile-shell";
-    panel.appendChild(createCampaignScreenHeader("Select Mode", "Play"));
+    panel.className = "panel ui-panel menu-panel campaign-shell play-mode-shell";
+    panel.appendChild(createCampaignScreenHeader("Choose Operation", "Play"));
 
-    const brief = document.createElement("section");
-    brief.className = "campaign-progress-card";
-    const briefTitle = document.createElement("p");
-    briefTitle.className = "campaign-progress-title";
-    briefTitle.textContent = "Choose your operation";
-    const briefBody = document.createElement("p");
-    briefBody.className = "campaign-progress-subtitle";
-    briefBody.textContent = "Story Mode opens the World Map. Skirmish launches local multiplayer.";
-    brief.append(briefTitle, briefBody);
-    panel.appendChild(brief);
+    const lead = document.createElement("section");
+    lead.className = "play-mode-lead";
+    const leadTitle = document.createElement("p");
+    leadTitle.className = "play-mode-lead-title";
+    leadTitle.textContent = "Pick your battlefield.";
+    const leadBody = document.createElement("p");
+    leadBody.className = "play-mode-lead-body";
+    leadBody.textContent = "Story Mode sends you to the World Map. Skirmish drops you into local four-faction elimination.";
+    lead.append(leadTitle, leadBody);
+    panel.appendChild(lead);
 
-    const actions = document.createElement("div");
-    actions.className = "campaign-main-actions";
-    const storyBtn = createButton("Story Mode", openStageSelect, {
-      variant: "primary",
-      primaryAction: true,
-      hotkey: "Enter",
-    });
-    storyBtn.classList.add("campaign-main-action");
-    actions.appendChild(storyBtn);
-
-    const skirmishBtn = createButton("Skirmish", openSkirmishSetup, {
-      variant: "secondary",
-    });
-    skirmishBtn.classList.add("campaign-main-action");
-    actions.appendChild(skirmishBtn);
-    panel.appendChild(actions);
+    const modeGrid = document.createElement("section");
+    modeGrid.className = "play-mode-grid";
+    modeGrid.append(
+      createPlayModeCard({
+        variant: "story",
+        kicker: "Campaign",
+        title: "Story Mode",
+        description: "Progress through staged territories, missions, and unlock flow on the World Map.",
+        tags: ["World Map", "Mission Progression", "Structured Difficulty"],
+        badge: "Recommended",
+        ctaLabel: "Open World Map",
+        ctaVariant: "primary",
+        hotkey: "Enter",
+        onSelect: openStageSelect,
+      }),
+      createPlayModeCard({
+        variant: "skirmish",
+        kicker: "Local Multiplayer",
+        title: "Skirmish",
+        description: "Free-for-all battle on a large map. Eliminate all rival factions to win.",
+        tags: ["4 Factions", "Elimination Rules", "Chaotic Mid-Game"],
+        ctaLabel: "Open Skirmish",
+        ctaVariant: "secondary",
+        onSelect: openSkirmishSetup,
+      }),
+    );
+    panel.appendChild(modeGrid);
 
     const footer = document.createElement("div");
     footer.className = "menu-footer campaign-footer";
@@ -3907,6 +3918,79 @@ function createInfoPill(label: string, value: string): HTMLDivElement {
 
   pill.append(heading, amount);
   return pill;
+}
+
+function createPlayModeCard(input: {
+  variant: "story" | "skirmish";
+  kicker: string;
+  title: string;
+  description: string;
+  tags: string[];
+  ctaLabel: string;
+  ctaVariant: "primary" | "secondary";
+  onSelect: () => void;
+  badge?: string;
+  hotkey?: string;
+}): HTMLElement {
+  const card = document.createElement("article");
+  card.className = `play-mode-card is-${input.variant}`;
+  card.tabIndex = 0;
+  card.setAttribute("role", "button");
+
+  card.onclick = (event) => {
+    const target = event.target as HTMLElement | null;
+    if (target?.closest(".play-mode-card-action")) {
+      return;
+    }
+    input.onSelect();
+  };
+
+  card.onkeydown = (event) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      input.onSelect();
+    }
+  };
+
+  const top = document.createElement("div");
+  top.className = "play-mode-card-top";
+  const kicker = document.createElement("span");
+  kicker.className = "play-mode-card-kicker";
+  kicker.textContent = input.kicker;
+  top.appendChild(kicker);
+  if (input.badge) {
+    const badge = document.createElement("span");
+    badge.className = "play-mode-card-badge";
+    badge.textContent = input.badge;
+    top.appendChild(badge);
+  }
+
+  const title = document.createElement("h3");
+  title.className = "play-mode-card-title";
+  title.textContent = input.title;
+
+  const description = document.createElement("p");
+  description.className = "play-mode-card-description";
+  description.textContent = input.description;
+
+  const tags = document.createElement("div");
+  tags.className = "play-mode-card-tags";
+  for (const label of input.tags) {
+    const tag = document.createElement("span");
+    tag.className = "play-mode-card-tag";
+    tag.textContent = label;
+    tags.appendChild(tag);
+  }
+
+  const action = createButton(input.ctaLabel, input.onSelect, {
+    variant: input.ctaVariant,
+    ...(input.hotkey ? { hotkey: input.hotkey } : {}),
+    ...(input.hotkey === "Enter" ? { primaryAction: true } : {}),
+  });
+  action.classList.add("play-mode-card-action");
+
+  card.append(top, title, description, tags, action);
+  return card;
 }
 
 function createCampaignScreenHeader(title: string, subtitle: string): HTMLElement {

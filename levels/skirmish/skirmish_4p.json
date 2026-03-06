@@ -5,8 +5,8 @@
   "name": "Confluence Basin",
   "size": "big",
   "grid": {
-    "width": 40,
-    "height": 30,
+    "width": 32,
+    "height": 24,
     "minCellSize": 34,
     "layers": {
       "ground": {
@@ -20,116 +20,598 @@
     }
   },
   "nodes": [
-    { "id": "n_home", "x": 20, "y": 3, "type": "stronghold", "owner": "player", "regen": 3.1, "cap": 128, "troops": 46 },
-    { "id": "n_l1", "x": 14, "y": 6, "type": "tower", "owner": "neutral", "regen": 1.8, "cap": 82, "troops": 16 },
-    { "id": "n_l2", "x": 20, "y": 7, "type": "tower", "owner": "neutral", "regen": 1.9, "cap": 88, "troops": 17 },
-    { "id": "n_l3", "x": 26, "y": 6, "type": "tower", "owner": "neutral", "regen": 1.8, "cap": 82, "troops": 16 },
-    { "id": "n_bridge", "x": 20, "y": 10, "type": "tower", "owner": "neutral", "regen": 2.2, "cap": 96, "troops": 20 },
-
-    { "id": "e_home", "x": 36, "y": 15, "type": "stronghold", "owner": "red", "regen": 3.1, "cap": 128, "troops": 44 },
-    { "id": "e_u", "x": 33, "y": 10, "type": "tower", "owner": "neutral", "regen": 1.8, "cap": 82, "troops": 16 },
-    { "id": "e_m", "x": 31, "y": 15, "type": "tower", "owner": "neutral", "regen": 1.9, "cap": 88, "troops": 17 },
-    { "id": "e_d", "x": 33, "y": 20, "type": "tower", "owner": "neutral", "regen": 1.8, "cap": 82, "troops": 16 },
-    { "id": "e_bridge", "x": 28, "y": 15, "type": "tower", "owner": "neutral", "regen": 2.2, "cap": 96, "troops": 20 },
-
-    { "id": "s_home", "x": 20, "y": 27, "type": "stronghold", "owner": "green", "regen": 3.1, "cap": 128, "troops": 44 },
-    { "id": "s_l1", "x": 14, "y": 24, "type": "tower", "owner": "neutral", "regen": 1.8, "cap": 82, "troops": 16 },
-    { "id": "s_l2", "x": 20, "y": 23, "type": "tower", "owner": "neutral", "regen": 1.9, "cap": 88, "troops": 17 },
-    { "id": "s_l3", "x": 26, "y": 24, "type": "tower", "owner": "neutral", "regen": 1.8, "cap": 82, "troops": 16 },
-    { "id": "s_bridge", "x": 20, "y": 20, "type": "tower", "owner": "neutral", "regen": 2.2, "cap": 96, "troops": 20 },
-
-    { "id": "w_home", "x": 4, "y": 15, "type": "stronghold", "owner": "yellow", "regen": 3.1, "cap": 128, "troops": 44 },
-    { "id": "w_u", "x": 7, "y": 10, "type": "tower", "owner": "neutral", "regen": 1.8, "cap": 82, "troops": 16 },
-    { "id": "w_m", "x": 9, "y": 15, "type": "tower", "owner": "neutral", "regen": 1.9, "cap": 88, "troops": 17 },
-    { "id": "w_d", "x": 7, "y": 20, "type": "tower", "owner": "neutral", "regen": 1.8, "cap": 82, "troops": 16 },
-    { "id": "w_bridge", "x": 12, "y": 15, "type": "tower", "owner": "neutral", "regen": 2.2, "cap": 96, "troops": 20 },
-
-    { "id": "c_n", "x": 20, "y": 13, "type": "tower", "owner": "neutral", "regen": 2.3, "cap": 100, "troops": 21 },
-    { "id": "c_w", "x": 17, "y": 15, "type": "tower", "owner": "neutral", "regen": 2.3, "cap": 100, "troops": 21 },
-    { "id": "c_core", "x": 20, "y": 15, "type": "tower", "owner": "neutral", "regen": 3.2, "cap": 132, "troops": 26 },
-    { "id": "c_e", "x": 23, "y": 15, "type": "tower", "owner": "neutral", "regen": 2.3, "cap": 100, "troops": 21 },
-    { "id": "c_s", "x": 20, "y": 17, "type": "tower", "owner": "neutral", "regen": 2.3, "cap": 100, "troops": 21 },
-    { "id": "c_nw", "x": 17, "y": 12, "type": "tower", "owner": "neutral", "regen": 2, "cap": 90, "troops": 19 },
-    { "id": "c_ne", "x": 23, "y": 12, "type": "tower", "owner": "neutral", "regen": 2, "cap": 90, "troops": 19 },
-    { "id": "c_sw", "x": 17, "y": 18, "type": "tower", "owner": "neutral", "regen": 2, "cap": 90, "troops": 19 },
-    { "id": "c_se", "x": 23, "y": 18, "type": "tower", "owner": "neutral", "regen": 2, "cap": 90, "troops": 19 },
-
-    { "id": "nw_route", "x": 10, "y": 7, "type": "tower", "owner": "neutral", "regen": 1.9, "cap": 86, "troops": 17 },
-    { "id": "ne_route", "x": 30, "y": 7, "type": "tower", "owner": "neutral", "regen": 1.9, "cap": 86, "troops": 17 },
-    { "id": "se_route", "x": 30, "y": 23, "type": "tower", "owner": "neutral", "regen": 1.9, "cap": 86, "troops": 17 },
-    { "id": "sw_route", "x": 10, "y": 23, "type": "tower", "owner": "neutral", "regen": 1.9, "cap": 86, "troops": 17 }
+    {
+      "id": "n_home",
+      "x": 16,
+      "y": 2,
+      "type": "stronghold",
+      "owner": "player",
+      "regen": 3.1,
+      "cap": 128,
+      "troops": 46
+    },
+    {
+      "id": "n_l1",
+      "x": 11,
+      "y": 5,
+      "type": "tower",
+      "owner": "neutral",
+      "regen": 1.8,
+      "cap": 82,
+      "troops": 16
+    },
+    {
+      "id": "n_l2",
+      "x": 16,
+      "y": 6,
+      "type": "tower",
+      "owner": "neutral",
+      "regen": 1.9,
+      "cap": 88,
+      "troops": 17
+    },
+    {
+      "id": "n_l3",
+      "x": 21,
+      "y": 5,
+      "type": "tower",
+      "owner": "neutral",
+      "regen": 1.8,
+      "cap": 82,
+      "troops": 16
+    },
+    {
+      "id": "n_bridge",
+      "x": 16,
+      "y": 8,
+      "type": "tower",
+      "owner": "neutral",
+      "regen": 2.2,
+      "cap": 96,
+      "troops": 20
+    },
+    {
+      "id": "e_home",
+      "x": 29,
+      "y": 12,
+      "type": "stronghold",
+      "owner": "red",
+      "regen": 3.1,
+      "cap": 128,
+      "troops": 44
+    },
+    {
+      "id": "e_u",
+      "x": 26,
+      "y": 8,
+      "type": "tower",
+      "owner": "neutral",
+      "regen": 1.8,
+      "cap": 82,
+      "troops": 16
+    },
+    {
+      "id": "e_m",
+      "x": 25,
+      "y": 12,
+      "type": "tower",
+      "owner": "neutral",
+      "regen": 1.9,
+      "cap": 88,
+      "troops": 17
+    },
+    {
+      "id": "e_d",
+      "x": 26,
+      "y": 16,
+      "type": "tower",
+      "owner": "neutral",
+      "regen": 1.8,
+      "cap": 82,
+      "troops": 16
+    },
+    {
+      "id": "e_bridge",
+      "x": 22,
+      "y": 12,
+      "type": "tower",
+      "owner": "neutral",
+      "regen": 2.2,
+      "cap": 96,
+      "troops": 20
+    },
+    {
+      "id": "s_home",
+      "x": 16,
+      "y": 22,
+      "type": "stronghold",
+      "owner": "green",
+      "regen": 3.1,
+      "cap": 128,
+      "troops": 44
+    },
+    {
+      "id": "s_l1",
+      "x": 11,
+      "y": 19,
+      "type": "tower",
+      "owner": "neutral",
+      "regen": 1.8,
+      "cap": 82,
+      "troops": 16
+    },
+    {
+      "id": "s_l2",
+      "x": 16,
+      "y": 18,
+      "type": "tower",
+      "owner": "neutral",
+      "regen": 1.9,
+      "cap": 88,
+      "troops": 17
+    },
+    {
+      "id": "s_l3",
+      "x": 21,
+      "y": 19,
+      "type": "tower",
+      "owner": "neutral",
+      "regen": 1.8,
+      "cap": 82,
+      "troops": 16
+    },
+    {
+      "id": "s_bridge",
+      "x": 16,
+      "y": 16,
+      "type": "tower",
+      "owner": "neutral",
+      "regen": 2.2,
+      "cap": 96,
+      "troops": 20
+    },
+    {
+      "id": "w_home",
+      "x": 3,
+      "y": 12,
+      "type": "stronghold",
+      "owner": "yellow",
+      "regen": 3.1,
+      "cap": 128,
+      "troops": 44
+    },
+    {
+      "id": "w_u",
+      "x": 6,
+      "y": 8,
+      "type": "tower",
+      "owner": "neutral",
+      "regen": 1.8,
+      "cap": 82,
+      "troops": 16
+    },
+    {
+      "id": "w_m",
+      "x": 7,
+      "y": 12,
+      "type": "tower",
+      "owner": "neutral",
+      "regen": 1.9,
+      "cap": 88,
+      "troops": 17
+    },
+    {
+      "id": "w_d",
+      "x": 6,
+      "y": 16,
+      "type": "tower",
+      "owner": "neutral",
+      "regen": 1.8,
+      "cap": 82,
+      "troops": 16
+    },
+    {
+      "id": "w_bridge",
+      "x": 10,
+      "y": 12,
+      "type": "tower",
+      "owner": "neutral",
+      "regen": 2.2,
+      "cap": 96,
+      "troops": 20
+    },
+    {
+      "id": "c_n",
+      "x": 16,
+      "y": 10,
+      "type": "tower",
+      "owner": "neutral",
+      "regen": 2.3,
+      "cap": 100,
+      "troops": 21
+    },
+    {
+      "id": "c_w",
+      "x": 14,
+      "y": 12,
+      "type": "tower",
+      "owner": "neutral",
+      "regen": 2.3,
+      "cap": 100,
+      "troops": 21
+    },
+    {
+      "id": "c_core",
+      "x": 16,
+      "y": 12,
+      "type": "tower",
+      "owner": "neutral",
+      "regen": 3.2,
+      "cap": 132,
+      "troops": 26
+    },
+    {
+      "id": "c_e",
+      "x": 18,
+      "y": 12,
+      "type": "tower",
+      "owner": "neutral",
+      "regen": 2.3,
+      "cap": 100,
+      "troops": 21
+    },
+    {
+      "id": "c_s",
+      "x": 16,
+      "y": 14,
+      "type": "tower",
+      "owner": "neutral",
+      "regen": 2.3,
+      "cap": 100,
+      "troops": 21
+    },
+    {
+      "id": "c_nw",
+      "x": 14,
+      "y": 10,
+      "type": "tower",
+      "owner": "neutral",
+      "regen": 2,
+      "cap": 90,
+      "troops": 19
+    },
+    {
+      "id": "c_ne",
+      "x": 18,
+      "y": 10,
+      "type": "tower",
+      "owner": "neutral",
+      "regen": 2,
+      "cap": 90,
+      "troops": 19
+    },
+    {
+      "id": "c_sw",
+      "x": 14,
+      "y": 14,
+      "type": "tower",
+      "owner": "neutral",
+      "regen": 2,
+      "cap": 90,
+      "troops": 19
+    },
+    {
+      "id": "c_se",
+      "x": 18,
+      "y": 14,
+      "type": "tower",
+      "owner": "neutral",
+      "regen": 2,
+      "cap": 90,
+      "troops": 19
+    },
+    {
+      "id": "nw_route",
+      "x": 8,
+      "y": 6,
+      "type": "tower",
+      "owner": "neutral",
+      "regen": 1.9,
+      "cap": 86,
+      "troops": 17
+    },
+    {
+      "id": "ne_route",
+      "x": 24,
+      "y": 6,
+      "type": "tower",
+      "owner": "neutral",
+      "regen": 1.9,
+      "cap": 86,
+      "troops": 17
+    },
+    {
+      "id": "se_route",
+      "x": 24,
+      "y": 18,
+      "type": "tower",
+      "owner": "neutral",
+      "regen": 1.9,
+      "cap": 86,
+      "troops": 17
+    },
+    {
+      "id": "sw_route",
+      "x": 8,
+      "y": 18,
+      "type": "tower",
+      "owner": "neutral",
+      "regen": 1.9,
+      "cap": 86,
+      "troops": 17
+    }
   ],
   "edges": [
-    { "from": "n_home", "to": "n_l1" },
-    { "from": "n_home", "to": "n_l2" },
-    { "from": "n_home", "to": "n_l3" },
-    { "from": "n_l1", "to": "n_l2" },
-    { "from": "n_l2", "to": "n_l3" },
-    { "from": "n_l2", "to": "n_bridge" },
-    { "from": "n_l1", "to": "c_nw" },
-    { "from": "n_l3", "to": "c_ne" },
-    { "from": "n_bridge", "to": "c_n" },
-
-    { "from": "e_home", "to": "e_u" },
-    { "from": "e_home", "to": "e_m" },
-    { "from": "e_home", "to": "e_d" },
-    { "from": "e_u", "to": "e_m" },
-    { "from": "e_m", "to": "e_d" },
-    { "from": "e_m", "to": "e_bridge" },
-    { "from": "e_u", "to": "c_ne" },
-    { "from": "e_d", "to": "c_se" },
-    { "from": "e_bridge", "to": "c_e" },
-
-    { "from": "s_home", "to": "s_l1" },
-    { "from": "s_home", "to": "s_l2" },
-    { "from": "s_home", "to": "s_l3" },
-    { "from": "s_l1", "to": "s_l2" },
-    { "from": "s_l2", "to": "s_l3" },
-    { "from": "s_l2", "to": "s_bridge" },
-    { "from": "s_l1", "to": "c_sw" },
-    { "from": "s_l3", "to": "c_se" },
-    { "from": "s_bridge", "to": "c_s" },
-
-    { "from": "w_home", "to": "w_u" },
-    { "from": "w_home", "to": "w_m" },
-    { "from": "w_home", "to": "w_d" },
-    { "from": "w_u", "to": "w_m" },
-    { "from": "w_m", "to": "w_d" },
-    { "from": "w_m", "to": "w_bridge" },
-    { "from": "w_u", "to": "c_nw" },
-    { "from": "w_d", "to": "c_sw" },
-    { "from": "w_bridge", "to": "c_w" },
-
-    { "from": "c_n", "to": "c_core" },
-    { "from": "c_w", "to": "c_core" },
-    { "from": "c_e", "to": "c_core" },
-    { "from": "c_s", "to": "c_core" },
-    { "from": "c_n", "to": "c_nw" },
-    { "from": "c_n", "to": "c_ne" },
-    { "from": "c_s", "to": "c_sw" },
-    { "from": "c_s", "to": "c_se" },
-    { "from": "c_w", "to": "c_nw" },
-    { "from": "c_w", "to": "c_sw" },
-    { "from": "c_e", "to": "c_ne" },
-    { "from": "c_e", "to": "c_se" },
-    { "from": "c_n", "to": "c_s" },
-
-    { "from": "n_l1", "to": "nw_route" },
-    { "from": "w_u", "to": "nw_route" },
-    { "from": "n_l3", "to": "ne_route" },
-    { "from": "e_u", "to": "ne_route" },
-    { "from": "s_l3", "to": "se_route" },
-    { "from": "e_d", "to": "se_route" },
-    { "from": "s_l1", "to": "sw_route" },
-    { "from": "w_d", "to": "sw_route" },
-    { "from": "nw_route", "to": "ne_route" },
-    { "from": "ne_route", "to": "se_route" },
-    { "from": "se_route", "to": "sw_route" },
-    { "from": "sw_route", "to": "nw_route" },
-    { "from": "nw_route", "to": "c_nw" },
-    { "from": "ne_route", "to": "c_ne" },
-    { "from": "se_route", "to": "c_se" },
-    { "from": "sw_route", "to": "c_sw" }
+    {
+      "from": "n_home",
+      "to": "n_l1"
+    },
+    {
+      "from": "n_home",
+      "to": "n_l2"
+    },
+    {
+      "from": "n_home",
+      "to": "n_l3"
+    },
+    {
+      "from": "n_l1",
+      "to": "n_l2"
+    },
+    {
+      "from": "n_l2",
+      "to": "n_l3"
+    },
+    {
+      "from": "n_l2",
+      "to": "n_bridge"
+    },
+    {
+      "from": "n_l1",
+      "to": "c_nw"
+    },
+    {
+      "from": "n_l3",
+      "to": "c_ne"
+    },
+    {
+      "from": "n_bridge",
+      "to": "c_n"
+    },
+    {
+      "from": "e_home",
+      "to": "e_u"
+    },
+    {
+      "from": "e_home",
+      "to": "e_m"
+    },
+    {
+      "from": "e_home",
+      "to": "e_d"
+    },
+    {
+      "from": "e_u",
+      "to": "e_m"
+    },
+    {
+      "from": "e_m",
+      "to": "e_d"
+    },
+    {
+      "from": "e_m",
+      "to": "e_bridge"
+    },
+    {
+      "from": "e_u",
+      "to": "c_ne"
+    },
+    {
+      "from": "e_d",
+      "to": "c_se"
+    },
+    {
+      "from": "e_bridge",
+      "to": "c_e"
+    },
+    {
+      "from": "s_home",
+      "to": "s_l1"
+    },
+    {
+      "from": "s_home",
+      "to": "s_l2"
+    },
+    {
+      "from": "s_home",
+      "to": "s_l3"
+    },
+    {
+      "from": "s_l1",
+      "to": "s_l2"
+    },
+    {
+      "from": "s_l2",
+      "to": "s_l3"
+    },
+    {
+      "from": "s_l2",
+      "to": "s_bridge"
+    },
+    {
+      "from": "s_l1",
+      "to": "c_sw"
+    },
+    {
+      "from": "s_l3",
+      "to": "c_se"
+    },
+    {
+      "from": "s_bridge",
+      "to": "c_s"
+    },
+    {
+      "from": "w_home",
+      "to": "w_u"
+    },
+    {
+      "from": "w_home",
+      "to": "w_m"
+    },
+    {
+      "from": "w_home",
+      "to": "w_d"
+    },
+    {
+      "from": "w_u",
+      "to": "w_m"
+    },
+    {
+      "from": "w_m",
+      "to": "w_d"
+    },
+    {
+      "from": "w_m",
+      "to": "w_bridge"
+    },
+    {
+      "from": "w_u",
+      "to": "c_nw"
+    },
+    {
+      "from": "w_d",
+      "to": "c_sw"
+    },
+    {
+      "from": "w_bridge",
+      "to": "c_w"
+    },
+    {
+      "from": "c_n",
+      "to": "c_core"
+    },
+    {
+      "from": "c_w",
+      "to": "c_core"
+    },
+    {
+      "from": "c_e",
+      "to": "c_core"
+    },
+    {
+      "from": "c_s",
+      "to": "c_core"
+    },
+    {
+      "from": "c_n",
+      "to": "c_nw"
+    },
+    {
+      "from": "c_n",
+      "to": "c_ne"
+    },
+    {
+      "from": "c_s",
+      "to": "c_sw"
+    },
+    {
+      "from": "c_s",
+      "to": "c_se"
+    },
+    {
+      "from": "c_w",
+      "to": "c_nw"
+    },
+    {
+      "from": "c_w",
+      "to": "c_sw"
+    },
+    {
+      "from": "c_e",
+      "to": "c_ne"
+    },
+    {
+      "from": "c_e",
+      "to": "c_se"
+    },
+    {
+      "from": "c_n",
+      "to": "c_s"
+    },
+    {
+      "from": "n_l1",
+      "to": "nw_route"
+    },
+    {
+      "from": "w_u",
+      "to": "nw_route"
+    },
+    {
+      "from": "n_l3",
+      "to": "ne_route"
+    },
+    {
+      "from": "e_u",
+      "to": "ne_route"
+    },
+    {
+      "from": "s_l3",
+      "to": "se_route"
+    },
+    {
+      "from": "e_d",
+      "to": "se_route"
+    },
+    {
+      "from": "s_l1",
+      "to": "sw_route"
+    },
+    {
+      "from": "w_d",
+      "to": "sw_route"
+    },
+    {
+      "from": "nw_route",
+      "to": "ne_route"
+    },
+    {
+      "from": "ne_route",
+      "to": "se_route"
+    },
+    {
+      "from": "se_route",
+      "to": "sw_route"
+    },
+    {
+      "from": "sw_route",
+      "to": "nw_route"
+    },
+    {
+      "from": "nw_route",
+      "to": "c_nw"
+    },
+    {
+      "from": "ne_route",
+      "to": "c_ne"
+    },
+    {
+      "from": "se_route",
+      "to": "c_se"
+    },
+    {
+      "from": "sw_route",
+      "to": "c_sw"
+    }
   ],
   "missions": [
     {
@@ -155,10 +637,10 @@
         "1": 414,
         "2": 384,
         "4": 278,
-        "8": 288,
         "5": 429,
-        "9": 414,
         "6": 384,
+        "8": 288,
+        "9": 414,
         "10": 373
       }
     }
