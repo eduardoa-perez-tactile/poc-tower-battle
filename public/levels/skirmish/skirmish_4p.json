@@ -7,7 +7,7 @@
   "grid": {
     "width": 32,
     "height": 24,
-    "minCellSize": 34,
+    "minCellSize": 28,
     "layers": {
       "ground": {
         "default": "grass",
@@ -271,46 +271,6 @@
       "troops": 21
     },
     {
-      "id": "c_nw",
-      "x": 14,
-      "y": 10,
-      "type": "tower",
-      "owner": "neutral",
-      "regen": 2,
-      "cap": 90,
-      "troops": 19
-    },
-    {
-      "id": "c_ne",
-      "x": 18,
-      "y": 10,
-      "type": "tower",
-      "owner": "neutral",
-      "regen": 2,
-      "cap": 90,
-      "troops": 19
-    },
-    {
-      "id": "c_sw",
-      "x": 14,
-      "y": 14,
-      "type": "tower",
-      "owner": "neutral",
-      "regen": 2,
-      "cap": 90,
-      "troops": 19
-    },
-    {
-      "id": "c_se",
-      "x": 18,
-      "y": 14,
-      "type": "tower",
-      "owner": "neutral",
-      "regen": 2,
-      "cap": 90,
-      "troops": 19
-    },
-    {
       "id": "nw_route",
       "x": 8,
       "y": 6,
@@ -377,14 +337,6 @@
       "to": "n_bridge"
     },
     {
-      "from": "n_l1",
-      "to": "c_nw"
-    },
-    {
-      "from": "n_l3",
-      "to": "c_ne"
-    },
-    {
       "from": "n_bridge",
       "to": "c_n"
     },
@@ -411,14 +363,6 @@
     {
       "from": "e_m",
       "to": "e_bridge"
-    },
-    {
-      "from": "e_u",
-      "to": "c_ne"
-    },
-    {
-      "from": "e_d",
-      "to": "c_se"
     },
     {
       "from": "e_bridge",
@@ -449,14 +393,6 @@
       "to": "s_bridge"
     },
     {
-      "from": "s_l1",
-      "to": "c_sw"
-    },
-    {
-      "from": "s_l3",
-      "to": "c_se"
-    },
-    {
       "from": "s_bridge",
       "to": "c_s"
     },
@@ -485,14 +421,6 @@
       "to": "w_bridge"
     },
     {
-      "from": "w_u",
-      "to": "c_nw"
-    },
-    {
-      "from": "w_d",
-      "to": "c_sw"
-    },
-    {
       "from": "w_bridge",
       "to": "c_w"
     },
@@ -511,38 +439,6 @@
     {
       "from": "c_s",
       "to": "c_core"
-    },
-    {
-      "from": "c_n",
-      "to": "c_nw"
-    },
-    {
-      "from": "c_n",
-      "to": "c_ne"
-    },
-    {
-      "from": "c_s",
-      "to": "c_sw"
-    },
-    {
-      "from": "c_s",
-      "to": "c_se"
-    },
-    {
-      "from": "c_w",
-      "to": "c_nw"
-    },
-    {
-      "from": "c_w",
-      "to": "c_sw"
-    },
-    {
-      "from": "c_e",
-      "to": "c_ne"
-    },
-    {
-      "from": "c_e",
-      "to": "c_se"
     },
     {
       "from": "c_n",
@@ -597,20 +493,52 @@
       "to": "nw_route"
     },
     {
+      "from": "n_l1",
+      "to": "c_n"
+    },
+    {
+      "from": "w_u",
+      "to": "c_w"
+    },
+    {
       "from": "nw_route",
-      "to": "c_nw"
+      "to": "c_n"
+    },
+    {
+      "from": "n_l3",
+      "to": "c_n"
+    },
+    {
+      "from": "e_u",
+      "to": "c_e"
     },
     {
       "from": "ne_route",
-      "to": "c_ne"
+      "to": "c_n"
+    },
+    {
+      "from": "s_l3",
+      "to": "c_s"
+    },
+    {
+      "from": "e_d",
+      "to": "c_e"
     },
     {
       "from": "se_route",
-      "to": "c_se"
+      "to": "c_s"
+    },
+    {
+      "from": "s_l1",
+      "to": "c_s"
+    },
+    {
+      "from": "w_d",
+      "to": "c_w"
     },
     {
       "from": "sw_route",
-      "to": "c_sw"
+      "to": "c_s"
     }
   ],
   "missions": [

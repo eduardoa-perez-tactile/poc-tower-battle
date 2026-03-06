@@ -15,6 +15,7 @@ export interface BuildHudViewModelInput {
   overlayRegenEnabled: boolean;
   overlayCaptureEnabled: boolean;
   overlayClusterEnabled: boolean;
+  uiPanelsHidden: boolean;
 }
 
 interface TowerPacketTraffic {
@@ -112,6 +113,7 @@ export function buildHudViewModel(input: BuildHudViewModelInput): HudVM {
       overlayRegenEnabled: input.overlayRegenEnabled,
       overlayCaptureEnabled: input.overlayCaptureEnabled,
       overlayClusterEnabled: input.overlayClusterEnabled,
+      uiPanelsHidden: input.uiPanelsHidden,
     },
     waveIntel: {
       collapsedLabel: `Wave ${waveLabel} | ${stateLabel}`,

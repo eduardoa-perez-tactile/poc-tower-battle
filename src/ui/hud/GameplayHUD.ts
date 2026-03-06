@@ -20,6 +20,7 @@ export interface GameplayHUDOptions {
   onToggleOverlayRegen: () => void;
   onToggleOverlayCapture: () => void;
   onToggleOverlayCluster: () => void;
+  onToggleUiPanels: () => void;
 }
 
 export class GameplayHUD {
@@ -49,6 +50,7 @@ export class GameplayHUD {
       onToggleOverlayRegen: options.onToggleOverlayRegen,
       onToggleOverlayCapture: options.onToggleOverlayCapture,
       onToggleOverlayCluster: options.onToggleOverlayCluster,
+      onToggleUiPanels: options.onToggleUiPanels,
     });
     this.waveIntel = createWaveIntelPanel();
     this.objectiveCard = createObjectiveCard();
@@ -80,12 +82,14 @@ export class GameplayHUD {
 
   update(vm: HudVM, options: TowerInspectorUpdateOptions): void {
     this.applyLayout();
-    this.alerts.setVisible(true);
+    const uiPanelsHidden = vm.topBar.uiPanelsHidden;
+    this.root.classList.toggle("is-panels-hidden", uiPanelsHidden);
+    this.alerts.setVisible(!uiPanelsHidden);
     this.topBar.update(vm.topBar);
     this.waveIntel.update(vm.waveIntel);
     this.objectiveCard.update(vm.objective);
     this.towerInspector.update(vm.context.towerInspect, options);
-    if (this.currentLayout) {
+    if (!uiPanelsHidden && this.currentLayout) {
       this.alerts.setLayout(this.currentLayout);
     }
     this.lastOverlayVm = vm.overlays;
@@ -114,6 +118,7 @@ export class GameplayHUD {
   }
 
   reset(): void {
+    this.root.classList.remove("is-panels-hidden");
     this.alerts.setVisible(false);
     this.topBar.reset();
     this.waveIntel.reset();

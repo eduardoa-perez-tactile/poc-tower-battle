@@ -205,6 +205,7 @@ interface AppState {
   fps: number;
   missionPaused: boolean;
   missionSpeedMul: 1 | 2;
+  hudPanelsHidden: boolean;
   missionEvents: MissionEventEntry[];
   missionEventSeq: number;
   missionHudSignals: MissionHudSignals;
@@ -329,6 +330,7 @@ async function bootstrap(): Promise<void> {
     fps: 0,
     missionPaused: false,
     missionSpeedMul: 1,
+    hudPanelsHidden: false,
     missionEvents: [],
     missionEventSeq: 0,
     missionHudSignals: createDefaultMissionHudSignals(),
@@ -384,6 +386,10 @@ async function bootstrap(): Promise<void> {
     },
     onToggleOverlayCluster: () => {
       debugUiStore.toggle("showOverlayClusterHighlight");
+    },
+    onToggleUiPanels: () => {
+      app.hudPanelsHidden = !app.hudPanelsHidden;
+      render();
     },
   });
 
@@ -1701,6 +1707,7 @@ async function bootstrap(): Promise<void> {
     app.missionReward = null;
     app.missionPaused = false;
     app.missionSpeedMul = 1;
+    app.hudPanelsHidden = false;
     app.tutorialController = null;
     app.tutorialHintRunner = null;
     resetMissionHudUiState(app);
@@ -1786,6 +1793,13 @@ async function bootstrap(): Promise<void> {
     if (!isTyping && app.screen === "mission" && (key === "h" || key === "H")) {
       mapReadabilityLegendVisible = !mapReadabilityLegendVisible;
       writeStoredBoolean(MAP_READABILITY_LEGEND_KEY, mapReadabilityLegendVisible);
+      render();
+      event.preventDefault();
+      return;
+    }
+
+    if (!isTyping && app.screen === "mission" && (key === "u" || key === "U") && !event.repeat) {
+      app.hudPanelsHidden = !app.hudPanelsHidden;
       render();
       event.preventDefault();
       return;
@@ -2872,6 +2886,7 @@ function syncMissionHud(app: AppState, debugState: DebugUiState, gameplayHud: Ga
     overlayRegenEnabled: debugState.showOverlayRegenNumbers,
     overlayCaptureEnabled: debugState.showOverlayCaptureRings,
     overlayClusterEnabled: debugState.showOverlayClusterHighlight,
+    uiPanelsHidden: app.hudPanelsHidden,
   });
 
   const linkFeedback = app.inputController?.drainLinkFeedback() ?? [];

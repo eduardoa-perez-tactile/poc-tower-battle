@@ -2523,6 +2523,11 @@
         background: rgba(18, 82, 74, 0.82);
       }
 
+      .hud-action-btn.active {
+        border-color: rgba(45, 212, 191, 0.48);
+        background: rgba(18, 82, 74, 0.82);
+      }
+
       .hud-overlay-mini-group {
         display: inline-flex;
         gap: 4px;
@@ -2544,6 +2549,33 @@
       .hud-overlay-mini-btn.active {
         border-color: rgba(45, 212, 191, 0.48);
         background: rgba(18, 82, 74, 0.82);
+      }
+
+      .gameplay-hud.is-panels-hidden .hud-wave-intel,
+      .gameplay-hud.is-panels-hidden .hud-objective-card,
+      .gameplay-hud.is-panels-hidden .hud-tower-inspector {
+        display: none !important;
+      }
+
+      .gameplay-hud.is-panels-hidden .hud-top-bar {
+        left: auto;
+        right: 10px;
+        justify-content: flex-end;
+      }
+
+      .gameplay-hud.is-panels-hidden .hud-top-left,
+      .gameplay-hud.is-panels-hidden .hud-top-center {
+        display: none;
+      }
+
+      .gameplay-hud.is-panels-hidden .hud-top-right .hud-overlay-mini-group,
+      .gameplay-hud.is-panels-hidden .hud-top-right .hud-speed-group,
+      .gameplay-hud.is-panels-hidden .hud-top-right .hud-pause-btn {
+        display: none;
+      }
+
+      .gameplay-hud.is-panels-hidden .hud-top-right {
+        padding: 6px 8px;
       }
 
       .hud-wave-intel {
@@ -3464,6 +3496,10 @@
 
         .hud-wave-intel {
           top: 62px;
+          right: 8px;
+        }
+
+        .gameplay-hud.is-panels-hidden .hud-top-bar {
           right: 8px;
         }
 
