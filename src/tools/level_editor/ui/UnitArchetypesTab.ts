@@ -445,7 +445,8 @@ export function createUnitArchetypesTab(options: UnitArchetypesTabOptions): Unit
       frameCountInfo.className = "campaign-progress-subtitle";
       frameCountInfo.style.margin = "0";
       const targetSpriteKey = walk.spriteKey.trim().length > 0 ? walk.spriteKey.trim() : visuals.spriteAtlasKey ?? "";
-      const frameCount = targetSpriteKey ? unitSpriteAtlas.getDirectionFrameCount(targetSpriteKey, facing) : 0;
+      const atlasFacing = mapFacingForUnitAtlas(facing);
+      const frameCount = targetSpriteKey ? unitSpriteAtlas.getDirectionFrameCount(targetSpriteKey, atlasFacing) : 0;
       frameCountInfo.textContent =
         frameCount > 0
           ? `Atlas frames for ${facing}: ${frameCount}`
@@ -735,9 +736,10 @@ export function createUnitArchetypesTab(options: UnitArchetypesTabOptions): Unit
       return;
     }
 
+    const atlasFacing = mapFacingForUnitAtlas(state.previewDirection);
     const drawn = unitSpriteAtlas.drawAnimation(previewCtx, {
       spriteId: walk.spriteKey,
-      facing: state.previewDirection,
+      facing: atlasFacing,
       timeSec: state.previewTimeSec,
       worldX: previewCanvas.width * 0.5,
       worldY: previewCanvas.height * 0.66,
@@ -905,6 +907,16 @@ function resolvePreviewWalk(
     };
   }
   return null;
+}
+
+function mapFacingForUnitAtlas(facing: UnitSpriteFacing): UnitSpriteFacing {
+  if (facing === "up") {
+    return "down";
+  }
+  if (facing === "down") {
+    return "up";
+  }
+  return facing;
 }
 
 function canApplyDraft(catalog: UnitArchetypeCatalog | null): boolean {

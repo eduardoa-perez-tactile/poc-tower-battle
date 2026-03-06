@@ -638,10 +638,11 @@ export class Renderer2D {
         if (!walkAnimation) {
           continue;
         }
+        const atlasFacing = mapFacingForUnitAtlas(facing);
         const effectiveScale = visual?.sizeScale ?? packet.sizeScale;
         const drawn = this.unitSpriteAtlas.drawAnimation(this.ctx, {
           spriteId: walkAnimation.spriteKey,
-          facing,
+          facing: atlasFacing,
           timeSec: packet.ageSec + (packet.spriteAnimPhase ?? 0),
           worldX: position.x,
           worldY: position.y,
@@ -676,10 +677,11 @@ export class Renderer2D {
         this.renderFrameSequence,
       );
       packet.spriteFacing = facing;
+      const atlasFacing = mapFacingForUnitAtlas(facing);
       const drawn = this.unitSpriteAtlas.drawSprite(
         this.ctx,
         packet.spriteId ?? "",
-        facing,
+        atlasFacing,
         packet.ageSec + (packet.spriteAnimPhase ?? 0),
         position.x,
         position.y,
@@ -1034,6 +1036,16 @@ function facingFromDelta(dx: number, dy: number): UnitSpriteFacing {
     return dx >= 0 ? "right" : "left";
   }
   return dy >= 0 ? "down" : "up";
+}
+
+function mapFacingForUnitAtlas(facing: UnitSpriteFacing): UnitSpriteFacing {
+  if (facing === "up") {
+    return "down";
+  }
+  if (facing === "down") {
+    return "up";
+  }
+  return facing;
 }
 
 function resolveFacingFromPolyline(points: Vec2[], progress01: number): UnitSpriteFacing {
