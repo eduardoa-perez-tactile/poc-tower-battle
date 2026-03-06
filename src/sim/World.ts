@@ -13,7 +13,7 @@ import {
   type ConnectedCluster,
 } from "./TerritoryControl";
 
-export type Owner = "player" | "enemy" | "neutral";
+export type Owner = "player" | "enemy" | "red" | "green" | "yellow" | "neutral";
 export type UnitSpriteFacing = "up" | "down" | "left" | "right";
 
 export interface Vec2 {

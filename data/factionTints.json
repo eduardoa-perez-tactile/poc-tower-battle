@@ -1,12 +1,24 @@
 {
   "version": 1,
   "player": {
-    "color": "#2dd4bf",
+    "color": "#60a5fa",
     "strength": 0.22
   },
   "enemy": {
     "color": "#fb7185",
     "strength": 0.24
+  },
+  "red": {
+    "color": "#fb7185",
+    "strength": 0.24
+  },
+  "green": {
+    "color": "#4ade80",
+    "strength": 0.2
+  },
+  "yellow": {
+    "color": "#facc15",
+    "strength": 0.2
   },
   "neutral": {
     "color": "#b8c2cf",

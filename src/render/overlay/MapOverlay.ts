@@ -248,15 +248,15 @@ export class MapOverlay {
           link.toTowerId,
           (this.incomingPlayerUnitsByTowerId.get(link.toTowerId) ?? 0) + count,
         );
-      } else if (packet.owner === "enemy") {
-        this.incomingEnemyUnitsByTowerId.set(
-          link.toTowerId,
-          (this.incomingEnemyUnitsByTowerId.get(link.toTowerId) ?? 0) + count,
-        );
-      } else {
+      } else if (packet.owner === "neutral") {
         this.incomingNeutralUnitsByTowerId.set(
           link.toTowerId,
           (this.incomingNeutralUnitsByTowerId.get(link.toTowerId) ?? 0) + count,
+        );
+      } else {
+        this.incomingEnemyUnitsByTowerId.set(
+          link.toTowerId,
+          (this.incomingEnemyUnitsByTowerId.get(link.toTowerId) ?? 0) + count,
         );
       }
     }
@@ -884,7 +884,7 @@ export class MapOverlay {
     const x = Math.max(10, viewportTransform.viewportWidth - 220);
     const y = 14;
     const width = 206;
-    const height = 108;
+    const height = 126;
 
     ctx.save();
     this.drawRoundedRect(ctx, x, y, width, height, 10);
@@ -900,13 +900,15 @@ export class MapOverlay {
     ctx.fillStyle = OVERLAY_THEME.legend.titleColor;
     ctx.fillText("Readability Legend (H)", x + 10, y + 18);
 
-    this.drawLegendSwatch(ctx, x + 10, y + 28, OVERLAY_THEME.ownerColors.player.ring, "Player");
-    this.drawLegendSwatch(ctx, x + 10, y + 46, OVERLAY_THEME.ownerColors.enemy.ring, "Enemy");
-    this.drawLegendDashed(ctx, x + 10, y + 64, OVERLAY_THEME.ownerColors.neutral.ring, "Neutral plate");
+    this.drawLegendSwatch(ctx, x + 10, y + 28, OVERLAY_THEME.ownerColors.player.ring, "Blue (Human)");
+    this.drawLegendSwatch(ctx, x + 10, y + 46, OVERLAY_THEME.ownerColors.red.ring, "Red");
+    this.drawLegendSwatch(ctx, x + 10, y + 64, OVERLAY_THEME.ownerColors.green.ring, "Green");
+    this.drawLegendSwatch(ctx, x + 10, y + 82, OVERLAY_THEME.ownerColors.yellow.ring, "Yellow");
+    this.drawLegendDashed(ctx, x + 10, y + 100, OVERLAY_THEME.ownerColors.neutral.ring, "Neutral plate");
 
     ctx.fillStyle = OVERLAY_THEME.legend.textColor;
-    ctx.fillText("Split edge = contested", x + 10, y + 88);
-    ctx.fillText("O toggle overlay", x + 10, y + 104);
+    ctx.fillText("Split edge = contested", x + 10, y + 116);
+    ctx.fillText("O toggle overlay", x + 10, y + 122);
     ctx.restore();
   }
 

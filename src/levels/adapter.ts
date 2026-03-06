@@ -252,7 +252,7 @@ function getNodeDefaults(node: LevelNode): {
     };
   }
 
-  if (node.owner === "enemy") {
+  if (node.owner !== "player" && node.owner !== "neutral") {
     return {
       maxTroops: 90,
       regenRate: 2,

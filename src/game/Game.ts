@@ -3,7 +3,8 @@ import { Renderer2D } from "../render/Renderer2D";
 import type { MapOverlayInteractionState } from "../render/overlay/MapOverlay";
 import { canCreateLink, getNeighbors } from "../sim/LinkRules";
 import { updateWorld, type SimulationRules, type SimulationTemporaryModifiers } from "../sim/Simulation";
-import { World } from "../sim/World";
+import { NEUTRAL_OWNER } from "../sim/Factions";
+import { World, type Owner } from "../sim/World";
 import {
   WaveDirector,
   type BossTooltipTelemetry,
@@ -15,10 +16,21 @@ import { SkillManager, type SkillHudState } from "./SkillManager";
 const FIXED_STEP_SEC = 1 / 60;
 const MAX_FRAME_DT_SEC = 0.25;
 const AI_DEFENSE_WEIGHT = 2;
+const DEFAULT_MATCH_RULES: GameMatchRules = {
+  humanOwner: "player",
+  aiOwners: ["enemy"],
+  eliminationOnly: false,
+};
 
 export interface GameAiRules {
   aiThinkIntervalSec: number;
   aiMinTroopsToAttack: number;
+}
+
+export interface GameMatchRules {
+  humanOwner: Owner;
+  aiOwners: Owner[];
+  eliminationOnly: boolean;
 }
 
 export type MatchResult = "win" | "lose" | null;
@@ -38,6 +50,7 @@ export class Game {
   private readonly aiRules: GameAiRules;
   private readonly waveDirector: WaveDirector | null;
   private readonly skillManager: SkillManager | null;
+  private readonly matchRules: GameMatchRules;
   private readonly linkBreakBursts: LinkBreakBurst[];
   private readonly overlayInteractionState: MapOverlayInteractionState;
   private accumulatorSec: number;
@@ -52,6 +65,7 @@ export class Game {
     aiRules: GameAiRules,
     waveDirector: WaveDirector | null = null,
     skillManager: SkillManager | null = null,
+    matchRules?: Partial<GameMatchRules>,
   ) {
     this.world = world;
     this.renderer = renderer;
@@ -60,6 +74,7 @@ export class Game {
     this.aiRules = aiRules;
     this.waveDirector = waveDirector;
     this.skillManager = skillManager;
+    this.matchRules = resolveMatchRules(matchRules);
     this.linkBreakBursts = [];
     this.overlayInteractionState = {
       hoveredTowerId: null,
@@ -111,6 +126,14 @@ export class Game {
     return this.world;
   }
 
+  getMatchRules(): Readonly<GameMatchRules> {
+    return {
+      humanOwner: this.matchRules.humanOwner,
+      aiOwners: [...this.matchRules.aiOwners],
+      eliminationOnly: this.matchRules.eliminationOnly,
+    };
+  }
+
   getDebugEnemyIds(): string[] {
     return this.waveDirector?.getDebugEnemyIds() ?? [];
   }
@@ -139,7 +162,7 @@ export class Game {
 
   getPlayerTowerIds(): string[] {
     return this.world.towers
-      .filter((tower) => tower.owner === "player")
+      .filter((tower) => tower.owner === this.matchRules.humanOwner)
       .map((tower) => tower.id)
       .sort((a, b) => a.localeCompare(b));
   }
@@ -253,76 +276,93 @@ export class Game {
   }
 
   private runSingleAiDecision(): void {
-    const candidateSources = this.world.towers.filter(
-      (tower) =>
-        tower.owner === "enemy" && tower.troops >= this.aiRules.aiMinTroopsToAttack,
-    );
-    if (candidateSources.length === 0) {
-      return;
-    }
+    for (const owner of this.matchRules.aiOwners) {
+      const candidateSources = this.world.towers.filter(
+        (tower) =>
+          tower.owner === owner && tower.troops >= this.aiRules.aiMinTroopsToAttack,
+      );
+      if (candidateSources.length === 0) {
+        continue;
+      }
 
-    let bestSourceId = "";
-    let bestTargetId = "";
-    let bestScore = Number.POSITIVE_INFINITY;
-    let bestKey = "";
+      let bestSourceId = "";
+      let bestTargetId = "";
+      let bestScore = Number.POSITIVE_INFINITY;
+      let bestKey = "";
 
-    for (const source of candidateSources) {
-      for (const neighborId of getNeighbors(this.world, source.id)) {
-        const target = this.world.getTowerById(neighborId);
-        if (!target) {
-          continue;
-        }
-        if (target.owner === source.owner) {
-          continue;
-        }
+      for (const source of candidateSources) {
+        for (const neighborId of getNeighbors(this.world, source.id)) {
+          const target = this.world.getTowerById(neighborId);
+          if (!target) {
+            continue;
+          }
+          if (target.owner === source.owner) {
+            continue;
+          }
 
-        const validation = canCreateLink(this.world, source.id, target.id, source.owner);
-        if (!validation.ok) {
-          continue;
-        }
+          const validation = canCreateLink(this.world, source.id, target.id, source.owner);
+          if (!validation.ok) {
+            continue;
+          }
 
-        const score =
-          Math.hypot(target.x - source.x, target.y - source.y) +
-          AI_DEFENSE_WEIGHT * (target.troops + target.hp);
-        const key = `${source.id}->${target.id}`;
-        if (score < bestScore || (score === bestScore && (bestKey === "" || key < bestKey))) {
-          bestScore = score;
-          bestSourceId = source.id;
-          bestTargetId = target.id;
-          bestKey = key;
+          const score =
+            Math.hypot(target.x - source.x, target.y - source.y) +
+            AI_DEFENSE_WEIGHT * (target.troops + target.hp);
+          const key = `${source.id}->${target.id}`;
+          if (score < bestScore || (score === bestScore && (bestKey === "" || key < bestKey))) {
+            bestScore = score;
+            bestSourceId = source.id;
+            bestTargetId = target.id;
+            bestKey = key;
+          }
         }
       }
-    }
 
-    if (bestSourceId && bestTargetId) {
-      this.world.setOutgoingLink(bestSourceId, bestTargetId);
+      if (bestSourceId && bestTargetId) {
+        this.world.setOutgoingLink(bestSourceId, bestTargetId);
+      }
     }
   }
 
   private evaluateMatchResult(): void {
-    let playerTowerCount = 0;
-    let enemyTowerCount = 0;
-
+    const aliveCountsByOwner = new Map<Owner, number>();
     for (const tower of this.world.towers) {
-      if (tower.owner === "player") {
-        playerTowerCount += 1;
-      } else if (tower.owner === "enemy") {
-        enemyTowerCount += 1;
+      if (tower.owner === NEUTRAL_OWNER) {
+        continue;
       }
+      aliveCountsByOwner.set(tower.owner, (aliveCountsByOwner.get(tower.owner) ?? 0) + 1);
     }
 
-    if (enemyTowerCount === 0 && playerTowerCount > 0) {
-      this.matchResult = "win";
-      return;
-    }
-
-    if (this.waveDirector && this.waveDirector.getDebugMaxWaveIndex() > 0 && this.waveDirector.isFinished()) {
-      this.matchResult = "win";
-      return;
-    }
-
-    if (playerTowerCount === 0) {
+    const humanTowers = aliveCountsByOwner.get(this.matchRules.humanOwner) ?? 0;
+    if (humanTowers === 0) {
       this.matchResult = "lose";
+      return;
+    }
+
+    const anyAliveOpponent = this.matchRules.aiOwners.some((owner) => (aliveCountsByOwner.get(owner) ?? 0) > 0);
+    if (!anyAliveOpponent) {
+      this.matchResult = "win";
+      return;
+    }
+
+    if (
+      !this.matchRules.eliminationOnly &&
+      this.waveDirector &&
+      this.waveDirector.getDebugMaxWaveIndex() > 0 &&
+      this.waveDirector.isFinished()
+    ) {
+      this.matchResult = "win";
     }
   }
+}
+
+function resolveMatchRules(input: Partial<GameMatchRules> | undefined): GameMatchRules {
+  const humanOwner = input?.humanOwner ?? DEFAULT_MATCH_RULES.humanOwner;
+  const aiOwners = [...new Set(input?.aiOwners ?? DEFAULT_MATCH_RULES.aiOwners)]
+    .filter((owner) => owner !== humanOwner && owner !== NEUTRAL_OWNER);
+  return {
+    humanOwner,
+    aiOwners: aiOwners.length > 0 ? aiOwners : [...DEFAULT_MATCH_RULES.aiOwners],
+    eliminationOnly: input?.eliminationOnly ?? DEFAULT_MATCH_RULES.eliminationOnly,
+  };
 }

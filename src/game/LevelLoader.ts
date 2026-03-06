@@ -278,10 +278,17 @@ function asNumberWithFallback(
 }
 
 function asOwner(value: unknown, fieldName: string): Owner {
-  if (value === "player" || value === "enemy" || value === "neutral") {
+  if (
+    value === "player" ||
+    value === "enemy" ||
+    value === "red" ||
+    value === "green" ||
+    value === "yellow" ||
+    value === "neutral"
+  ) {
     return value;
   }
-  throw new Error(`${fieldName} must be "player", "enemy", or "neutral"`);
+  throw new Error(`${fieldName} must be "player", "enemy", "red", "green", "yellow", or "neutral"`);
 }
 
 function isObject(value: unknown): value is Record<string, unknown> {

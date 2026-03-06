@@ -1,4 +1,5 @@
 import { TOWER_RADIUS_PX, type Owner } from "../../sim/World";
+import { getFactionColor } from "../../sim/Factions";
 import { useWorldToScreen } from "../worldToScreen";
 import { AlertLogManager, normalizeHudToastInput } from "../alerts/AlertLogManager";
 import { createObjectiveCard, type ObjectiveCardController } from "./ObjectiveCard";
@@ -278,13 +279,8 @@ class TacticalOverlayLayer {
 }
 
 function toOwnerColor(owner: Owner): string {
-  if (owner === "player") {
-    return "rgba(45, 212, 191, 0.95)";
-  }
-  if (owner === "enemy") {
-    return "rgba(248, 113, 113, 0.95)";
-  }
-  return "rgba(148, 163, 184, 0.9)";
+  const color = getFactionColor(owner);
+  return `${color}f2`;
 }
 
 function clamp01(value: number): number {

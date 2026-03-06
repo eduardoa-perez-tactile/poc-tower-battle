@@ -1,5 +1,6 @@
 import type { Game } from "../../game/Game";
 import type { Link, Owner, Tower, World } from "../../sim/World";
+import { HUMAN_OWNER_DEFAULT, NEUTRAL_OWNER } from "../../sim/Factions";
 import type { MissionWaveTelemetry } from "../../waves/WaveDirector";
 import type { HudVM, TowerCaptureVM } from "./types";
 
@@ -19,9 +20,7 @@ export interface BuildHudViewModelInput {
 interface TowerPacketTraffic {
   incomingFriendlyPackets: number;
   incomingHostilePackets: number;
-  incomingPlayerUnits: number;
-  incomingEnemyUnits: number;
-  incomingNeutralUnits: number;
+  incomingUnitsByOwner: Map<Owner, number>;
 }
 
 export function buildHudViewModel(input: BuildHudViewModelInput): HudVM {
@@ -64,9 +63,7 @@ export function buildHudViewModel(input: BuildHudViewModelInput): HudVM {
     const traffic = incomingByTower.get(targetTower.id) ?? {
       incomingFriendlyPackets: 0,
       incomingHostilePackets: 0,
-      incomingPlayerUnits: 0,
-      incomingEnemyUnits: 0,
-      incomingNeutralUnits: 0,
+      incomingUnitsByOwner: new Map<Owner, number>(),
     };
 
     if (packet.owner === targetTower.owner) {
@@ -75,20 +72,21 @@ export function buildHudViewModel(input: BuildHudViewModelInput): HudVM {
       traffic.incomingHostilePackets += 1;
     }
 
-    if (packet.owner === "player") {
-      traffic.incomingPlayerUnits += packet.count;
-    } else if (packet.owner === "enemy") {
-      traffic.incomingEnemyUnits += packet.count;
-    } else {
-      traffic.incomingNeutralUnits += packet.count;
-    }
+    traffic.incomingUnitsByOwner.set(
+      packet.owner,
+      (traffic.incomingUnitsByOwner.get(packet.owner) ?? 0) + packet.count,
+    );
 
     incomingByTower.set(targetTower.id, traffic);
   }
 
   const inspectTowerId = input.selectedTowerId ?? input.hoveredTowerId;
   const selectedTower = inspectTowerId ? towerById.get(inspectTowerId) ?? null : null;
-  const playerTowers = world.towers.filter((tower) => tower.owner === "player");
+  const playerTowers = world.towers.filter((tower) => tower.owner === HUMAN_OWNER_DEFAULT);
+  const matchRules = input.game.getMatchRules();
+  const aliveOpponents = matchRules.aiOwners.filter((owner) =>
+    world.towers.some((tower) => tower.owner === owner),
+  ).length;
   const totalRegenPerSec = playerTowers.reduce((sum, tower) => sum + sanitizeNumber(tower.effectiveRegen), 0);
   const largestClusterSize = playerTowers.reduce((best, tower) => Math.max(best, tower.territoryClusterSize ?? 0), 0);
 
@@ -98,6 +96,7 @@ export function buildHudViewModel(input: BuildHudViewModelInput): HudVM {
     ? Math.max(0, telemetry.currentWaveIndex - (telemetry.activeWaveInProgress ? 1 : 0))
     : 0;
   const totalWaves = telemetry?.totalWaveCount ?? 0;
+  const eliminationProgress01 = 1 - aliveOpponents / Math.max(1, matchRules.aiOwners.length);
 
   return {
     topBar: {
@@ -131,8 +130,18 @@ export function buildHudViewModel(input: BuildHudViewModelInput): HudVM {
     },
     objective: {
       title: input.objectiveText,
-      progress01: totalWaves > 0 ? clamp01(completedWaves / Math.max(1, totalWaves)) : 0,
-      wavesSecuredLabel: totalWaves > 0 ? `${completedWaves}/${totalWaves} waves secured` : "Awaiting wave telemetry",
+      progress01:
+        matchRules.eliminationOnly
+          ? clamp01(eliminationProgress01)
+          : totalWaves > 0
+            ? clamp01(completedWaves / Math.max(1, totalWaves))
+            : 0,
+      wavesSecuredLabel:
+        matchRules.eliminationOnly
+          ? `Opponents remaining: ${aliveOpponents}/${matchRules.aiOwners.length}`
+          : totalWaves > 0
+            ? `${completedWaves}/${totalWaves} waves secured`
+            : "Awaiting wave telemetry",
       clusterBonusLabel: largestClusterSize >= 3 ? "Active" : "Inactive",
     },
     context: {
@@ -150,7 +159,7 @@ export function buildHudViewModel(input: BuildHudViewModelInput): HudVM {
           y: tower.y,
           owner: tower.owner,
           regenPerSec: tower.owner === "neutral" ? 0 : sanitizeNumber(tower.effectiveRegen),
-          clusterHighlight: tower.owner === "player" && (tower.territoryClusterSize ?? 0) >= 3,
+          clusterHighlight: tower.owner === HUMAN_OWNER_DEFAULT && (tower.territoryClusterSize ?? 0) >= 3,
           capture,
         };
       }),
@@ -170,7 +179,7 @@ function buildTowerInspect(
   const outgoingLinks = outgoingLinkCountByTower.get(tower.id) ?? 0;
   const maxOutgoingLinks = world.getMaxOutgoingLinksForTower(tower.id);
   const outgoingPackets = outgoingPacketCountByTower.get(tower.id) ?? 0;
-  const clusterSize = tower.owner === "player" ? tower.territoryClusterSize ?? 0 : 0;
+  const clusterSize = tower.owner === HUMAN_OWNER_DEFAULT ? tower.territoryClusterSize ?? 0 : 0;
 
   return {
     towerName: `${tower.id} · ${tower.archetype}`,
@@ -187,7 +196,7 @@ function buildTowerInspect(
 }
 
 function getClusterStatusLabel(tower: Tower, clusterSize: number): string {
-  if (tower.owner !== "player") {
+  if (tower.owner !== HUMAN_OWNER_DEFAULT) {
     return "Not in player cluster";
   }
 
@@ -312,42 +321,39 @@ function resolveAttackContext(
 ): { attacker: Owner; attackingPower: number } {
   if (!traffic) {
     return {
-      attacker: "neutral",
+      attacker: NEUTRAL_OWNER,
       attackingPower: 0,
     };
   }
 
-  if (tower.owner === "player") {
-    const enemyPressure = traffic.incomingEnemyUnits;
-    const neutralPressure = traffic.incomingNeutralUnits;
-    return {
-      attacker: enemyPressure >= neutralPressure ? "enemy" : "neutral",
-      attackingPower: enemyPressure + neutralPressure,
-    };
+  let dominantAttacker: Owner = NEUTRAL_OWNER;
+  let dominantPower = 0;
+  let totalHostilePower = 0;
+
+  for (const [owner, power] of traffic.incomingUnitsByOwner.entries()) {
+    if (owner === tower.owner) {
+      continue;
+    }
+    if (power <= 0) {
+      continue;
+    }
+    totalHostilePower += power;
+    if (power > dominantPower || (power === dominantPower && owner < dominantAttacker)) {
+      dominantPower = power;
+      dominantAttacker = owner;
+    }
   }
 
-  if (tower.owner === "enemy") {
-    const playerPressure = traffic.incomingPlayerUnits;
-    const neutralPressure = traffic.incomingNeutralUnits;
+  if (totalHostilePower <= 0) {
     return {
-      attacker: playerPressure >= neutralPressure ? "player" : "neutral",
-      attackingPower: playerPressure + neutralPressure,
-    };
-  }
-
-  const playerPressure = traffic.incomingPlayerUnits;
-  const enemyPressure = traffic.incomingEnemyUnits;
-  const attackingPower = Math.max(playerPressure, enemyPressure);
-  if (attackingPower <= 0) {
-    return {
-      attacker: "neutral",
+      attacker: NEUTRAL_OWNER,
       attackingPower: 0,
     };
   }
 
   return {
-    attacker: playerPressure >= enemyPressure ? "player" : "enemy",
-    attackingPower,
+    attacker: dominantAttacker,
+    attackingPower: totalHostilePower,
   };
 }
 
