@@ -127,6 +127,7 @@ import { getFactionLabel, isNeutral } from "./sim/Factions";
 type Screen =
   | "title"
   | "main-menu"
+  | "play-mode-select"
   | "skirmish-setup"
   | "profile-snapshot"
   | "meta"
@@ -435,6 +436,7 @@ async function bootstrap(): Promise<void> {
       missionTemplates,
       openMetaScreen,
       openMainMenu,
+      openPlayModeSelect,
       openSkirmishSetup,
       startSkirmishMatch,
       openProfileSnapshot,
@@ -597,6 +599,12 @@ async function bootstrap(): Promise<void> {
     app.selectedStageId = null;
     app.selectedLevelId = null;
     app.screen = "stage-select";
+    render();
+  };
+
+  const openPlayModeSelect = (): void => {
+    stopMission();
+    app.screen = "play-mode-select";
     render();
   };
 
@@ -1864,6 +1872,7 @@ function renderCurrentScreen(
   missionTemplates: MissionTemplate[],
   openMetaScreen: () => void,
   openMainMenu: () => void,
+  openPlayModeSelect: () => void,
   openSkirmishSetup: () => void,
   startSkirmishMatch: () => Promise<void>,
   openProfileSnapshot: () => void,
@@ -1975,19 +1984,13 @@ function renderCurrentScreen(
 
     const actionCard = document.createElement("div");
     actionCard.className = "campaign-main-actions";
-    const campaignBtn = createButton("Play", openStageSelect, {
+    const campaignBtn = createButton("Play", openPlayModeSelect, {
       variant: "primary",
       primaryAction: true,
       hotkey: "Enter",
     });
     campaignBtn.classList.add("campaign-main-action");
     actionCard.appendChild(campaignBtn);
-
-    const skirmishBtn = createButton("Local Multiplayer", openSkirmishSetup, {
-      variant: "secondary",
-    });
-    skirmishBtn.classList.add("campaign-main-action");
-    actionCard.appendChild(skirmishBtn);
 
     const profileBtn = createButton("Commander Record", openProfileSnapshot, { variant: "secondary" });
     profileBtn.classList.add("campaign-main-action");
@@ -2013,6 +2016,53 @@ function renderCurrentScreen(
     layout.appendChild(panel);
     wrapper.appendChild(layout);
     screenRoot.appendChild(wrapper);
+    return;
+  }
+
+  if (app.screen === "play-mode-select") {
+    const panel = document.createElement("div");
+    panel.className = "panel ui-panel menu-panel campaign-shell campaign-profile-shell";
+    panel.appendChild(createCampaignScreenHeader("Select Mode", "Play"));
+
+    const brief = document.createElement("section");
+    brief.className = "campaign-progress-card";
+    const briefTitle = document.createElement("p");
+    briefTitle.className = "campaign-progress-title";
+    briefTitle.textContent = "Choose your operation";
+    const briefBody = document.createElement("p");
+    briefBody.className = "campaign-progress-subtitle";
+    briefBody.textContent = "Story Mode opens the World Map. Skirmish launches local multiplayer.";
+    brief.append(briefTitle, briefBody);
+    panel.appendChild(brief);
+
+    const actions = document.createElement("div");
+    actions.className = "campaign-main-actions";
+    const storyBtn = createButton("Story Mode", openStageSelect, {
+      variant: "primary",
+      primaryAction: true,
+      hotkey: "Enter",
+    });
+    storyBtn.classList.add("campaign-main-action");
+    actions.appendChild(storyBtn);
+
+    const skirmishBtn = createButton("Skirmish", openSkirmishSetup, {
+      variant: "secondary",
+    });
+    skirmishBtn.classList.add("campaign-main-action");
+    actions.appendChild(skirmishBtn);
+    panel.appendChild(actions);
+
+    const footer = document.createElement("div");
+    footer.className = "menu-footer campaign-footer";
+    const backBtn = createButton("Back to Main Menu", openMainMenu, {
+      variant: "ghost",
+      escapeAction: true,
+      hotkey: "Esc",
+    });
+    backBtn.classList.add("campaign-footer-btn");
+    footer.appendChild(backBtn);
+    panel.appendChild(footer);
+    screenRoot.appendChild(wrapCentered(panel));
     return;
   }
 
@@ -2056,7 +2106,7 @@ function renderCurrentScreen(
     startBtn.classList.add("campaign-footer-btn");
     startBtn.disabled = !skirmishRules;
     footer.appendChild(startBtn);
-    const backBtn = createButton("Back to Main Menu", openMainMenu, {
+    const backBtn = createButton("Back to Mode Select", openPlayModeSelect, {
       variant: "ghost",
       escapeAction: true,
       hotkey: "Esc",
@@ -2139,7 +2189,7 @@ function renderCurrentScreen(
       stages: app.campaignStages,
       unlocks: app.campaignUnlocks,
       onSelectStage: openLevelSelect,
-      onBack: openMainMenu,
+      onBack: openPlayModeSelect,
     });
     screenRoot.appendChild(wrapCentered(panel));
     return;
