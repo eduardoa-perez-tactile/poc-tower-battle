@@ -82,15 +82,10 @@ describe("CampaignLoader tile palette shoreline overrides", () => {
     const width = terrain.width;
     const height = terrain.height;
     const ground = terrain.layers.ground;
-    let checkedBorderShorelineCells = 0;
+    let checkedShorelineCells = 0;
 
     for (let row = 1; row < height - 1; row += 1) {
       for (let col = 1; col < width - 1; col += 1) {
-        const isBorderRing = row === 1 || row === height - 2 || col === 1 || col === width - 2;
-        if (!isBorderRing) {
-          continue;
-        }
-
         const index = row * width + col;
         if (ground[index] === waterTile) {
           continue;
@@ -107,10 +102,10 @@ describe("CampaignLoader tile palette shoreline overrides", () => {
         }
 
         expect(ground[index]).toBe(expected);
-        checkedBorderShorelineCells += 1;
+        checkedShorelineCells += 1;
       }
     }
 
-    expect(checkedBorderShorelineCells).toBeGreaterThan(0);
+    expect(checkedShorelineCells).toBeGreaterThan(0);
   });
 });
