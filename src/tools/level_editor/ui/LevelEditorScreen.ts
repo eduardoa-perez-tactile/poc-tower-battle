@@ -1448,7 +1448,7 @@ function renderCampaignMissionForm(
           ...entry,
           wavePlan: {
             ...entry.wavePlan,
-            waves: Math.max(1, Math.floor(value)),
+            waves: Math.max(0, Math.floor(value)),
           },
         })),
       );

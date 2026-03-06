@@ -3478,7 +3478,7 @@ function evaluateQuickSimResult(world: World, waveDirector: WaveDirector): Match
   if (countEnemyTowers(world) === 0) {
     return "win";
   }
-  if (waveDirector.isFinished()) {
+  if (waveDirector.getDebugMaxWaveIndex() > 0 && waveDirector.isFinished()) {
     return "win";
   }
   return null;

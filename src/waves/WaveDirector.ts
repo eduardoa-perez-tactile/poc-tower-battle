@@ -282,7 +282,7 @@ export class WaveDirector {
     const baseWaveCount = this.waveGenerator.getTotalWaveCount();
     this.totalWaveCount = clamp(
       this.difficultyContext.wavePlan.waveCountOverride ?? baseWaveCount,
-      1,
+      0,
       baseWaveCount,
     );
     this.cooldownUntilNextWaveSec = this.difficultyBudget.enabled
@@ -516,7 +516,7 @@ export class WaveDirector {
   getDifficultyDebugSnapshot(maxWaves?: number): DifficultyDebugSnapshot {
     const waveLimit = clamp(
       Number.isFinite(maxWaves) ? Math.floor(maxWaves as number) : this.totalWaveCount,
-      1,
+      0,
       this.totalWaveCount,
     );
     const waves: DifficultyWaveDebugSnapshot[] = [];
@@ -601,6 +601,9 @@ export class WaveDirector {
   }
 
   debugStartWave(waveIndex: number): void {
+    if (this.totalWaveCount <= 0) {
+      return;
+    }
     const normalized = Math.max(1, Math.min(this.totalWaveCount, Math.floor(waveIndex)));
     this.currentWaveIndex = normalized - 1;
     this.cooldownUntilNextWaveSec = 0;

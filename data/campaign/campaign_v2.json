@@ -76,7 +76,7 @@
           ],
           "wavePlan": {
             "preset": "teach_easy",
-            "waves": 2,
+            "waves": 1,
             "bossEnabled": false
           }
         },
@@ -115,7 +115,7 @@
           ],
           "wavePlan": {
             "preset": "teach_easy",
-            "waves": 2,
+            "waves": 1,
             "bossEnabled": false
           }
         },
@@ -153,8 +153,8 @@
             "ranged"
           ],
           "wavePlan": {
-            "preset": "test_normal",
-            "waves": 3,
+            "preset": "teach_easy",
+            "waves": 2,
             "bossEnabled": false
           }
         },
@@ -183,8 +183,8 @@
             },
             {
               "trigger": "onWaveStart",
-              "wave": 2,
-              "text": "Commit early to the approach lane. Waiting lets the swarm snowball."
+              "wave": 1,
+              "text": "This is the key wave. Commit early to the approach lane so it never reaches your inner tower."
             }
           ],
           "archetypeAllowlist": [
@@ -192,7 +192,7 @@
           ],
           "wavePlan": {
             "preset": "teach_new_archetype",
-            "waves": 3,
+            "waves": 1,
             "firstAppearanceWave": 1,
             "bossEnabled": false
           }
@@ -233,7 +233,7 @@
           ],
           "wavePlan": {
             "preset": "teach_new_archetype",
-            "waves": 3,
+            "waves": 2,
             "firstAppearanceWave": 2,
             "bossEnabled": false
           }

@@ -251,7 +251,7 @@ function resolveWavePlan(
 ): ResolvedCampaignWavePlan {
   return {
     preset: wavePlanRef.preset,
-    waves: clampInt(wavePlanRef.waves ?? preset.waves, 1, 12),
+    waves: clampInt(wavePlanRef.waves ?? preset.waves, 0, 12),
     missionDifficultyScalar: clamp(preset.missionDifficultyScalar, 0.6, 2),
     firstAppearanceWave: clampInt(wavePlanRef.firstAppearanceWave ?? preset.firstAppearanceWave ?? 1, 1, 12),
     minibossWave:

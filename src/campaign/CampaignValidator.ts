@@ -121,16 +121,25 @@ export function validateCampaignSpec(
         }
       }
 
-      if (!Array.isArray(level.archetypeAllowlist) || level.archetypeAllowlist.length === 0) {
-        issues.push({ path: `${path}.archetypeAllowlist`, message: "Archetype allowlist must be non-empty." });
-      }
-
+      let resolvedWaveCount = 0;
       if (!level.wavePlan?.preset) {
         issues.push({ path: `${path}.wavePlan.preset`, message: "wavePlan preset is required." });
       } else if (!presets.presets[level.wavePlan.preset]) {
         issues.push({
           path: `${path}.wavePlan.preset`,
           message: `Unknown wave preset ${level.wavePlan.preset}.`,
+        });
+      } else {
+        const preset = presets.presets[level.wavePlan.preset];
+        resolvedWaveCount = Math.max(0, Math.floor(level.wavePlan.waves ?? preset.waves));
+      }
+
+      if (!Array.isArray(level.archetypeAllowlist)) {
+        issues.push({ path: `${path}.archetypeAllowlist`, message: "Archetype allowlist must be an array." });
+      } else if (resolvedWaveCount > 0 && level.archetypeAllowlist.length === 0) {
+        issues.push({
+          path: `${path}.archetypeAllowlist`,
+          message: "Archetype allowlist must be non-empty when mission waves are enabled.",
         });
       }
 
@@ -143,7 +152,7 @@ export function validateCampaignSpec(
         });
       }
 
-      validateDynamicAllowlistConsistency(level.dynamic, level.archetypeAllowlist, path, issues);
+      validateDynamicAllowlistConsistency(level.dynamic, level.archetypeAllowlist, path, issues, resolvedWaveCount);
     }
   }
 
@@ -174,11 +183,13 @@ export function validateCampaignMissionMeta(
     if (!meta.wavePlan.preset) {
       issues.push({ path: `${missionKey}.wavePlan.preset`, message: "Resolved preset missing." });
     }
-    if (!Array.isArray(meta.archetypeAllowlist) || meta.archetypeAllowlist.length === 0) {
-      issues.push({ path: `${missionKey}.archetypeAllowlist`, message: "Allowlist is empty." });
+    if (!Array.isArray(meta.archetypeAllowlist)) {
+      issues.push({ path: `${missionKey}.archetypeAllowlist`, message: "Allowlist must be an array." });
+    } else if (meta.wavePlan.waves > 0 && meta.archetypeAllowlist.length === 0) {
+      issues.push({ path: `${missionKey}.archetypeAllowlist`, message: "Allowlist is empty for a wave-enabled mission." });
     }
-    if (!Number.isFinite(meta.wavePlan.waves) || meta.wavePlan.waves < 1) {
-      issues.push({ path: `${missionKey}.wavePlan.waves`, message: "Wave count must be >= 1." });
+    if (!Number.isFinite(meta.wavePlan.waves) || meta.wavePlan.waves < 0) {
+      issues.push({ path: `${missionKey}.wavePlan.waves`, message: "Wave count must be >= 0." });
     }
   }
 
@@ -193,7 +204,11 @@ function validateDynamicAllowlistConsistency(
   allowlist: string[],
   path: string,
   issues: CampaignValidationIssue[],
+  resolvedWaveCount: number,
 ): void {
+  if (resolvedWaveCount <= 0) {
+    return;
+  }
   const requirements: Array<{ token: string; archetype: string }> = [
     { token: "swarm", archetype: "swarm" },
     { token: "tank", archetype: "tank" },
