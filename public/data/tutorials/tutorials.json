@@ -3,205 +3,115 @@
   "tutorials": [
     {
       "id": "TUT_T01_CAPTURE_SEND",
-      "title": "T01 - Capture & Send",
+      "title": "T01 - Capture the First Tower",
       "steps": [
         {
           "id": "step_01",
-          "heading": "Take nearby neutral control",
-          "body": "Drag from your stronghold to a neutral tower, then keep packets flowing so your economy starts early.",
+          "heading": "Link and capture once",
+          "body": "Drag from your starting tower to a neutral tower. Packets keep sending while the link stays active. You win when that neutral tower becomes yours.",
           "goals": [
-            "Create your first outgoing link.",
-            "Capture one neutral tower quickly.",
-            "Hold both towers through the first assault."
+            "Objective: Capture 1 neutral tower.",
+            "Action: Create one outgoing link from your starting tower.",
+            "Debrief: You won because you captured the required tower."
           ],
-          "highlight": { "type": "none" }
+          "highlight": {
+            "type": "none"
+          }
         }
       ]
     },
     {
       "id": "TUT_T02_TRAVEL_TIME",
-      "title": "T02 - Travel Time Matters",
+      "title": "T02 - Hold More Towers Than the Enemy",
       "steps": [
         {
           "id": "step_01",
-          "heading": "Stage from the midpoint",
-          "body": "Long routes delay reinforcements. Use forward towers as staging points before committing deeper pushes.",
+          "heading": "Expand for ownership advantage",
+          "body": "Capture nearby towers quickly. Owning more towers gives you stronger total regeneration and map control. You win once you hold 3 towers at the same time.",
           "goals": [
-            "Capture a midpoint tower first.",
-            "Send follow-up packets from the closer tower.",
-            "Keep pressure on both offense and defense."
+            "Objective: Own 3 towers simultaneously.",
+            "Action: Keep capturing instead of turtling on one tower.",
+            "Debrief: You won by reaching the visible tower-count target."
           ],
-          "highlight": { "type": "none" }
+          "highlight": {
+            "type": "none"
+          }
         }
       ]
     },
     {
       "id": "TUT_T03_MULTI_FRONT",
-      "title": "T03 - Multi-Front Defense",
+      "title": "T03 - Use a Forward Tower",
       "steps": [
         {
           "id": "step_01",
-          "heading": "Defend two lanes at once",
-          "body": "Do not dump all troops into one side. Split attention and keep reserve packets ready for emergencies.",
+          "heading": "Stage from the middle",
+          "body": "Long routes arrive too late. Capture the middle tower first, then attack the far tower from that forward position. You win after the far tower falls.",
           "goals": [
-            "Maintain links into both active lanes.",
-            "Keep reserve troops in at least one backline tower.",
-            "Recover quickly if one flank weakens."
+            "Objective: Capture the far tower by first taking the middle tower.",
+            "Action: Route your packets through the forward tower.",
+            "Debrief: You won by using shorter travel time to secure the far objective."
           ],
-          "highlight": { "type": "none" }
+          "highlight": {
+            "type": "none"
+          }
         }
       ]
     },
     {
       "id": "TUT_T04_SWARM_PRESSURE",
-      "title": "T04 - Swarm Pressure",
+      "title": "T04 - Keep a Reserve",
       "steps": [
         {
           "id": "step_01",
-          "heading": "Thin swarm waves early",
-          "body": "Swarm enemies are weak individually but dangerous in large groups. Intercept before they stack.",
+          "heading": "Defend two towers with reserve troops",
+          "body": "Do not empty both towers at once. Keep reserve packets ready so you can reinforce whichever lane gets hit first. You win by defending both towers for the full defense timer.",
           "goals": [
-            "Contest swarm lanes early.",
-            "Prefer short links for faster response.",
-            "Prevent a single lane from snowballing."
+            "Objective: Defend both friendly towers for 45 seconds.",
+            "Action: Keep one tower stocked for emergency reinforcement.",
+            "Debrief: You won by preventing either tower from falling during the defense window."
           ],
-          "highlight": { "type": "none" }
+          "highlight": {
+            "type": "none"
+          }
         }
       ]
     },
     {
       "id": "TUT_T05_TANK_FRONTLINE",
-      "title": "T05 - Tank Frontline",
+      "title": "T05 - Stop the Swarm Early",
       "steps": [
         {
           "id": "step_01",
-          "heading": "Focus durable targets",
-          "body": "Tank units absorb pressure. Collapse multiple links onto one threat before extending farther.",
+          "heading": "Intercept before snowball",
+          "body": "Swarm enemies become dangerous when they stack. Intercept them on the outer approach lane instead of waiting near your inner tower. You win by clearing the wave before it reaches the inner tower.",
           "goals": [
-            "Focus-fire one tank at a time.",
-            "Use newly captured towers as rally points.",
-            "Avoid overextending during tank pushes."
+            "Objective: Destroy the swarm wave before it reaches the inner tower.",
+            "Action: Send packets early to the interception point.",
+            "Debrief: You won by stopping the snowball before it formed."
           ],
-          "highlight": { "type": "none" }
+          "highlight": {
+            "type": "none"
+          }
         }
       ]
     },
     {
       "id": "TUT_T06_SHIELD_WINDOWS",
-      "title": "T06 - Shield Windows",
+      "title": "T06 - Focus Down the Heavy",
       "steps": [
         {
           "id": "step_01",
-          "heading": "Push during shield downtime",
-          "body": "Shield formations are strongest during active barrier windows. Time bursts between cycles.",
+          "heading": "Prioritize the tank threat",
+          "body": "The tank absorbs damage and anchors the enemy push. Collapse multiple links on the tank first, then turn that advantage into a base capture. You win after the tank wave is defeated and the enemy base is captured.",
           "goals": [
-            "Wait for shield downtime before committing.",
-            "Send burst waves instead of trickle pressure.",
-            "Rebuild reserves between enemy cycles."
+            "Objective: Defeat the tank wave, then capture the enemy base.",
+            "Action: Focus-fire the heavy unit before splitting pressure.",
+            "Debrief: You won by prioritizing the highest threat target."
           ],
-          "highlight": { "type": "none" }
-        }
-      ]
-    },
-    {
-      "id": "TUT_T07_SUPPORT_AURAS",
-      "title": "T07 - Support Auras",
-      "steps": [
-        {
-          "id": "step_01",
-          "heading": "Eliminate support first",
-          "body": "Support units amplify nearby enemies. Prioritize them to collapse the enemy formation.",
-          "goals": [
-            "Identify support units early.",
-            "Target support before tank or shield escorts.",
-            "Use split pressure to isolate support lines."
-          ],
-          "highlight": { "type": "none" }
-        }
-      ]
-    },
-    {
-      "id": "TUT_T08_TERRITORY_CLUSTERS",
-      "title": "T08 - Territory Clusters",
-      "steps": [
-        {
-          "id": "step_01",
-          "heading": "Stabilize your cluster",
-          "body": "Connected territory gives strong bonuses. Secure your cluster before chasing isolated objectives.",
-          "goals": [
-            "Build a connected friendly cluster.",
-            "Hold cluster stability under pressure.",
-            "Only then contest isolated towers."
-          ],
-          "highlight": { "type": "none" }
-        }
-      ]
-    },
-    {
-      "id": "TUT_T09_TEMPO_COMPRESSION",
-      "title": "T09 - Tempo Compression",
-      "steps": [
-        {
-          "id": "step_01",
-          "heading": "Stabilize faster than usual",
-          "body": "Wave windows are shorter in this mission. Early hesitation creates cascading pressure.",
-          "goals": [
-            "Capture your early nodes quickly.",
-            "Fortify as soon as ownership flips.",
-            "Spend reserves before pressure spikes."
-          ],
-          "highlight": { "type": "none" }
-        }
-      ]
-    },
-    {
-      "id": "TUT_T10_DISRUPTOR_ROUTING",
-      "title": "T10 - Disruptor Routing",
-      "steps": [
-        {
-          "id": "step_01",
-          "heading": "Maintain redundant routes",
-          "body": "Disruptors punish fragile networks. Keep alternate paths to critical towers.",
-          "goals": [
-            "Create two paths to key towers.",
-            "Re-link quickly when routes break.",
-            "Avoid single-point failures in frontline lanes."
-          ],
-          "highlight": { "type": "none" }
-        }
-      ]
-    },
-    {
-      "id": "TUT_T11_SPLITTER_CONTROL",
-      "title": "T11 - Splitter Control",
-      "steps": [
-        {
-          "id": "step_01",
-          "heading": "Intercept at safe points",
-          "body": "Splitters multiply pressure when they break in bad locations. Control where fights happen.",
-          "goals": [
-            "Hold center interception positions.",
-            "Destroy splitters before tower range when possible.",
-            "Prevent child units from branching both lanes."
-          ],
-          "highlight": { "type": "none" }
-        }
-      ]
-    },
-    {
-      "id": "TUT_T12_BOSS_INTRO",
-      "title": "T12 - Boss Introduction",
-      "steps": [
-        {
-          "id": "step_01",
-          "heading": "Track boss phases and telegraphs",
-          "body": "Boss attacks are telegraphed. Reposition force before each impact and keep reserve for adds.",
-          "goals": [
-            "React to telegraphed boss attacks.",
-            "Preserve reserves for reinforcement surges.",
-            "Survive all boss phase transitions."
-          ],
-          "highlight": { "type": "none" }
+          "highlight": {
+            "type": "none"
+          }
         }
       ]
     }

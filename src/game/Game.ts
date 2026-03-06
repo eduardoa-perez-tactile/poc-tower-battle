@@ -316,7 +316,7 @@ export class Game {
       return;
     }
 
-    if (this.waveDirector && this.waveDirector.isFinished()) {
+    if (this.waveDirector && this.waveDirector.getDebugMaxWaveIndex() > 0 && this.waveDirector.isFinished()) {
       this.matchResult = "win";
       return;
     }

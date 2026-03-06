@@ -22,7 +22,13 @@ import { cloneOptionalTerrain, cloneOptionalVisuals } from "./levels/LevelVisual
 import { findLevelById, findStageById, loadLevelRegistry } from "./levels/registry";
 import type { StageRegistryEntry } from "./levels/types";
 import { buildLevelJsonFromCampaignMap } from "./campaign/CampaignLoader";
-import type { CampaignMapDefinition, CampaignMissionRuntimeMeta, CampaignSpecV2, ResolvedCampaignWavePlan } from "./campaign/CampaignTypes";
+import type {
+  CampaignLevelDefinition,
+  CampaignMapDefinition,
+  CampaignMissionRuntimeMeta,
+  CampaignSpecV2,
+  ResolvedCampaignWavePlan,
+} from "./campaign/CampaignTypes";
 import type { LevelJson, LevelTilePalette } from "./levels/types";
 import { BALANCE_CONFIG } from "./meta/BalanceConfig";
 import {
@@ -73,7 +79,7 @@ import { canCreateLink, getNeighbors, validateNonScriptedLinksAdjacency } from "
 import { updateWorld as updateQuickSimWorld } from "./sim/Simulation";
 import { World, type Owner } from "./sim/World";
 import { TowerArchetype, type TowerArchetypeCatalog } from "./sim/DepthTypes";
-import type { BalanceBaselinesConfig, DifficultyTierConfig } from "./waves/Definitions";
+import type { BalanceBaselinesConfig, DifficultyTierConfig, EnemyCatalog, LoadedWaveContent } from "./waves/Definitions";
 import { loadWaveContent } from "./waves/Definitions";
 import { WaveDirector, type MissionWaveTelemetry } from "./waves/WaveDirector";
 import { SkillManager } from "./game/SkillManager";
@@ -689,10 +695,12 @@ async function bootstrap(): Promise<void> {
       return;
     }
     const missionMeta = app.campaignMissionMetaByKey[missionKey] ?? null;
+    const editorCampaignLevel = resolveCampaignLevelFromEditorSnapshot(app.selectedStageId, app.selectedLevelId);
+    const runtimeWaveContent = resolveWaveContentFromEditorSnapshot(waveContent);
 
     try {
       stopMission();
-      const difficultyTierConfig = waveContent.difficultyTiers.difficultyTiers[DEFAULT_DIFFICULTY_TIER];
+      const difficultyTierConfig = runtimeWaveContent.difficultyTiers.difficultyTiers[DEFAULT_DIFFICULTY_TIER];
       const baseBonuses = computeBaseMetaModifiers(app.metaProfile, upgradeCatalog, ascensionCatalog, []);
       const levelFromEditorSnapshot = await buildCampaignLevelFromEditorSnapshot(
         app.selectedStageId,
@@ -713,7 +721,10 @@ async function bootstrap(): Promise<void> {
         0,
         levelEntry.level.missions.findIndex((entry) => entry.missionId === mission.missionId),
       );
-      const stageIdForDifficulty = missionMeta?.difficulty.stageId ?? app.selectedStageId;
+      const stageIdForDifficulty =
+        editorCampaignLevel?.difficulty.stageId ??
+        missionMeta?.difficulty.stageId ??
+        app.selectedStageId;
       const difficultyContext = buildDifficultyContextChecked({
         missionId: mission.missionId,
         missionName: mission.name,
@@ -721,18 +732,19 @@ async function bootstrap(): Promise<void> {
         runDifficultyScalar: 1,
         tierId: DEFAULT_DIFFICULTY_TIER,
         tierConfig: difficultyTierConfig,
-        baselines: waveContent.balanceBaselines,
-        waveBalance: waveContent.balance,
-        stageCatalog: waveContent.stageDifficulty,
-        ascensionCatalog: waveContent.ascensionDifficulty,
+        baselines: runtimeWaveContent.balanceBaselines,
+        waveBalance: runtimeWaveContent.balance,
+        stageCatalog: runtimeWaveContent.stageDifficulty,
+        ascensionCatalog: runtimeWaveContent.ascensionDifficulty,
         stageId: stageIdForDifficulty,
         stageIndex: deriveStageIndexFromValue(stageIdForDifficulty),
-        missionIndex: missionMeta?.difficulty.missionIndex ?? missionIndex,
-        presetId: missionMeta?.wavePlan.preset,
-        waveCountOverride: missionMeta?.wavePlan.waves,
-        bossEnabledOverride: missionMeta?.wavePlan.bossEnabled,
-        firstAppearanceWaveOverride: missionMeta?.wavePlan.firstAppearanceWave,
-        minibossWaveOverride: missionMeta?.wavePlan.minibossWave,
+        missionIndex: editorCampaignLevel?.difficulty.missionIndex ?? missionMeta?.difficulty.missionIndex ?? missionIndex,
+        presetId: editorCampaignLevel?.wavePlan.preset ?? missionMeta?.wavePlan.preset,
+        waveCountOverride: editorCampaignLevel?.wavePlan.waves ?? missionMeta?.wavePlan.waves,
+        bossEnabledOverride: editorCampaignLevel?.wavePlan.bossEnabled ?? missionMeta?.wavePlan.bossEnabled,
+        firstAppearanceWaveOverride:
+          editorCampaignLevel?.wavePlan.firstAppearanceWave ?? missionMeta?.wavePlan.firstAppearanceWave,
+        minibossWaveOverride: editorCampaignLevel?.wavePlan.minibossWave ?? missionMeta?.wavePlan.minibossWave,
         ascensionLevel: 0,
         activeAscensionIds: [],
         activeWaveModifierIds: [],
@@ -756,7 +768,7 @@ async function bootstrap(): Promise<void> {
         baseLevel,
         difficultyContext,
         activeTowerArchetypes,
-        waveContent.balanceBaselines,
+        runtimeWaveContent.balanceBaselines,
         Object.values(TowerArchetype),
       );
       const world = new World(
@@ -767,11 +779,11 @@ async function bootstrap(): Promise<void> {
         missionModifiers.linkIntegrityMul,
         tunedLevel.graphEdges,
       );
-      const waveDirector = new WaveDirector(world, waveContent, {
+      const waveDirector = new WaveDirector(world, runtimeWaveContent, {
         runSeed: mission.seed,
         difficultyContext,
         balanceDiagnosticsEnabled: app.balanceDiagnosticsEnabled,
-        allowedEnemyIds: missionMeta?.archetypeAllowlist,
+        allowedEnemyIds: editorCampaignLevel?.archetypeAllowlist ?? missionMeta?.archetypeAllowlist,
       });
 
       const inputController = new InputController(canvas, world);
@@ -797,10 +809,14 @@ async function bootstrap(): Promise<void> {
         objectiveText: mission.objectiveText,
       };
       app.tutorialController = createMissionTutorialController(
-        mission.tutorialId ?? missionMeta?.tutorialId,
+        editorCampaignLevel?.tutorialId ?? mission.tutorialId ?? missionMeta?.tutorialId,
         missionKey,
       );
-      app.tutorialHintRunner = missionMeta ? new TutorialHintRunner(missionMeta.hints) : null;
+      app.tutorialHintRunner = editorCampaignLevel
+        ? new TutorialHintRunner(editorCampaignLevel.hints)
+        : missionMeta
+          ? new TutorialHintRunner(missionMeta.hints)
+          : null;
       resetMissionHudUiState(app);
       gameplayHud.reset();
       pushMissionEvent(
@@ -3147,6 +3163,29 @@ function resolveCampaignTilePaletteFromEditorSnapshot(stageId: string, levelId: 
   return stage.tilePalette ?? level.tilePalette ?? null;
 }
 
+function resolveCampaignLevelFromEditorSnapshot(stageId: string, levelId: string): CampaignLevelDefinition | null {
+  const campaign = parseCampaignSpecFromEditorSnapshot();
+  if (!campaign) {
+    return null;
+  }
+  const stage = campaign.stages.find((entry) => entry.id === stageId);
+  if (!stage) {
+    return null;
+  }
+  return stage.levels.find((entry) => entry.id === levelId) ?? null;
+}
+
+function resolveWaveContentFromEditorSnapshot(defaultContent: LoadedWaveContent): LoadedWaveContent {
+  const enemyCatalog = parseEnemyCatalogFromEditorSnapshot();
+  if (!enemyCatalog) {
+    return defaultContent;
+  }
+  return {
+    ...defaultContent,
+    enemyCatalog,
+  };
+}
+
 function parseCampaignSpecFromEditorSnapshot(): CampaignSpecV2 | null {
   if (typeof localStorage === "undefined") {
     return null;
@@ -3180,6 +3219,39 @@ function parseCampaignSpecFromEditorSnapshot(): CampaignSpecV2 | null {
   }
 }
 
+function parseEnemyCatalogFromEditorSnapshot(): EnemyCatalog | null {
+  if (typeof localStorage === "undefined") {
+    return null;
+  }
+
+  const rawSnapshot = localStorage.getItem(LEVEL_EDITOR_WORKSPACE_STORAGE_KEY);
+  if (!rawSnapshot) {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(rawSnapshot) as unknown;
+    if (!isObject(parsed) || !Array.isArray(parsed.docs)) {
+      return null;
+    }
+    const enemyDoc = parsed.docs.find((entry) =>
+      isObject(entry) &&
+      entry.path === "/data/enemyArchetypes.json" &&
+      typeof entry.currentRaw === "string",
+    ) as { currentRaw: string } | undefined;
+    if (!enemyDoc) {
+      return null;
+    }
+    const catalog = JSON.parse(enemyDoc.currentRaw) as unknown;
+    if (!isEnemyCatalogShape(catalog)) {
+      return null;
+    }
+    return catalog;
+  } catch {
+    return null;
+  }
+}
+
 async function fetchCampaignMapDefinition(path: string): Promise<CampaignMapDefinition | null> {
   try {
     const response = await fetch(path);
@@ -3202,6 +3274,10 @@ function isCampaignSpecShape(value: unknown): value is CampaignSpecV2 {
 
 function isCampaignMapShape(value: unknown): value is CampaignMapDefinition {
   return isObject(value) && typeof value.id === "string" && Array.isArray(value.nodes) && Array.isArray(value.links);
+}
+
+function isEnemyCatalogShape(value: unknown): value is EnemyCatalog {
+  return isObject(value) && Array.isArray(value.archetypes);
 }
 
 function isObject(value: unknown): value is Record<string, unknown> {
@@ -3478,7 +3554,7 @@ function evaluateQuickSimResult(world: World, waveDirector: WaveDirector): Match
   if (countEnemyTowers(world) === 0) {
     return "win";
   }
-  if (waveDirector.isFinished()) {
+  if (waveDirector.getDebugMaxWaveIndex() > 0 && waveDirector.isFinished()) {
     return "win";
   }
   return null;
