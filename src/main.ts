@@ -49,6 +49,7 @@ import {
   refreshUnlocks,
   validateUnlockCatalog,
   type AscensionCatalog,
+  type MetaUpgradeNodeDefinition,
   type MetaUpgradeCatalog,
 } from "./meta/MetaProgression";
 import { calculateMissionGloryReward, calculateRunBonusGlory, type MissionGloryReward } from "./meta/Rewards";
@@ -193,6 +194,7 @@ interface AppState {
   campaignUnlocks: CampaignUnlocks;
   selectedStageId: string | null;
   selectedLevelId: string | null;
+  selectedMetaTreeId: string | null;
   activeMissionContext: MissionContext;
   game: Game | null;
   inputController: InputController | null;
@@ -318,6 +320,7 @@ async function bootstrap(): Promise<void> {
     campaignUnlocks: computeUnlocks(levelRegistry.stages, campaignProgress),
     selectedStageId: null,
     selectedLevelId: null,
+    selectedMetaTreeId: null,
     activeMissionContext: null,
     game: null,
     inputController: null,
@@ -687,6 +690,9 @@ async function bootstrap(): Promise<void> {
 
   const openMetaScreen = (): void => {
     stopMission();
+    if (!app.selectedMetaTreeId || !upgradeCatalog.trees.some((tree) => tree.id === app.selectedMetaTreeId)) {
+      app.selectedMetaTreeId = upgradeCatalog.trees[0]?.id ?? null;
+    }
     app.screen = "meta";
     render();
   };
@@ -2297,178 +2303,252 @@ function renderCurrentScreen(
   }
 
   if (app.screen === "meta") {
-    const panel = document.createElement("div");
-    panel.className = "panel ui-panel menu-panel menu-panel-wide campaign-shell campaign-meta-shell";
-    panel.appendChild(createCampaignScreenHeader("Meta Progression", "Persistent Upgrades"));
-
-    const glorySpent = Math.round(app.metaProfile.metaProgress.glorySpentTotal);
-    const totalTrackedGlory = Math.max(1, glorySpent + app.metaProfile.glory);
-    const investmentPercent = Math.round((glorySpent / totalTrackedGlory) * 100);
-    panel.appendChild(
-      createCampaignProgressCard({
-        title: "Account Overview",
-        subtitle: `Gold available: ${app.metaProfile.glory} • Runs won: ${app.metaProfile.metaProgress.runsWon}`,
-        value: `Lv ${computeMetaAccountLevel(app.metaProfile)}`,
-        label: "Meta Level",
-        percent: investmentPercent,
-      }),
-    );
-
-    const trees = document.createElement("div");
-    trees.className = "campaign-meta-tree-row";
-    for (const [treeIndex, tree] of upgradeCatalog.trees.entries()) {
-      const treeCard = document.createElement("article");
-      treeCard.className = "campaign-meta-tree-card";
-      const accent = getMetaTreeAccent(treeIndex);
-      treeCard.style.setProperty("--meta-accent", accent.primary);
-      treeCard.style.setProperty("--meta-accent-soft", accent.soft);
-      treeCard.style.setProperty("--meta-accent-halo", accent.halo);
-
-      let earnedRanks = 0;
-      let maxRanks = 0;
-      let unlockedNodes = 0;
-      for (const node of tree.nodes) {
-        const rank = getPurchasedRank(app.metaProfile, node.id);
-        earnedRanks += rank;
-        maxRanks += node.maxRank;
-        if (rank > 0) {
-          unlockedNodes += 1;
-        }
-      }
-      const treeProgressPercent = maxRanks > 0 ? Math.round((earnedRanks / maxRanks) * 100) : 0;
-
-      const treeHeader = document.createElement("div");
-      treeHeader.className = "campaign-meta-tree-header";
-
-      const treeHeaderTop = document.createElement("div");
-      treeHeaderTop.className = "campaign-meta-tree-top";
-      const treeEmblem = document.createElement("div");
-      treeEmblem.className = "campaign-meta-tree-emblem";
-      treeEmblem.textContent = tree.name
-        .split(" ")
-        .map((token) => token.charAt(0))
-        .join("")
-        .slice(0, 2)
-        .toUpperCase();
-      const treeHeaderCopy = document.createElement("div");
-      const treeTitle = document.createElement("h3");
-      treeTitle.className = "campaign-meta-tree-title";
-      treeTitle.textContent = tree.name;
-      const treeSubtitle = document.createElement("p");
-      treeSubtitle.className = "campaign-meta-tree-subtitle";
-      treeSubtitle.textContent = `${tree.nodes.length} upgrades • ${unlockedNodes}/${tree.nodes.length} activated`;
-      treeHeaderCopy.append(treeTitle, treeSubtitle);
-      treeHeaderTop.append(treeEmblem, treeHeaderCopy);
-
-      const treeSummary = document.createElement("div");
-      treeSummary.className = "campaign-meta-tree-summary";
-      const treeSummaryCopy = document.createElement("span");
-      treeSummaryCopy.className = "campaign-meta-tree-summary-copy";
-      treeSummaryCopy.textContent = `${earnedRanks}/${maxRanks} ranks`;
-      const treeRank = document.createElement("span");
-      treeRank.className = "campaign-meta-tree-rank";
-      treeRank.textContent = `${treeProgressPercent}%`;
-      treeSummary.append(treeSummaryCopy, treeRank);
-
-      const treeProgressTrack = document.createElement("div");
-      treeProgressTrack.className = "campaign-meta-tree-progress";
-      const treeProgressFill = document.createElement("div");
-      treeProgressFill.className = "campaign-meta-tree-progress-fill";
-      treeProgressFill.style.width = `${treeProgressPercent}%`;
-      treeProgressTrack.appendChild(treeProgressFill);
-
-      treeHeader.append(treeHeaderTop, treeSummary, treeProgressTrack);
-      treeCard.appendChild(treeHeader);
-
-      const list = document.createElement("div");
-      list.className = "campaign-meta-node-list";
-      for (const node of tree.nodes) {
-        const rank = getPurchasedRank(app.metaProfile, node.id);
-        const cost = getNextUpgradeCost(app.metaProfile, node);
-        const row = document.createElement("div");
-        row.className = "campaign-meta-node-row";
-        if (cost === null) {
-          row.classList.add("is-maxed");
-        } else if (app.metaProfile.glory >= cost) {
-          row.classList.add("is-affordable");
-        } else {
-          row.classList.add("is-unaffordable");
-        }
-
-        const left = document.createElement("div");
-        left.className = "campaign-meta-node-copy";
-        const nameRow = document.createElement("div");
-        nameRow.className = "campaign-meta-node-head";
-        const name = document.createElement("p");
-        name.className = "campaign-meta-node-name";
-        name.textContent = node.name;
-        const rankPill = document.createElement("span");
-        rankPill.className = "campaign-meta-rank-pill";
-        rankPill.textContent = `Lv ${rank}/${node.maxRank}`;
-        nameRow.append(name, rankPill);
-        const details = document.createElement("div");
-        details.className = "campaign-meta-node-details";
-        details.textContent = node.desc;
-        left.append(nameRow, details);
-
-        if (node.prereqs.length > 0) {
-          const prereqWrap = document.createElement("div");
-          prereqWrap.className = "campaign-meta-node-prereqs";
-          for (const prereq of node.prereqs) {
-            const pill = document.createElement("span");
-            pill.className = "campaign-meta-prereq-pill";
-            pill.textContent = `${formatMetaNodeLabel(prereq.nodeId)} ${prereq.minRank}+`;
-            prereqWrap.appendChild(pill);
-          }
-          left.appendChild(prereqWrap);
-        }
-
-        const nodeProgressTrack = document.createElement("div");
-        nodeProgressTrack.className = "campaign-meta-node-progress";
-        const nodeProgressFill = document.createElement("div");
-        nodeProgressFill.className = "campaign-meta-node-progress-fill";
-        nodeProgressFill.style.width = `${(rank / Math.max(1, node.maxRank)) * 100}%`;
-        nodeProgressTrack.appendChild(nodeProgressFill);
-        left.appendChild(nodeProgressTrack);
-
-        const buyBtn = createButton(
-          cost === null ? "Maxed" : `Buy (${cost})`,
-          () => purchaseUpgradeById(node.id),
-          { variant: cost === null ? "ghost" : app.metaProfile.glory >= cost ? "primary" : "secondary" },
-        );
-        buyBtn.classList.add("campaign-meta-buy-btn");
-        buyBtn.disabled = cost === null || app.metaProfile.glory < cost;
-        row.append(left, buyBtn);
-        list.appendChild(row);
-      }
-      const treeList = createScrollArea(list, { maxHeight: "min(42vh, 420px)" });
-      treeList.classList.add("campaign-meta-node-scroll");
-      treeCard.appendChild(treeList);
-      trees.appendChild(treeCard);
+    const activeTree = upgradeCatalog.trees.find((tree) => tree.id === app.selectedMetaTreeId) ?? upgradeCatalog.trees[0] ?? null;
+    if (!activeTree) {
+      const panel = createPanel("Meta Progression", "No upgrade trees available.");
+      panel.appendChild(createButton("Back", openMainMenu, { variant: "ghost", escapeAction: true, hotkey: "Esc" }));
+      screenRoot.appendChild(wrapCentered(panel));
+      return;
     }
-    panel.appendChild(trees);
+    app.selectedMetaTreeId = activeTree.id;
 
-    const progressionCard = document.createElement("section");
-    progressionCard.className = "campaign-progress-card";
-    const noteTitle = document.createElement("p");
-    noteTitle.className = "campaign-progress-title";
-    noteTitle.textContent = "Progress Notes";
-    const noteText = document.createElement("p");
-    noteText.className = "campaign-progress-subtitle";
-    noteText.textContent =
-      "Meta upgrades only affect future runs. Spend Gold before launching new operations for maximum impact.";
-    progressionCard.append(noteTitle, noteText);
-    panel.appendChild(progressionCard);
+    const panel = document.createElement("div");
+    panel.className = "panel ui-panel campaign-shell meta-shop-shell";
+    const activeTreeIndex = upgradeCatalog.trees.findIndex((tree) => tree.id === activeTree.id);
+    const treeStyle = getMetaTreePresentation(activeTree.id, Math.max(0, activeTreeIndex));
+    panel.style.setProperty("--meta-shop-accent", treeStyle.accent.primary);
+    panel.style.setProperty("--meta-shop-soft", treeStyle.accent.soft);
+    panel.style.setProperty("--meta-shop-halo", treeStyle.accent.halo);
+    panel.style.setProperty("--meta-shop-soft-rgb", treeStyle.accent.softRgb);
+
+    const metaLevel = computeMetaAccountLevel(app.metaProfile);
+
+    const activeTreeStats = summarizeMetaTree(app.metaProfile, activeTree);
+    const affordableCount = activeTree.nodes.filter((node) => {
+      const cost = getNextUpgradeCost(app.metaProfile, node);
+      return cost !== null && app.metaProfile.glory >= cost && areMetaNodePrereqsMet(app.metaProfile, node);
+    }).length;
+
+    const header = document.createElement("header");
+    header.className = "meta-shop-header";
+    const headerLeft = document.createElement("div");
+    headerLeft.className = "meta-shop-header-left";
+    const headerIcon = document.createElement("div");
+    headerIcon.className = "meta-shop-header-icon";
+    headerIcon.textContent = treeStyle.iconGlyph;
+    const headerCopy = document.createElement("div");
+    const headerTitle = document.createElement("h2");
+    headerTitle.className = "meta-shop-header-title";
+    headerTitle.textContent = "Meta Progression";
+    const headerSubtitle = document.createElement("p");
+    headerSubtitle.className = "meta-shop-header-subtitle";
+    headerSubtitle.textContent = "Persistent upgrades";
+    headerCopy.append(headerTitle, headerSubtitle);
+    headerLeft.append(headerIcon, headerCopy);
+
+    const headerRight = document.createElement("div");
+    headerRight.className = "meta-shop-header-right";
+    const levelBlock = document.createElement("div");
+    levelBlock.className = "meta-shop-status";
+    const levelLabel = document.createElement("span");
+    levelLabel.className = "meta-shop-status-label";
+    levelLabel.textContent = "Account Status";
+    const levelValue = document.createElement("div");
+    levelValue.className = "meta-shop-status-pill";
+    levelValue.textContent = `Lv. ${metaLevel} Commander`;
+    levelBlock.append(levelLabel, levelValue);
+
+    const goldBlock = document.createElement("div");
+    goldBlock.className = "meta-shop-gold";
+    const goldIcon = document.createElement("span");
+    goldIcon.className = "meta-shop-gold-icon";
+    goldIcon.textContent = "$";
+    const goldValue = document.createElement("p");
+    goldValue.className = "meta-shop-gold-value";
+    goldValue.innerHTML = `${app.metaProfile.glory} <span>GOLD</span>`;
+    goldBlock.append(goldIcon, goldValue);
+    headerRight.append(levelBlock, goldBlock);
+    header.append(headerLeft, headerRight);
+    panel.appendChild(header);
+
+    const nav = document.createElement("nav");
+    nav.className = "meta-shop-nav";
+    for (const [treeIndex, tree] of upgradeCatalog.trees.entries()) {
+      const treeView = getMetaTreePresentation(tree.id, treeIndex);
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "meta-shop-nav-btn";
+      button.style.setProperty("--meta-tab-accent", treeView.accent.primary);
+      button.style.setProperty("--meta-tab-soft", treeView.accent.soft);
+      if (tree.id === activeTree.id) {
+        button.classList.add("is-active");
+      }
+      button.onclick = () => {
+        app.selectedMetaTreeId = tree.id;
+        openMetaScreen();
+      };
+      const icon = document.createElement("span");
+      icon.className = "meta-shop-nav-icon";
+      icon.textContent = treeView.navIcon;
+      const label = document.createElement("span");
+      label.className = "meta-shop-nav-label";
+      label.textContent = treeView.navLabel;
+      button.append(icon, label);
+      nav.appendChild(button);
+    }
+    panel.appendChild(nav);
+
+    const titleRow = document.createElement("section");
+    titleRow.className = "meta-shop-section-title";
+    const titleCopy = document.createElement("h3");
+    titleCopy.className = "meta-shop-section-heading";
+    titleCopy.append(document.createTextNode(`${treeStyle.titleLead} `));
+    const titleAccent = document.createElement("span");
+    titleAccent.textContent = treeStyle.titleAccent;
+    titleCopy.appendChild(titleAccent);
+    const titleRule = document.createElement("div");
+    titleRule.className = "meta-shop-section-rule";
+    titleRow.append(titleCopy, titleRule);
+    panel.appendChild(titleRow);
+
+    const bodyScroll = document.createElement("div");
+    bodyScroll.className = "meta-shop-body-scroll";
+    const grid = document.createElement("div");
+    grid.className = "meta-shop-grid";
+    for (const node of activeTree.nodes) {
+      const rank = getPurchasedRank(app.metaProfile, node.id);
+      const cost = getNextUpgradeCost(app.metaProfile, node);
+      const prereqsMet = areMetaNodePrereqsMet(app.metaProfile, node);
+      const isMaxed = cost === null;
+      const isAffordable = cost !== null && prereqsMet && app.metaProfile.glory >= cost;
+      const progressPercent = Math.round((rank / Math.max(1, node.maxRank)) * 100);
+
+      const card = document.createElement("article");
+      card.className = "meta-shop-card";
+      if (isAffordable) {
+        card.classList.add("is-affordable");
+      }
+      if (isMaxed) {
+        card.classList.add("is-maxed");
+      }
+      if (!prereqsMet && !isMaxed) {
+        card.classList.add("is-locked");
+      }
+
+      const top = document.createElement("div");
+      top.className = "meta-shop-card-top";
+      const iconWrap = document.createElement("div");
+      iconWrap.className = "meta-shop-card-icon";
+      const icon = document.createElement("span");
+      icon.className = "meta-shop-card-icon-glyph";
+      icon.textContent = getMetaNodeIcon(activeTree.id, node);
+      iconWrap.appendChild(icon);
+
+      const status = document.createElement("div");
+      status.className = "meta-shop-card-status";
+      const statusLabel = document.createElement("span");
+      statusLabel.className = "meta-shop-card-status-label";
+      statusLabel.textContent = "Status";
+      const statusValue = document.createElement("span");
+      statusValue.className = "meta-shop-card-status-value";
+      statusValue.textContent = isMaxed ? "MAXED" : `LEVEL ${rank}/${node.maxRank}`;
+      status.append(statusLabel, statusValue);
+      top.append(iconWrap, status);
+
+      const title = document.createElement("h4");
+      title.className = "meta-shop-card-title";
+      title.textContent = node.name;
+
+      const desc = document.createElement("p");
+      desc.className = "meta-shop-card-desc";
+      desc.textContent = node.desc;
+
+      const meta = document.createElement("div");
+      meta.className = "meta-shop-card-meta";
+      if (node.prereqs.length > 0) {
+        const prereqWrap = document.createElement("div");
+        prereqWrap.className = "meta-shop-card-prereqs";
+        for (const prereq of node.prereqs) {
+          const prereqPill = document.createElement("span");
+          prereqPill.className = "meta-shop-card-prereq-pill";
+          prereqPill.textContent = `${formatMetaNodeLabel(prereq.nodeId)} ${prereq.minRank}+`;
+          prereqWrap.appendChild(prereqPill);
+        }
+        meta.appendChild(prereqWrap);
+      }
+
+      const progress = document.createElement("div");
+      progress.className = "meta-shop-card-progress";
+      const progressHeader = document.createElement("div");
+      progressHeader.className = "meta-shop-card-progress-header";
+      const progressLabel = document.createElement("span");
+      progressLabel.textContent = isMaxed ? "Optimized" : "Progression";
+      const progressValue = document.createElement("span");
+      progressValue.textContent = `${progressPercent}%`;
+      progressHeader.append(progressLabel, progressValue);
+      const progressTrack = document.createElement("div");
+      progressTrack.className = "meta-shop-card-progress-track";
+      const progressFill = document.createElement("div");
+      progressFill.className = "meta-shop-card-progress-fill";
+      progressFill.style.width = `${progressPercent}%`;
+      progressTrack.appendChild(progressFill);
+      progress.append(progressHeader, progressTrack);
+
+      const buyBtn = createButton(
+        isMaxed
+          ? "System Maximized"
+          : !prereqsMet
+            ? "Locked"
+            : `Upgrade - ${cost}G`,
+        () => purchaseUpgradeById(node.id),
+        { variant: isMaxed ? "ghost" : isAffordable ? "primary" : "secondary" },
+      );
+      buyBtn.classList.add("meta-shop-card-action");
+      buyBtn.disabled = isMaxed || !prereqsMet || cost === null || app.metaProfile.glory < cost;
+
+      card.append(top, title, desc, meta, progress, buyBtn);
+      grid.appendChild(card);
+    }
+    bodyScroll.appendChild(grid);
+    panel.appendChild(bodyScroll);
 
     const footer = document.createElement("div");
-    footer.className = "menu-footer campaign-footer";
+    footer.className = "meta-shop-footer";
+    const footerStat = document.createElement("div");
+    footerStat.className = "meta-shop-footer-stat";
+    const footerStatLabel = document.createElement("p");
+    footerStatLabel.className = "meta-shop-footer-stat-label";
+    footerStatLabel.textContent = "Tree Progress";
+    const footerStatValue = document.createElement("p");
+    footerStatValue.className = "meta-shop-footer-stat-value";
+    footerStatValue.textContent = `${activeTreeStats.progressPercent}%`;
+    const footerStatMeta = document.createElement("p");
+    footerStatMeta.className = "meta-shop-footer-stat-meta";
+    footerStatMeta.textContent = `${activeTreeStats.earnedRanks}/${activeTreeStats.maxRanks} ranks • ${affordableCount} affordable`;
+    footerStat.append(footerStatLabel, footerStatValue, footerStatMeta);
+
+    const footerCopy = document.createElement("div");
+    footerCopy.className = "meta-shop-footer-copy";
+    const footerCopyTitle = document.createElement("p");
+    footerCopyTitle.className = "meta-shop-footer-copy-title";
+    footerCopyTitle.textContent = "Upgrade Intel";
+    const footerCopyBody = document.createElement("p");
+    footerCopyBody.className = "meta-shop-footer-copy-body";
+    footerCopyBody.textContent =
+      "Meta upgrades only affect future runs. Spend Gold before launching new operations for maximum impact.";
+    footerCopy.append(footerCopyTitle, footerCopyBody);
+
+    const footerActions = document.createElement("div");
+    footerActions.className = "meta-shop-footer-actions";
     const backBtn = createButton("Back", openMainMenu, {
       variant: "ghost",
       escapeAction: true,
       hotkey: "Esc",
     });
-    backBtn.classList.add("campaign-footer-btn");
-    footer.appendChild(backBtn);
+    backBtn.classList.add("campaign-footer-btn", "meta-shop-footer-btn");
+    footerActions.appendChild(backBtn);
+
+    footer.append(footerStat, footerCopy, footerActions);
     panel.appendChild(footer);
     screenRoot.appendChild(wrapCentered(panel));
     return;
@@ -3002,8 +3082,8 @@ function renderCurrentScreen(
 function syncMissionHud(app: AppState, debugState: DebugUiState, gameplayHud: GameplayHUD): void {
   if (app.screen !== "mission" || !app.game || app.missionResult || !debugState.showMissionHud) {
     gameplayHud.setAuxiliaryVisibility({
-      waveIntelVisible: true,
-      alertsVisible: true,
+      waveIntelVisible: false,
+      alertsVisible: false,
     });
     gameplayHud.clearOverlays();
     return;
@@ -4233,6 +4313,135 @@ function getMetaTreeAccent(index: number): { primary: string; soft: string; halo
     { primary: "#c084fc", soft: "rgba(192, 132, 252, 0.24)", halo: "rgba(192, 132, 252, 0.35)" },
   ] as const;
   return palette[index % palette.length];
+}
+
+function getMetaTreePresentation(
+  treeId: string,
+  index: number,
+): {
+  navLabel: string;
+  navIcon: string;
+  iconGlyph: string;
+  titleLead: string;
+  titleAccent: string;
+  accent: { primary: string; soft: string; halo: string; softRgb: string };
+} {
+  const accent = getMetaTreeAccent(index);
+  const withRgb = {
+    ...accent,
+    softRgb: accent.primary === "#6ea8ff"
+      ? "110, 168, 255"
+      : accent.primary === "#34d399"
+        ? "52, 211, 153"
+        : accent.primary === "#f59e0b"
+          ? "245, 158, 11"
+          : "192, 132, 252",
+  };
+  switch (treeId) {
+    case "OFFENSE":
+      return {
+        navLabel: "Offense",
+        navIcon: "R",
+        iconGlyph: "N",
+        titleLead: "Offensive",
+        titleAccent: "Systems",
+        accent: withRgb,
+      };
+    case "ECONOMY":
+      return {
+        navLabel: "Economy",
+        navIcon: "$",
+        iconGlyph: "$",
+        titleLead: "Economy",
+        titleAccent: "Systems",
+        accent: withRgb,
+      };
+    case "TACTICAL":
+      return {
+        navLabel: "Tactical",
+        navIcon: "T",
+        iconGlyph: "T",
+        titleLead: "Tactical",
+        titleAccent: "Systems",
+        accent: withRgb,
+      };
+    default:
+      return {
+        navLabel: treeId,
+        navIcon: treeId.charAt(0).toUpperCase(),
+        iconGlyph: treeId.charAt(0).toUpperCase(),
+        titleLead: treeId,
+        titleAccent: "Systems",
+        accent: withRgb,
+      };
+  }
+}
+
+function summarizeMetaTree(
+  profile: MetaProfile,
+  tree: { nodes: readonly MetaUpgradeNodeDefinition[] },
+): { earnedRanks: number; maxRanks: number; unlockedNodes: number; progressPercent: number } {
+  let earnedRanks = 0;
+  let maxRanks = 0;
+  let unlockedNodes = 0;
+  for (const node of tree.nodes) {
+    const rank = getPurchasedRank(profile, node.id);
+    earnedRanks += rank;
+    maxRanks += node.maxRank;
+    if (rank > 0) {
+      unlockedNodes += 1;
+    }
+  }
+  return {
+    earnedRanks,
+    maxRanks,
+    unlockedNodes,
+    progressPercent: maxRanks > 0 ? Math.round((earnedRanks / maxRanks) * 100) : 0,
+  };
+}
+
+function areMetaNodePrereqsMet(profile: MetaProfile, node: MetaUpgradeNodeDefinition): boolean {
+  for (const prereq of node.prereqs) {
+    if (getPurchasedRank(profile, prereq.nodeId) < prereq.minRank) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function getMetaNodeIcon(treeId: string, node: MetaUpgradeNodeDefinition): string {
+  const effectType = node.effects[0]?.type ?? "";
+  if (effectType.includes("DAMAGE")) {
+    return "B";
+  }
+  if (effectType.includes("SPEED")) {
+    return "S";
+  }
+  if (effectType.includes("ARMOR")) {
+    return "A";
+  }
+  if (effectType.includes("REGEN")) {
+    return "+";
+  }
+  if (effectType.includes("LINK")) {
+    return "L";
+  }
+  if (effectType.includes("SKILL")) {
+    return "*";
+  }
+  if (effectType.includes("GLORY")) {
+    return "$";
+  }
+  if (effectType.includes("CAPTURE")) {
+    return "C";
+  }
+  if (treeId === "ECONOMY") {
+    return "$";
+  }
+  if (treeId === "TACTICAL") {
+    return "T";
+  }
+  return "O";
 }
 
 function formatMetaNodeLabel(nodeId: string): string {
