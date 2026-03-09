@@ -2812,6 +2812,11 @@
         justify-items: center;
       }
 
+      .mission-result-backdrop {
+        background: rgba(4, 9, 18, 0.5);
+        backdrop-filter: blur(3px) saturate(0.85);
+      }
+
       .centered-modal > .mission-result-shell {
         align-self: start;
         margin: 8px 0;
@@ -3244,6 +3249,16 @@
 
       .mission-result-shell.is-defeat {
         border-color: rgba(248, 113, 113, 0.4);
+        width: min(92vw, 430px);
+        background:
+          radial-gradient(300px 180px at 50% 0%, rgba(207, 23, 54, 0.12), transparent),
+          linear-gradient(180deg, rgba(28, 14, 18, 0.96), rgba(20, 10, 14, 0.98));
+      }
+
+      .mission-result-shell.is-defeat::before {
+        background-image: radial-gradient(circle, rgba(207, 23, 54, 0.26) 1px, transparent 1px);
+        background-size: 40px 40px;
+        opacity: 0.2;
       }
 
       .mission-result-hero {
@@ -3274,6 +3289,10 @@
         text-align: center;
       }
 
+      .mission-result-shell.is-defeat .mission-result-display {
+        color: rgba(255, 224, 229, 0.98);
+      }
+
       .mission-result-context {
         margin: 0;
         font-size: 1.02rem;
@@ -3300,6 +3319,137 @@
         position: relative;
         z-index: 1;
         box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.02);
+      }
+
+      .mission-defeat-topbar {
+        display: grid;
+        grid-template-columns: 40px 1fr 40px;
+        align-items: center;
+        gap: 12px;
+        position: relative;
+        z-index: 1;
+      }
+
+      .mission-defeat-topbar-icon,
+      .mission-defeat-topbar-spacer {
+        width: 40px;
+        height: 40px;
+      }
+
+      .mission-defeat-topbar-icon {
+        display: grid;
+        place-items: center;
+        color: rgba(248, 113, 113, 0.88);
+        font-size: 1rem;
+        font-weight: 800;
+      }
+
+      .mission-defeat-topbar-title {
+        margin: 0;
+        text-align: center;
+        text-transform: uppercase;
+        letter-spacing: 0.24em;
+        font-size: 0.74rem;
+        font-weight: 700;
+        color: rgba(248, 113, 113, 0.54);
+      }
+
+      .mission-defeat-hero {
+        display: grid;
+        justify-items: center;
+        gap: 12px;
+        padding: 18px 0 4px;
+        position: relative;
+        z-index: 1;
+      }
+
+      .mission-defeat-display {
+        margin: 0;
+        font-size: clamp(3.6rem, 14vw, 4.8rem);
+        line-height: 0.9;
+        letter-spacing: -0.06em;
+        text-transform: uppercase;
+        color: rgba(248, 113, 113, 0.98);
+      }
+
+      .mission-defeat-rule {
+        width: 96px;
+        height: 4px;
+        border-radius: 999px;
+        background: rgba(207, 23, 54, 0.6);
+      }
+
+      .mission-defeat-stat-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+        position: relative;
+        z-index: 1;
+      }
+
+      .mission-result-shell.is-defeat .mission-result-stat.is-compact {
+        border-radius: 16px;
+        border-color: rgba(207, 23, 54, 0.22);
+        background:
+          linear-gradient(180deg, rgba(207, 23, 54, 0.08), rgba(207, 23, 54, 0.04)),
+          rgba(25, 14, 18, 0.82);
+        padding: 16px;
+        gap: 6px;
+      }
+
+      .mission-result-shell.is-defeat .mission-result-stat.is-compact .mission-result-stat-label {
+        color: rgba(203, 210, 224, 0.74);
+      }
+
+      .mission-result-shell.is-defeat .mission-result-stat.is-compact .mission-result-stat-value {
+        font-size: 2rem;
+        letter-spacing: -0.04em;
+        color: rgba(248, 250, 252, 0.98);
+      }
+
+      .mission-defeat-hint {
+        display: grid;
+        gap: 12px;
+        border-radius: 16px;
+        border: 1px solid rgba(207, 23, 54, 0.2);
+        background:
+          linear-gradient(180deg, rgba(207, 23, 54, 0.12), rgba(207, 23, 54, 0.08)),
+          rgba(28, 16, 20, 0.9);
+        padding: 16px;
+        position: relative;
+        z-index: 1;
+      }
+
+      .mission-defeat-hint-header {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .mission-defeat-hint-badge {
+        width: 32px;
+        height: 32px;
+        border-radius: 999px;
+        display: grid;
+        place-items: center;
+        background: rgba(207, 23, 54, 0.18);
+        color: rgba(248, 113, 113, 0.94);
+        font-size: 0.9rem;
+        font-weight: 800;
+      }
+
+      .mission-defeat-hint-title {
+        margin: 0;
+        font-size: 1rem;
+        font-weight: 700;
+        color: rgba(248, 250, 252, 0.96);
+      }
+
+      .mission-defeat-hint-body {
+        margin: 0;
+        font-size: 0.88rem;
+        line-height: 1.5;
+        color: rgba(203, 213, 225, 0.76);
       }
 
       .mission-result-card-body {
@@ -3487,6 +3637,22 @@
         border-color: rgba(176, 201, 241, 0.12);
       }
 
+      .mission-result-shell.is-defeat .ui-button-primary,
+      .mission-result-shell.is-defeat .mission-result-action-primary {
+        color: rgba(255, 244, 246, 0.98);
+        background: linear-gradient(135deg, rgba(207, 23, 54, 1), rgba(173, 20, 52, 1));
+        border-color: rgba(244, 114, 182, 0.18);
+        box-shadow: 0 12px 28px rgba(127, 29, 29, 0.28);
+      }
+
+      .mission-result-shell.is-defeat .ui-button-secondary,
+      .mission-result-shell.is-defeat .ui-button-ghost,
+      .mission-result-shell.is-defeat .mission-result-action-secondary {
+        background: rgba(51, 65, 85, 0.32);
+        border-color: rgba(148, 163, 184, 0.16);
+        color: rgba(203, 213, 225, 0.92);
+      }
+
       @media (max-width: 560px) {
         .mission-result-shell {
           width: min(94vw, 520px);
@@ -3499,6 +3665,10 @@
 
         .mission-result-row-value {
           font-size: 1.42rem;
+        }
+
+        .mission-result-shell.is-defeat {
+          width: min(94vw, 430px);
         }
       }
 
@@ -3650,6 +3820,32 @@
           min-height: 40px;
           font-size: 0.64rem;
           letter-spacing: 0.12em;
+        }
+
+        .mission-defeat-display {
+          font-size: clamp(2.8rem, 12vw, 3.8rem);
+        }
+
+        .mission-defeat-stat-grid {
+          gap: 10px;
+        }
+
+        .mission-result-shell.is-defeat .mission-result-stat.is-compact {
+          padding: 12px;
+        }
+
+        .mission-result-shell.is-defeat .mission-result-stat.is-compact .mission-result-stat-value {
+          font-size: 1.5rem;
+        }
+
+        .mission-defeat-hint {
+          gap: 10px;
+          padding: 12px;
+        }
+
+        .mission-defeat-hint-body {
+          font-size: 0.76rem;
+          line-height: 1.35;
         }
       }
 

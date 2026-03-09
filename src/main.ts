@@ -2736,78 +2736,131 @@ function renderCurrentScreen(
           : isVictory
             ? "Mission payout secured."
             : "Mission payout archived with this result.";
+      const noteText = isVictory
+        ? "Commander update: objective complete. Reposition for the next operation."
+        : "Commander update: regroup, tune links, and redeploy.";
 
       const resultPanel = document.createElement("div");
       resultPanel.className = `panel ui-panel menu-panel mission-overlay-panel campaign-shell mission-result-shell ${isVictory ? "is-victory" : "is-defeat"}`;
 
-      const hero = document.createElement("section");
-      hero.className = "mission-result-hero";
-      const heroKicker = document.createElement("p");
-      heroKicker.className = "mission-result-kicker";
-      heroKicker.textContent = modeLabel;
-      const heroDisplay = document.createElement("h1");
-      heroDisplay.className = "mission-result-display";
-      heroDisplay.textContent = isVictory ? "Victory" : "Defeat";
-      const heroSubtitle = document.createElement("p");
-      heroSubtitle.className = "mission-result-subtitle";
-      heroSubtitle.textContent = reportSubtitle;
-      hero.append(heroKicker, heroDisplay, createMissionResultPill(missionLabel), heroSubtitle);
-      resultPanel.appendChild(hero);
+      if (isVictory) {
+        const hero = document.createElement("section");
+        hero.className = "mission-result-hero";
+        const heroKicker = document.createElement("p");
+        heroKicker.className = "mission-result-kicker";
+        heroKicker.textContent = modeLabel;
+        const heroDisplay = document.createElement("h1");
+        heroDisplay.className = "mission-result-display";
+        heroDisplay.textContent = "Victory";
+        const heroSubtitle = document.createElement("p");
+        heroSubtitle.className = "mission-result-subtitle";
+        heroSubtitle.textContent = reportSubtitle;
+        hero.append(heroKicker, heroDisplay, createMissionResultPill(missionLabel), heroSubtitle);
+        resultPanel.appendChild(hero);
 
-      const reportCard = document.createElement("section");
-      reportCard.className = "mission-result-card";
+        const reportCard = document.createElement("section");
+        reportCard.className = "mission-result-card";
 
-      const reportBody = document.createElement("div");
-      reportBody.className = "mission-result-card-body";
-      reportBody.append(
-        createMissionResultRow("Mission", missionLabel, {
-          badge: "M",
-          meta: "Operational focus",
-        }),
-        createMissionResultRow("Wave Progress", waveProgressValue, {
-          badge: "W",
-          meta: waveProgressMeta,
-          progressPercent: waveProgressPercent,
-        }),
-        createMissionResultRow("Gold Reward", rewardLabel, {
-          badge: "G",
-          meta: rewardMeta,
-        }),
-      );
-      reportCard.appendChild(reportBody);
+        const reportBody = document.createElement("div");
+        reportBody.className = "mission-result-card-body";
+        reportBody.append(
+          createMissionResultRow("Mission", missionLabel, {
+            badge: "M",
+            meta: "Operational focus",
+          }),
+          createMissionResultRow("Wave Progress", waveProgressValue, {
+            badge: "W",
+            meta: waveProgressMeta,
+            progressPercent: waveProgressPercent,
+          }),
+          createMissionResultRow("Gold Reward", rewardLabel, {
+            badge: "G",
+            meta: rewardMeta,
+          }),
+        );
+        reportCard.appendChild(reportBody);
 
-      const reportFooter = document.createElement("div");
-      reportFooter.className = "mission-result-card-footer";
-      const reportFooterText = document.createElement("p");
-      reportFooterText.className = "mission-result-card-footer-text";
-      reportFooterText.textContent = isVictory ? "Objective complete" : "Regroup and redeploy";
-      reportFooter.appendChild(reportFooterText);
-      reportCard.appendChild(reportFooter);
-      resultPanel.appendChild(reportCard);
+        const reportFooter = document.createElement("div");
+        reportFooter.className = "mission-result-card-footer";
+        const reportFooterText = document.createElement("p");
+        reportFooterText.className = "mission-result-card-footer-text";
+        reportFooterText.textContent = "Objective complete";
+        reportFooter.appendChild(reportFooterText);
+        reportCard.appendChild(reportFooter);
+        resultPanel.appendChild(reportCard);
 
-      const stats = document.createElement("div");
-      stats.className = "mission-result-summary-grid";
-      stats.append(
-        createMissionResultStat("Mode", modeLabel),
-        createMissionResultStat("Outcome", isVictory ? "Victory" : "Defeat"),
-      );
-      resultPanel.appendChild(stats);
+        const stats = document.createElement("div");
+        stats.className = "mission-result-summary-grid";
+        stats.append(
+          createMissionResultStat("Mode", modeLabel),
+          createMissionResultStat("Outcome", "Victory"),
+        );
+        resultPanel.appendChild(stats);
 
-      const notes = document.createElement("section");
-      notes.className = "mission-result-notes";
-      notes.appendChild(createMissionHudLabel("Mission Notes"));
-      const noteLine = document.createElement("p");
-      noteLine.className = "mission-result-note-line";
-      noteLine.textContent = isVictory
-        ? "Commander update: objective complete. Reposition for the next operation."
-        : "Commander update: regroup, tune links, and redeploy.";
-      notes.appendChild(noteLine);
-      resultPanel.appendChild(notes);
+        const notes = document.createElement("section");
+        notes.className = "mission-result-notes";
+        notes.appendChild(createMissionHudLabel("Mission Notes"));
+        const noteLine = document.createElement("p");
+        noteLine.className = "mission-result-note-line";
+        noteLine.textContent = noteText;
+        notes.appendChild(noteLine);
+        resultPanel.appendChild(notes);
+      } else {
+        const topBar = document.createElement("section");
+        topBar.className = "mission-defeat-topbar";
+        const topBarIcon = document.createElement("div");
+        topBarIcon.className = "mission-defeat-topbar-icon";
+        topBarIcon.textContent = "X";
+        const topBarTitle = document.createElement("p");
+        topBarTitle.className = "mission-defeat-topbar-title";
+        topBarTitle.textContent = "Game Over";
+        const topBarSpacer = document.createElement("div");
+        topBarSpacer.className = "mission-defeat-topbar-spacer";
+        topBar.append(topBarIcon, topBarTitle, topBarSpacer);
+        resultPanel.appendChild(topBar);
+
+        const hero = document.createElement("section");
+        hero.className = "mission-defeat-hero";
+        const heroDisplay = document.createElement("h1");
+        heroDisplay.className = "mission-defeat-display";
+        heroDisplay.textContent = "Defeat";
+        const heroRule = document.createElement("div");
+        heroRule.className = "mission-defeat-rule";
+        hero.append(heroDisplay, heroRule);
+        resultPanel.appendChild(hero);
+
+        const stats = document.createElement("div");
+        stats.className = "mission-defeat-stat-grid";
+        stats.append(
+          createMissionResultStat("Wave Progress", waveProgressValue, "compact"),
+          createMissionResultStat("Gold Reward", rewardLabel, "compact"),
+        );
+        resultPanel.appendChild(stats);
+
+        const hint = document.createElement("section");
+        hint.className = "mission-defeat-hint";
+        const hintHeader = document.createElement("div");
+        hintHeader.className = "mission-defeat-hint-header";
+        const hintBadge = document.createElement("div");
+        hintBadge.className = "mission-defeat-hint-badge";
+        hintBadge.textContent = "!";
+        const hintTitle = document.createElement("p");
+        hintTitle.className = "mission-defeat-hint-title";
+        hintTitle.textContent = "Tactical Note";
+        hintHeader.append(hintBadge, hintTitle);
+        const hintBody = document.createElement("p");
+        hintBody.className = "mission-defeat-hint-body";
+        hintBody.textContent = noteText;
+        hint.append(hintHeader, hintBody);
+        resultPanel.appendChild(hint);
+      }
 
       const actionRow = document.createElement("div");
       actionRow.className = "menu-footer campaign-footer mission-result-actions";
 
       if (app.activeMissionContext?.mode === "campaign") {
+        const retryBtn = createButton("Retry Mission", restartCurrentMission, { variant: "secondary" });
+        retryBtn.classList.add("campaign-footer-btn");
         const backToMissions = createButton("Back To Missions", () => {
           if (app.activeMissionContext?.mode !== "campaign") {
             openStageSelect();
@@ -2817,11 +2870,14 @@ function renderCurrentScreen(
           openMissionSelect(app.activeMissionContext.levelId);
         }, { variant: "primary", primaryAction: true, hotkey: "Enter" });
         backToMissions.classList.add("campaign-footer-btn");
-        actionRow.appendChild(backToMissions);
 
-        const retryBtn = createButton("Retry Mission", restartCurrentMission, { variant: "secondary" });
-        retryBtn.classList.add("campaign-footer-btn");
-        actionRow.appendChild(retryBtn);
+        if (isVictory) {
+          actionRow.append(backToMissions, retryBtn);
+        } else {
+          retryBtn.classList.add("mission-result-action-primary");
+          backToMissions.classList.add("mission-result-action-secondary");
+          actionRow.append(retryBtn, backToMissions);
+        }
 
         const stageBtn = createButton("Stage Select", openStageSelect, { variant: "ghost", escapeAction: true, hotkey: "Esc" });
         stageBtn.classList.add("campaign-footer-btn");
@@ -2833,14 +2889,17 @@ function renderCurrentScreen(
           hotkey: "Enter",
         });
         retryBtn.classList.add("campaign-footer-btn");
-        actionRow.appendChild(retryBtn);
         const mainMenuBtn = createButton("Main Menu", openMainMenu, {
           variant: "ghost",
           escapeAction: true,
           hotkey: "Esc",
         });
         mainMenuBtn.classList.add("campaign-footer-btn");
-        actionRow.appendChild(mainMenuBtn);
+        if (!isVictory) {
+          retryBtn.classList.add("mission-result-action-primary");
+          mainMenuBtn.classList.add("mission-result-action-secondary");
+        }
+        actionRow.append(retryBtn, mainMenuBtn);
       } else {
         if (isVictory && app.runState && app.runState.currentMissionIndex < app.runState.missions.length) {
           const continueBtn = createButton("Continue To Run Map", openRunMap, {
@@ -2865,14 +2924,22 @@ function renderCurrentScreen(
         if (canRestartMission) {
           const restartBtn = createButton("Restart Mission", restartCurrentMission, { variant: "secondary" });
           restartBtn.classList.add("campaign-footer-btn");
+          if (!isVictory) {
+            restartBtn.classList.add("mission-result-action-primary");
+          }
           actionRow.appendChild(restartBtn);
         }
         const mainMenuBtn = createButton("Main Menu", openMainMenu, { variant: "ghost", escapeAction: true, hotkey: "Esc" });
         mainMenuBtn.classList.add("campaign-footer-btn");
+        if (!isVictory) {
+          mainMenuBtn.classList.add("mission-result-action-secondary");
+        }
         actionRow.appendChild(mainMenuBtn);
       }
       resultPanel.appendChild(actionRow);
-      screenRoot.appendChild(wrapCenteredModal(resultPanel));
+      const resultWrapper = wrapCenteredModal(resultPanel);
+      resultWrapper.classList.add("mission-result-backdrop");
+      screenRoot.appendChild(resultWrapper);
     }
     return;
   }
@@ -4224,9 +4291,12 @@ function createMissionHudLabel(text: string): HTMLParagraphElement {
   return label;
 }
 
-function createMissionResultStat(label: string, value: string): HTMLDivElement {
+function createMissionResultStat(label: string, value: string, variant: "default" | "compact" = "default"): HTMLDivElement {
   const card = document.createElement("div");
   card.className = "mission-result-stat";
+  if (variant === "compact") {
+    card.classList.add("is-compact");
+  }
 
   const title = document.createElement("p");
   title.className = "mission-result-stat-label";
