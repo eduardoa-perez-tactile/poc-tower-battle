@@ -658,6 +658,15 @@ async function bootstrap(): Promise<void> {
     }
 
     app.selectedLevelId = levelId;
+    if (levelEntry.level.missions.length === 1) {
+      const mission = levelEntry.level.missions[0];
+      if (!mission) {
+        showToast(screenRoot, "Mission not found.");
+        return;
+      }
+      void startCampaignMissionById(mission.missionId);
+      return;
+    }
     app.screen = "mission-select";
     render();
   };
@@ -1773,7 +1782,13 @@ async function bootstrap(): Promise<void> {
       }
     }
 
-    if (!isTyping && app.screen === "mission" && (key === "l" || key === "L") && !event.repeat) {
+    if (
+      !isTyping &&
+      app.screen === "mission" &&
+      app.activeMissionContext?.mode !== "skirmish" &&
+      (key === "l" || key === "L") &&
+      !event.repeat
+    ) {
       gameplayHud.toggleAlertsLog();
       event.preventDefault();
       return;
@@ -2884,9 +2899,19 @@ function renderCurrentScreen(
 
 function syncMissionHud(app: AppState, debugState: DebugUiState, gameplayHud: GameplayHUD): void {
   if (app.screen !== "mission" || !app.game || app.missionResult || !debugState.showMissionHud) {
+    gameplayHud.setAuxiliaryVisibility({
+      waveIntelVisible: true,
+      alertsVisible: true,
+    });
     gameplayHud.clearOverlays();
     return;
   }
+
+  const isSkirmish = app.activeMissionContext?.mode === "skirmish";
+  gameplayHud.setAuxiliaryVisibility({
+    waveIntelVisible: !isSkirmish,
+    alertsVisible: !isSkirmish,
+  });
 
   const telemetry = app.game.getWaveTelemetry();
   const world = app.game.getWorld();

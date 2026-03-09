@@ -34,6 +34,8 @@ export class GameplayHUD {
   private lastOverlayVm: OverlayVM | null = null;
   private currentLayout: HudLayoutRuntime | null;
   private suspended: boolean;
+  private waveIntelVisible: boolean;
+  private alertsVisible: boolean;
   private overlayToggles: HudOverlayToggles = {
     regenNumbers: false,
     captureRings: false,
@@ -67,6 +69,8 @@ export class GameplayHUD {
     );
     this.currentLayout = null;
     this.suspended = false;
+    this.waveIntelVisible = true;
+    this.alertsVisible = true;
     this.applyLayout();
     window.addEventListener("resize", this.onWindowResize);
   }
@@ -97,6 +101,21 @@ export class GameplayHUD {
     }
   }
 
+  setAuxiliaryVisibility(options: { waveIntelVisible: boolean; alertsVisible: boolean }): void {
+    this.waveIntelVisible = options.waveIntelVisible;
+    this.alertsVisible = options.alertsVisible;
+    this.waveIntel.element.style.display = this.waveIntelVisible ? "" : "none";
+    if (!this.alertsVisible) {
+      this.alerts.setVisible(false);
+      this.closeAlertsLog();
+      return;
+    }
+
+    if (!this.suspended) {
+      this.alerts.setVisible(true);
+    }
+  }
+
   update(vm: HudVM, options: TowerInspectorUpdateOptions): void {
     this.applyLayout();
     this.lastOverlayVm = vm.overlays;
@@ -108,14 +127,15 @@ export class GameplayHUD {
     }
 
     this.root.style.display = "";
+    this.waveIntel.element.style.display = this.waveIntelVisible ? "" : "none";
     const uiPanelsHidden = vm.topBar.uiPanelsHidden;
     this.root.classList.toggle("is-panels-hidden", uiPanelsHidden);
-    this.alerts.setVisible(!uiPanelsHidden);
+    this.alerts.setVisible(this.alertsVisible && !uiPanelsHidden);
     this.topBar.update(vm.topBar);
     this.waveIntel.update(vm.waveIntel);
     this.objectiveCard.update(vm.objective);
     this.towerInspector.update(vm.context.towerInspect, options);
-    if (!uiPanelsHidden && this.currentLayout) {
+    if (this.alertsVisible && !uiPanelsHidden && this.currentLayout) {
       this.alerts.setLayout(this.currentLayout);
     }
     this.overlays.update(vm.overlays, this.overlayToggles);
@@ -127,10 +147,16 @@ export class GameplayHUD {
   }
 
   pushToast(input: HudToastInput): void {
+    if (!this.alertsVisible) {
+      return;
+    }
     this.alerts.push(normalizeHudToastInput(input));
   }
 
   toggleAlertsLog(): void {
+    if (!this.alertsVisible) {
+      return;
+    }
     this.alerts.toggleLog();
   }
 
@@ -144,6 +170,8 @@ export class GameplayHUD {
 
   reset(): void {
     this.suspended = false;
+    this.waveIntelVisible = true;
+    this.alertsVisible = true;
     this.root.style.display = "";
     this.root.classList.remove("is-panels-hidden");
     this.alerts.setVisible(false);

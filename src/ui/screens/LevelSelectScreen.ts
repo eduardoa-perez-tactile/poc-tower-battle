@@ -90,7 +90,7 @@ export function renderLevelSelectScreen(props: LevelSelectScreenProps): HTMLDivE
     meta.textContent = `${level.size.toUpperCase()} • ${level.missions.length} missions`;
     body.appendChild(meta);
 
-    const openBtn = createButton("Open Missions", () => props.onSelectLevel(level.levelId), {
+    const openBtn = createButton(level.missions.length === 1 ? "Start Mission" : "Open Missions", () => props.onSelectLevel(level.levelId), {
       variant: state.unlocked ? "primary" : "ghost",
     });
     openBtn.classList.add("campaign-level-action");
