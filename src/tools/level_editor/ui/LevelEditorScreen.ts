@@ -21,7 +21,12 @@ import type {
   LevelEditorSelection,
   LevelEditorWorkspace,
 } from "../model/types";
-import { listChangedFiles } from "../io/exportChanged";
+import {
+  exportChangedFiles,
+  listChangedFiles,
+  supportsProjectDirectoryWrite,
+  writeChangedFilesToProjectDirectory,
+} from "../io/exportChanged";
 import { loadLevelEditorWorkspace } from "../io/loadAll";
 import { applyWorkspaceSnapshot, loadWorkspaceSnapshot, saveWorkspaceSnapshot } from "../io/workspaceStore";
 import { buildMapPreviewModel, type MapPreviewModel } from "../services/preview";
@@ -116,6 +121,7 @@ export function renderLevelEditorScreen(props: LevelEditorScreenProps): HTMLDivE
   const artPreviewCompiler = new LevelEditorArtPreviewCompiler();
   const artPreviewAssets = new ArtPreviewAssetManager();
   const artPreviewRenderer = new ArtPreviewRenderer();
+  let writingChangedFiles = false;
 
   const header = createHeader();
   const toolbar = document.createElement("div");
@@ -183,6 +189,20 @@ export function renderLevelEditorScreen(props: LevelEditorScreenProps): HTMLDivE
     tileLibraryTabBtn,
     unitArchetypesTabBtn,
   );
+
+  const writeChangedFilesBtn = createButton("Write Changed Files", () => {
+    void writeChangedFilesToDisk();
+  }, {
+    variant: "primary",
+    tooltip: "Pick the repo root to update the JSON files that deploy to GitHub Pages.",
+  });
+  const downloadChangedFilesBtn = createButton("Download Changed Files", () => {
+    downloadChangedFiles();
+  }, {
+    variant: "ghost",
+    tooltip: "Download the changed JSON files if direct disk write is unavailable.",
+  });
+  toolbar.append(writeChangedFilesBtn, downloadChangedFilesBtn);
 
   const layout = document.createElement("div");
   layout.style.display = "grid";
@@ -350,6 +370,10 @@ export function renderLevelEditorScreen(props: LevelEditorScreenProps): HTMLDivE
     applyTabButtonStyle(towerDictionaryTabBtn, state.activeTab === "tower-dictionary");
     applyTabButtonStyle(tileLibraryTabBtn, state.activeTab === "tile-library");
     applyTabButtonStyle(unitArchetypesTabBtn, state.activeTab === "unit-archetypes");
+    const changedCount = state.workspace ? listChangedFiles(state.workspace).length : 0;
+    writeChangedFilesBtn.disabled = writingChangedFiles || changedCount === 0;
+    writeChangedFilesBtn.style.display = supportsProjectDirectoryWrite() ? "inline-flex" : "none";
+    downloadChangedFilesBtn.disabled = writingChangedFiles || changedCount === 0;
 
     const showLevels = state.activeTab === "levels";
     const showEnemies = state.activeTab === "enemies";
@@ -478,6 +502,15 @@ export function renderLevelEditorScreen(props: LevelEditorScreenProps): HTMLDivE
     changedTitle.textContent = `Changed files (${changed.length})`;
     changedTitle.style.marginTop = "10px";
     libraryPanel.body.appendChild(changedTitle);
+
+    const changedHelp = createInfoText(
+      supportsProjectDirectoryWrite()
+        ? "Save to workspace for instant preview, then use Write Changed Files to persist the repo files before deploying."
+        : "Save to workspace for instant preview, then use Download Changed Files and replace the repo files before deploying.",
+    );
+    changedHelp.style.marginTop = "4px";
+    changedHelp.style.marginBottom = "8px";
+    libraryPanel.body.appendChild(changedHelp);
 
     const changedList = document.createElement("div");
     changedList.style.display = "grid";
@@ -1334,6 +1367,80 @@ export function renderLevelEditorScreen(props: LevelEditorScreenProps): HTMLDivE
       nextWorkspace = replaceWorkspaceDocument(nextWorkspace, freshDoc);
     }
     state.infoMessage = "Reloaded enemy documents from disk.";
+    setWorkspace(nextWorkspace);
+  }
+
+  function downloadChangedFiles(): void {
+    if (!state.workspace) {
+      return;
+    }
+
+    const changed = exportChangedFiles(state.workspace);
+    state.infoMessage =
+      changed.length > 0
+        ? `Downloaded ${changed.length} changed file(s). Replace the matching repo files before deploying.`
+        : "No changed files to download.";
+    renderStatus();
+    renderLibrary();
+  }
+
+  async function writeChangedFilesToDisk(): Promise<void> {
+    if (!state.workspace) {
+      return;
+    }
+
+    const changedPaths = listChangedFiles(state.workspace).map((file) => file.path);
+    if (changedPaths.length === 0) {
+      state.infoMessage = "No changed files to write.";
+      renderStatus();
+      renderLibrary();
+      return;
+    }
+
+    if (!supportsProjectDirectoryWrite()) {
+      downloadChangedFiles();
+      return;
+    }
+
+    writingChangedFiles = true;
+    renderAll();
+
+    try {
+      const result = await writeChangedFilesToProjectDirectory(state.workspace);
+      await reloadWorkspaceDocsFromDisk(
+        changedPaths,
+        `Wrote ${result.changedFileCount} changed file(s) to disk.`,
+      );
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") {
+        state.infoMessage = "Project write canceled.";
+      } else {
+        state.infoMessage = error instanceof Error ? error.message : "Failed to write changed files to disk.";
+      }
+      renderStatus();
+      renderLibrary();
+    } finally {
+      writingChangedFiles = false;
+      renderAll();
+    }
+  }
+
+  async function reloadWorkspaceDocsFromDisk(paths: readonly string[], message: string): Promise<void> {
+    if (!state.workspace) {
+      throw new Error("Workspace unavailable.");
+    }
+
+    const freshWorkspace = await loadLevelEditorWorkspace();
+    let nextWorkspace = state.workspace;
+    for (const path of paths) {
+      const freshDoc = freshWorkspace.docs[path];
+      if (!freshDoc) {
+        continue;
+      }
+      nextWorkspace = replaceWorkspaceDocument(nextWorkspace, freshDoc);
+    }
+
+    state.infoMessage = message;
     setWorkspace(nextWorkspace);
   }
 }

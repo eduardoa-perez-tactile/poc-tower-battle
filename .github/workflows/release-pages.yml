@@ -42,6 +42,7 @@ jobs:
       - name: Build release site
         env:
           BASE_PATH: /${{ github.event.repository.name }}/
+          VITE_ASSET_VERSION: ${{ github.sha }}
         run: npm run build
 
       - name: Upload Pages artifact

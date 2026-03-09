@@ -49,6 +49,7 @@ import {
   refreshUnlocks,
   validateUnlockCatalog,
   type AscensionCatalog,
+  type MetaUpgradeNodeDefinition,
   type MetaUpgradeCatalog,
 } from "./meta/MetaProgression";
 import { calculateMissionGloryReward, calculateRunBonusGlory, type MissionGloryReward } from "./meta/Rewards";
@@ -163,6 +164,15 @@ interface SkirmishMissionContext {
 
 type MissionContext = CampaignMissionContext | RunMissionContext | SkirmishMissionContext | null;
 
+interface CampaignMetaRetryContext {
+  mode: "campaign";
+  stageId: string;
+  levelId: string;
+  missionId: string;
+}
+
+type MetaRetryContext = CampaignMetaRetryContext | null;
+
 interface MissionEventEntry {
   id: number;
   tone: "neutral" | "warning" | "success";
@@ -193,6 +203,9 @@ interface AppState {
   campaignUnlocks: CampaignUnlocks;
   selectedStageId: string | null;
   selectedLevelId: string | null;
+  selectedMetaTreeId: string | null;
+  metaRetryContext: MetaRetryContext;
+  metaReturnScreen: "mission" | null;
   activeMissionContext: MissionContext;
   game: Game | null;
   inputController: InputController | null;
@@ -318,6 +331,9 @@ async function bootstrap(): Promise<void> {
     campaignUnlocks: computeUnlocks(levelRegistry.stages, campaignProgress),
     selectedStageId: null,
     selectedLevelId: null,
+    selectedMetaTreeId: null,
+    metaRetryContext: null,
+    metaReturnScreen: null,
     activeMissionContext: null,
     game: null,
     inputController: null,
@@ -442,6 +458,8 @@ async function bootstrap(): Promise<void> {
       ascensionCatalog,
       missionTemplates,
       openMetaScreen,
+      openMetaScreenFromDefeat,
+      returnFromMetaScreen,
       openMainMenu,
       openPlayModeSelect,
       openSkirmishSetup,
@@ -589,19 +607,33 @@ async function bootstrap(): Promise<void> {
     return buildDifficultyContext(inputs);
   };
 
+  const showMetaScreen = (): void => {
+    if (!app.selectedMetaTreeId || !upgradeCatalog.trees.some((tree) => tree.id === app.selectedMetaTreeId)) {
+      app.selectedMetaTreeId = upgradeCatalog.trees[0]?.id ?? null;
+    }
+    app.screen = "meta";
+    render();
+  };
+
   const openMainMenu = (): void => {
+    app.metaRetryContext = null;
+    app.metaReturnScreen = null;
     stopMission();
     app.screen = "main-menu";
     render();
   };
 
   const openProfileSnapshot = (): void => {
+    app.metaRetryContext = null;
+    app.metaReturnScreen = null;
     stopMission();
     app.screen = "profile-snapshot";
     render();
   };
 
   const openStageSelect = (): void => {
+    app.metaRetryContext = null;
+    app.metaReturnScreen = null;
     stopMission();
     app.selectedStageId = null;
     app.selectedLevelId = null;
@@ -610,18 +642,24 @@ async function bootstrap(): Promise<void> {
   };
 
   const openPlayModeSelect = (): void => {
+    app.metaRetryContext = null;
+    app.metaReturnScreen = null;
     stopMission();
     app.screen = "play-mode-select";
     render();
   };
 
   const openSkirmishSetup = (): void => {
+    app.metaRetryContext = null;
+    app.metaReturnScreen = null;
     stopMission();
     app.screen = "skirmish-setup";
     render();
   };
 
   const openLevelSelect = (stageId: string): void => {
+    app.metaRetryContext = null;
+    app.metaReturnScreen = null;
     stopMission();
     const stage = findStageById(app.campaignStages, stageId);
     if (!stage) {
@@ -641,6 +679,8 @@ async function bootstrap(): Promise<void> {
   };
 
   const openMissionSelect = (levelId: string): void => {
+    app.metaRetryContext = null;
+    app.metaReturnScreen = null;
     stopMission();
     if (!app.selectedStageId) {
       showToast(screenRoot, "Select a stage first.");
@@ -658,6 +698,15 @@ async function bootstrap(): Promise<void> {
     }
 
     app.selectedLevelId = levelId;
+    if (levelEntry.level.missions.length === 1) {
+      const mission = levelEntry.level.missions[0];
+      if (!mission) {
+        showToast(screenRoot, "Mission not found.");
+        return;
+      }
+      void startCampaignMissionById(mission.missionId);
+      return;
+    }
     app.screen = "mission-select";
     render();
   };
@@ -671,18 +720,51 @@ async function bootstrap(): Promise<void> {
       const module = await import("./tools/level_editor/ui/LevelEditorScreen");
       renderLevelEditorScreenFn = module.renderLevelEditorScreen;
     }
+    app.metaRetryContext = null;
+    app.metaReturnScreen = null;
     stopMission();
     app.screen = "level-editor";
     render();
   };
 
   const openMetaScreen = (): void => {
+    app.metaRetryContext = null;
+    app.metaReturnScreen = null;
     stopMission();
-    app.screen = "meta";
-    render();
+    showMetaScreen();
+  };
+
+  const openMetaScreenFromDefeat = (): void => {
+    if (app.screen === "mission" && app.missionResult === "lose") {
+      app.metaReturnScreen = "mission";
+      if (app.activeMissionContext?.mode === "campaign") {
+        app.metaRetryContext = {
+          mode: "campaign",
+          stageId: app.activeMissionContext.stageId,
+          levelId: app.activeMissionContext.levelId,
+          missionId: app.activeMissionContext.missionId,
+        };
+      } else {
+        app.metaRetryContext = null;
+      }
+      showMetaScreen();
+      return;
+    }
+    openMetaScreen();
+  };
+
+  const returnFromMetaScreen = (): void => {
+    if (app.metaReturnScreen === "mission") {
+      app.screen = "mission";
+      render();
+      return;
+    }
+    openMainMenu();
   };
 
   const openRunMap = (): void => {
+    app.metaRetryContext = null;
+    app.metaReturnScreen = null;
     stopMission();
     if (!app.runState) {
       app.screen = "main-menu";
@@ -718,13 +800,16 @@ async function bootstrap(): Promise<void> {
     try {
       stopMission();
       const baseLevel = await getLevelByPath(mode.skirmish.levelPath, levelCache);
+      activeTowerArchetypes = resolveTowerArchetypesFromEditorSnapshot(depthContent.towerArchetypes);
+      renderer.setTowerArchetypeArt(buildTowerArchetypeArtMap(activeTowerArchetypes));
+      const skirmishLevel = createSkirmishLevel(baseLevel, activeTowerArchetypes);
       const world = new World(
-        baseLevel.towers,
-        baseLevel.rules.maxOutgoingLinksPerTower,
+        skirmishLevel.towers,
+        skirmishLevel.rules.maxOutgoingLinksPerTower,
         depthContent.linkLevels,
-        baseLevel.initialLinks,
+        skirmishLevel.initialLinks,
         1,
-        baseLevel.graphEdges,
+        skirmishLevel.graphEdges,
       );
       const inputController = new InputController(canvas, world);
       app.inputController = inputController;
@@ -732,8 +817,8 @@ async function bootstrap(): Promise<void> {
         world,
         renderer,
         inputController,
-        baseLevel.rules,
-        baseLevel.ai,
+        skirmishLevel.rules,
+        skirmishLevel.ai,
         null,
         null,
         {
@@ -764,8 +849,8 @@ async function bootstrap(): Promise<void> {
         "neutral",
         (toast) => gameplayHud.pushToast(toast),
       );
-      renderer.setMapRenderData(baseLevel.mapRenderData ?? null);
-      renderer.setMapArtData(baseLevel.terrain ?? null, baseLevel.visuals ?? null);
+      renderer.setMapRenderData(skirmishLevel.mapRenderData ?? null);
+      renderer.setMapArtData(skirmishLevel.terrain ?? null, skirmishLevel.visuals ?? null);
       app.screen = "mission";
       syncMissionInputEnabled();
       if (!ensureMissionOverlayDefaults()) {
@@ -1770,7 +1855,13 @@ async function bootstrap(): Promise<void> {
       }
     }
 
-    if (!isTyping && app.screen === "mission" && (key === "l" || key === "L") && !event.repeat) {
+    if (
+      !isTyping &&
+      app.screen === "mission" &&
+      app.activeMissionContext?.mode !== "skirmish" &&
+      (key === "l" || key === "L") &&
+      !event.repeat
+    ) {
       gameplayHud.toggleAlertsLog();
       event.preventDefault();
       return;
@@ -1886,6 +1977,8 @@ function renderCurrentScreen(
   ascensionCatalog: AscensionCatalog,
   missionTemplates: MissionTemplate[],
   openMetaScreen: () => void,
+  openMetaScreenFromDefeat: () => void,
+  returnFromMetaScreen: () => void,
   openMainMenu: () => void,
   openPlayModeSelect: () => void,
   openSkirmishSetup: () => void,
@@ -1912,6 +2005,7 @@ function renderCurrentScreen(
   renderLevelEditorScreenFn: ((props: { onBack: () => void }) => HTMLDivElement) | null,
 ): void {
   screenRoot.replaceChildren();
+  screenRoot.classList.remove("has-blocking-overlay");
 
   if (app.screen === "title") {
     const wrapper = document.createElement("div");
@@ -2278,178 +2372,310 @@ function renderCurrentScreen(
   }
 
   if (app.screen === "meta") {
-    const panel = document.createElement("div");
-    panel.className = "panel ui-panel menu-panel menu-panel-wide campaign-shell campaign-meta-shell";
-    panel.appendChild(createCampaignScreenHeader("Meta Progression", "Persistent Upgrades"));
-
-    const glorySpent = Math.round(app.metaProfile.metaProgress.glorySpentTotal);
-    const totalTrackedGlory = Math.max(1, glorySpent + app.metaProfile.glory);
-    const investmentPercent = Math.round((glorySpent / totalTrackedGlory) * 100);
-    panel.appendChild(
-      createCampaignProgressCard({
-        title: "Account Overview",
-        subtitle: `Gold available: ${app.metaProfile.glory} • Runs won: ${app.metaProfile.metaProgress.runsWon}`,
-        value: `Lv ${computeMetaAccountLevel(app.metaProfile)}`,
-        label: "Meta Level",
-        percent: investmentPercent,
-      }),
-    );
-
-    const trees = document.createElement("div");
-    trees.className = "campaign-meta-tree-row";
-    for (const [treeIndex, tree] of upgradeCatalog.trees.entries()) {
-      const treeCard = document.createElement("article");
-      treeCard.className = "campaign-meta-tree-card";
-      const accent = getMetaTreeAccent(treeIndex);
-      treeCard.style.setProperty("--meta-accent", accent.primary);
-      treeCard.style.setProperty("--meta-accent-soft", accent.soft);
-      treeCard.style.setProperty("--meta-accent-halo", accent.halo);
-
-      let earnedRanks = 0;
-      let maxRanks = 0;
-      let unlockedNodes = 0;
-      for (const node of tree.nodes) {
-        const rank = getPurchasedRank(app.metaProfile, node.id);
-        earnedRanks += rank;
-        maxRanks += node.maxRank;
-        if (rank > 0) {
-          unlockedNodes += 1;
-        }
-      }
-      const treeProgressPercent = maxRanks > 0 ? Math.round((earnedRanks / maxRanks) * 100) : 0;
-
-      const treeHeader = document.createElement("div");
-      treeHeader.className = "campaign-meta-tree-header";
-
-      const treeHeaderTop = document.createElement("div");
-      treeHeaderTop.className = "campaign-meta-tree-top";
-      const treeEmblem = document.createElement("div");
-      treeEmblem.className = "campaign-meta-tree-emblem";
-      treeEmblem.textContent = tree.name
-        .split(" ")
-        .map((token) => token.charAt(0))
-        .join("")
-        .slice(0, 2)
-        .toUpperCase();
-      const treeHeaderCopy = document.createElement("div");
-      const treeTitle = document.createElement("h3");
-      treeTitle.className = "campaign-meta-tree-title";
-      treeTitle.textContent = tree.name;
-      const treeSubtitle = document.createElement("p");
-      treeSubtitle.className = "campaign-meta-tree-subtitle";
-      treeSubtitle.textContent = `${tree.nodes.length} upgrades • ${unlockedNodes}/${tree.nodes.length} activated`;
-      treeHeaderCopy.append(treeTitle, treeSubtitle);
-      treeHeaderTop.append(treeEmblem, treeHeaderCopy);
-
-      const treeSummary = document.createElement("div");
-      treeSummary.className = "campaign-meta-tree-summary";
-      const treeSummaryCopy = document.createElement("span");
-      treeSummaryCopy.className = "campaign-meta-tree-summary-copy";
-      treeSummaryCopy.textContent = `${earnedRanks}/${maxRanks} ranks`;
-      const treeRank = document.createElement("span");
-      treeRank.className = "campaign-meta-tree-rank";
-      treeRank.textContent = `${treeProgressPercent}%`;
-      treeSummary.append(treeSummaryCopy, treeRank);
-
-      const treeProgressTrack = document.createElement("div");
-      treeProgressTrack.className = "campaign-meta-tree-progress";
-      const treeProgressFill = document.createElement("div");
-      treeProgressFill.className = "campaign-meta-tree-progress-fill";
-      treeProgressFill.style.width = `${treeProgressPercent}%`;
-      treeProgressTrack.appendChild(treeProgressFill);
-
-      treeHeader.append(treeHeaderTop, treeSummary, treeProgressTrack);
-      treeCard.appendChild(treeHeader);
-
-      const list = document.createElement("div");
-      list.className = "campaign-meta-node-list";
-      for (const node of tree.nodes) {
-        const rank = getPurchasedRank(app.metaProfile, node.id);
-        const cost = getNextUpgradeCost(app.metaProfile, node);
-        const row = document.createElement("div");
-        row.className = "campaign-meta-node-row";
-        if (cost === null) {
-          row.classList.add("is-maxed");
-        } else if (app.metaProfile.glory >= cost) {
-          row.classList.add("is-affordable");
-        } else {
-          row.classList.add("is-unaffordable");
-        }
-
-        const left = document.createElement("div");
-        left.className = "campaign-meta-node-copy";
-        const nameRow = document.createElement("div");
-        nameRow.className = "campaign-meta-node-head";
-        const name = document.createElement("p");
-        name.className = "campaign-meta-node-name";
-        name.textContent = node.name;
-        const rankPill = document.createElement("span");
-        rankPill.className = "campaign-meta-rank-pill";
-        rankPill.textContent = `Lv ${rank}/${node.maxRank}`;
-        nameRow.append(name, rankPill);
-        const details = document.createElement("div");
-        details.className = "campaign-meta-node-details";
-        details.textContent = node.desc;
-        left.append(nameRow, details);
-
-        if (node.prereqs.length > 0) {
-          const prereqWrap = document.createElement("div");
-          prereqWrap.className = "campaign-meta-node-prereqs";
-          for (const prereq of node.prereqs) {
-            const pill = document.createElement("span");
-            pill.className = "campaign-meta-prereq-pill";
-            pill.textContent = `${formatMetaNodeLabel(prereq.nodeId)} ${prereq.minRank}+`;
-            prereqWrap.appendChild(pill);
-          }
-          left.appendChild(prereqWrap);
-        }
-
-        const nodeProgressTrack = document.createElement("div");
-        nodeProgressTrack.className = "campaign-meta-node-progress";
-        const nodeProgressFill = document.createElement("div");
-        nodeProgressFill.className = "campaign-meta-node-progress-fill";
-        nodeProgressFill.style.width = `${(rank / Math.max(1, node.maxRank)) * 100}%`;
-        nodeProgressTrack.appendChild(nodeProgressFill);
-        left.appendChild(nodeProgressTrack);
-
-        const buyBtn = createButton(
-          cost === null ? "Maxed" : `Buy (${cost})`,
-          () => purchaseUpgradeById(node.id),
-          { variant: cost === null ? "ghost" : app.metaProfile.glory >= cost ? "primary" : "secondary" },
-        );
-        buyBtn.classList.add("campaign-meta-buy-btn");
-        buyBtn.disabled = cost === null || app.metaProfile.glory < cost;
-        row.append(left, buyBtn);
-        list.appendChild(row);
-      }
-      const treeList = createScrollArea(list, { maxHeight: "min(42vh, 420px)" });
-      treeList.classList.add("campaign-meta-node-scroll");
-      treeCard.appendChild(treeList);
-      trees.appendChild(treeCard);
+    const activeTree = upgradeCatalog.trees.find((tree) => tree.id === app.selectedMetaTreeId) ?? upgradeCatalog.trees[0] ?? null;
+    if (!activeTree) {
+      const panel = createPanel("Meta Progression", "No upgrade trees available.");
+      panel.appendChild(createButton("Back", openMainMenu, { variant: "ghost", escapeAction: true, hotkey: "Esc" }));
+      screenRoot.appendChild(wrapCentered(panel));
+      return;
     }
-    panel.appendChild(trees);
+    app.selectedMetaTreeId = activeTree.id;
 
-    const progressionCard = document.createElement("section");
-    progressionCard.className = "campaign-progress-card";
-    const noteTitle = document.createElement("p");
-    noteTitle.className = "campaign-progress-title";
-    noteTitle.textContent = "Progress Notes";
-    const noteText = document.createElement("p");
-    noteText.className = "campaign-progress-subtitle";
-    noteText.textContent =
-      "Meta upgrades only affect future runs. Spend Gold before launching new operations for maximum impact.";
-    progressionCard.append(noteTitle, noteText);
-    panel.appendChild(progressionCard);
+    const panel = document.createElement("div");
+    panel.className = "panel ui-panel campaign-shell meta-shop-shell";
+    const activeTreeIndex = upgradeCatalog.trees.findIndex((tree) => tree.id === activeTree.id);
+    const treeStyle = getMetaTreePresentation(activeTree.id, Math.max(0, activeTreeIndex));
+    panel.style.setProperty("--meta-shop-accent", treeStyle.accent.primary);
+    panel.style.setProperty("--meta-shop-soft", treeStyle.accent.soft);
+    panel.style.setProperty("--meta-shop-halo", treeStyle.accent.halo);
+    panel.style.setProperty("--meta-shop-soft-rgb", treeStyle.accent.softRgb);
+
+    const metaLevel = computeMetaAccountLevel(app.metaProfile);
+
+    const activeTreeStats = summarizeMetaTree(app.metaProfile, activeTree);
+    const affordableCount = activeTree.nodes.filter((node) => {
+      const cost = getNextUpgradeCost(app.metaProfile, node);
+      return cost !== null && app.metaProfile.glory >= cost && areMetaNodePrereqsMet(app.metaProfile, node);
+    }).length;
+
+    const header = document.createElement("header");
+    header.className = "meta-shop-header";
+    const headerLeft = document.createElement("div");
+    headerLeft.className = "meta-shop-header-left";
+    const headerIcon = document.createElement("div");
+    headerIcon.className = "meta-shop-header-icon";
+    headerIcon.textContent = treeStyle.iconGlyph;
+    const headerCopy = document.createElement("div");
+    const headerTitle = document.createElement("h2");
+    headerTitle.className = "meta-shop-header-title";
+    headerTitle.textContent = "Meta Progression";
+    const headerSubtitle = document.createElement("p");
+    headerSubtitle.className = "meta-shop-header-subtitle";
+    headerSubtitle.textContent = "Persistent upgrades";
+    headerCopy.append(headerTitle, headerSubtitle);
+    headerLeft.append(headerIcon, headerCopy);
+
+    const headerRight = document.createElement("div");
+    headerRight.className = "meta-shop-header-right";
+    const levelBlock = document.createElement("div");
+    levelBlock.className = "meta-shop-status";
+    const levelLabel = document.createElement("span");
+    levelLabel.className = "meta-shop-status-label";
+    levelLabel.textContent = "Account Status";
+    const levelValue = document.createElement("div");
+    levelValue.className = "meta-shop-status-pill";
+    levelValue.textContent = `Lv. ${metaLevel} Commander`;
+    levelBlock.append(levelLabel, levelValue);
+
+    const goldBlock = document.createElement("div");
+    goldBlock.className = "meta-shop-gold";
+    const goldIcon = document.createElement("span");
+    goldIcon.className = "meta-shop-gold-icon";
+    goldIcon.textContent = "$";
+    const goldValue = document.createElement("p");
+    goldValue.className = "meta-shop-gold-value";
+    goldValue.innerHTML = `${app.metaProfile.glory} <span>GOLD</span>`;
+    goldBlock.append(goldIcon, goldValue);
+    headerRight.append(levelBlock, goldBlock);
+    header.append(headerLeft, headerRight);
+    panel.appendChild(header);
+
+    const nav = document.createElement("nav");
+    nav.className = "meta-shop-nav";
+    for (const [treeIndex, tree] of upgradeCatalog.trees.entries()) {
+      const treeView = getMetaTreePresentation(tree.id, treeIndex);
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "meta-shop-nav-btn";
+      button.style.setProperty("--meta-tab-accent", treeView.accent.primary);
+      button.style.setProperty("--meta-tab-soft", treeView.accent.soft);
+      if (tree.id === activeTree.id) {
+        button.classList.add("is-active");
+      }
+      button.onclick = () => {
+        app.selectedMetaTreeId = tree.id;
+        openMetaScreen();
+      };
+      const icon = document.createElement("span");
+      icon.className = "meta-shop-nav-icon";
+      icon.textContent = treeView.navIcon;
+      const label = document.createElement("span");
+      label.className = "meta-shop-nav-label";
+      label.textContent = treeView.navLabel;
+      button.append(icon, label);
+      nav.appendChild(button);
+    }
+    panel.appendChild(nav);
+
+    const titleRow = document.createElement("section");
+    titleRow.className = "meta-shop-section-title";
+    const titleCopy = document.createElement("h3");
+    titleCopy.className = "meta-shop-section-heading";
+    titleCopy.append(document.createTextNode(`${treeStyle.titleLead} `));
+    const titleAccent = document.createElement("span");
+    titleAccent.textContent = treeStyle.titleAccent;
+    titleCopy.appendChild(titleAccent);
+    const titleRule = document.createElement("div");
+    titleRule.className = "meta-shop-section-rule";
+    titleRow.append(titleCopy, titleRule);
+    panel.appendChild(titleRow);
+
+    const bodyScroll = document.createElement("div");
+    bodyScroll.className = "meta-shop-body-scroll";
+    const grid = document.createElement("div");
+    grid.className = "meta-shop-grid";
+    for (const node of activeTree.nodes) {
+      const rank = getPurchasedRank(app.metaProfile, node.id);
+      const cost = getNextUpgradeCost(app.metaProfile, node);
+      const prereqsMet = areMetaNodePrereqsMet(app.metaProfile, node);
+      const isMaxed = cost === null;
+      const isAffordable = cost !== null && prereqsMet && app.metaProfile.glory >= cost;
+      const progressPercent = Math.round((rank / Math.max(1, node.maxRank)) * 100);
+
+      const card = document.createElement("article");
+      card.className = "meta-shop-card";
+      if (isAffordable) {
+        card.classList.add("is-affordable");
+      }
+      if (isMaxed) {
+        card.classList.add("is-maxed");
+      }
+      if (!prereqsMet && !isMaxed) {
+        card.classList.add("is-locked");
+      }
+
+      const top = document.createElement("div");
+      top.className = "meta-shop-card-top";
+      const iconWrap = document.createElement("div");
+      iconWrap.className = "meta-shop-card-icon";
+      const icon = document.createElement("span");
+      icon.className = "meta-shop-card-icon-glyph";
+      icon.textContent = getMetaNodeIcon(activeTree.id, node);
+      iconWrap.appendChild(icon);
+
+      const status = document.createElement("div");
+      status.className = "meta-shop-card-status";
+      const statusLabel = document.createElement("span");
+      statusLabel.className = "meta-shop-card-status-label";
+      statusLabel.textContent = "Status";
+      const statusValue = document.createElement("span");
+      statusValue.className = "meta-shop-card-status-value";
+      statusValue.textContent = isMaxed ? "MAXED" : `LEVEL ${rank}/${node.maxRank}`;
+      status.append(statusLabel, statusValue);
+      top.append(iconWrap, status);
+
+      const title = document.createElement("h4");
+      title.className = "meta-shop-card-title";
+      title.textContent = node.name;
+
+      const desc = document.createElement("p");
+      desc.className = "meta-shop-card-desc";
+      desc.textContent = node.desc;
+
+      const meta = document.createElement("div");
+      meta.className = "meta-shop-card-meta";
+      if (node.prereqs.length > 0) {
+        const prereqWrap = document.createElement("div");
+        prereqWrap.className = "meta-shop-card-prereqs";
+        for (const prereq of node.prereqs) {
+          const prereqPill = document.createElement("span");
+          prereqPill.className = "meta-shop-card-prereq-pill";
+          prereqPill.textContent = `${formatMetaNodeLabel(prereq.nodeId)} ${prereq.minRank}+`;
+          prereqWrap.appendChild(prereqPill);
+        }
+        meta.appendChild(prereqWrap);
+      }
+
+      const progress = document.createElement("div");
+      progress.className = "meta-shop-card-progress";
+      const progressHeader = document.createElement("div");
+      progressHeader.className = "meta-shop-card-progress-header";
+      const progressLabel = document.createElement("span");
+      progressLabel.textContent = isMaxed ? "Optimized" : "Progression";
+      const progressValue = document.createElement("span");
+      progressValue.textContent = `${progressPercent}%`;
+      progressHeader.append(progressLabel, progressValue);
+      const progressTrack = document.createElement("div");
+      progressTrack.className = "meta-shop-card-progress-track";
+      const progressFill = document.createElement("div");
+      progressFill.className = "meta-shop-card-progress-fill";
+      progressFill.style.width = `${progressPercent}%`;
+      progressTrack.appendChild(progressFill);
+      progress.append(progressHeader, progressTrack);
+
+      const buyBtn = createButton(
+        isMaxed
+          ? "System Maximized"
+          : !prereqsMet
+            ? "Locked"
+            : `Upgrade - ${cost}G`,
+        () => purchaseUpgradeById(node.id),
+        { variant: isMaxed ? "ghost" : isAffordable ? "primary" : "secondary" },
+      );
+      buyBtn.classList.add("meta-shop-card-action");
+      buyBtn.disabled = isMaxed || !prereqsMet || cost === null || app.metaProfile.glory < cost;
+
+      card.append(top, title, desc, meta, progress, buyBtn);
+      grid.appendChild(card);
+    }
+    bodyScroll.appendChild(grid);
+    panel.appendChild(bodyScroll);
 
     const footer = document.createElement("div");
-    footer.className = "menu-footer campaign-footer";
-    const backBtn = createButton("Back", openMainMenu, {
-      variant: "ghost",
-      escapeAction: true,
-      hotkey: "Esc",
-    });
-    backBtn.classList.add("campaign-footer-btn");
-    footer.appendChild(backBtn);
+    footer.className = "meta-shop-footer";
+    const footerStat = document.createElement("div");
+    footerStat.className = "meta-shop-footer-stat";
+    const footerStatLabel = document.createElement("p");
+    footerStatLabel.className = "meta-shop-footer-stat-label";
+    footerStatLabel.textContent = "Tree Progress";
+    const footerStatValue = document.createElement("p");
+    footerStatValue.className = "meta-shop-footer-stat-value";
+    footerStatValue.textContent = `${activeTreeStats.progressPercent}%`;
+    const footerStatMeta = document.createElement("p");
+    footerStatMeta.className = "meta-shop-footer-stat-meta";
+    footerStatMeta.textContent = `${activeTreeStats.earnedRanks}/${activeTreeStats.maxRanks} ranks • ${affordableCount} affordable`;
+    footerStat.append(footerStatLabel, footerStatValue, footerStatMeta);
+
+    const footerCopy = document.createElement("div");
+    footerCopy.className = "meta-shop-footer-copy";
+    const footerCopyTitle = document.createElement("p");
+    footerCopyTitle.className = "meta-shop-footer-copy-title";
+    footerCopyTitle.textContent = "Upgrade Intel";
+    const footerCopyBody = document.createElement("p");
+    footerCopyBody.className = "meta-shop-footer-copy-body";
+    footerCopyBody.textContent =
+      "Meta upgrades only affect future runs. Spend Gold before launching new operations for maximum impact.";
+    footerCopy.append(footerCopyTitle, footerCopyBody);
+
+    const footerActions = document.createElement("div");
+    footerActions.className = "meta-shop-footer-actions";
+    if (app.metaReturnScreen === "mission") {
+      if (app.metaRetryContext?.mode === "campaign") {
+        const retryContext = app.metaRetryContext;
+        const retryBtn = createButton("Retry Mission", () => {
+          app.metaRetryContext = null;
+          app.metaReturnScreen = null;
+          app.selectedStageId = retryContext.stageId;
+          app.selectedLevelId = retryContext.levelId;
+          void startCampaignMissionById(retryContext.missionId);
+        }, {
+          variant: "primary",
+          primaryAction: true,
+          hotkey: "Enter",
+        });
+        retryBtn.classList.add("campaign-footer-btn", "meta-shop-footer-btn");
+        footerActions.appendChild(retryBtn);
+      }
+
+      const backBtn = createButton("Back To Defeat", () => {
+        returnFromMetaScreen();
+      }, {
+        variant: "ghost",
+        escapeAction: true,
+        hotkey: "Esc",
+      });
+      backBtn.classList.add("campaign-footer-btn", "meta-shop-footer-btn");
+      footerActions.appendChild(backBtn);
+    } else if (app.metaRetryContext?.mode === "campaign") {
+      const retryContext = app.metaRetryContext;
+      const retryBtn = createButton("Retry Mission", () => {
+        app.metaRetryContext = null;
+        app.metaReturnScreen = null;
+        app.selectedStageId = retryContext.stageId;
+        app.selectedLevelId = retryContext.levelId;
+        void startCampaignMissionById(retryContext.missionId);
+      }, {
+        variant: "primary",
+        primaryAction: true,
+        hotkey: "Enter",
+      });
+      retryBtn.classList.add("campaign-footer-btn", "meta-shop-footer-btn");
+      footerActions.appendChild(retryBtn);
+
+      const backBtn = createButton("Back To Missions", () => {
+        app.metaRetryContext = null;
+        app.metaReturnScreen = null;
+        app.selectedStageId = retryContext.stageId;
+        app.selectedLevelId = retryContext.levelId;
+        openMissionSelect(retryContext.levelId);
+      }, {
+        variant: "ghost",
+        escapeAction: true,
+        hotkey: "Esc",
+      });
+      backBtn.classList.add("campaign-footer-btn", "meta-shop-footer-btn");
+      footerActions.appendChild(backBtn);
+    } else {
+      const backBtn = createButton("Back", openMainMenu, {
+        variant: "ghost",
+        escapeAction: true,
+        hotkey: "Esc",
+      });
+      backBtn.classList.add("campaign-footer-btn", "meta-shop-footer-btn");
+      footerActions.appendChild(backBtn);
+    }
+
+    footer.append(footerStat, footerCopy, footerActions);
     panel.appendChild(footer);
     screenRoot.appendChild(wrapCentered(panel));
     return;
@@ -2603,10 +2829,6 @@ function renderCurrentScreen(
   }
 
   if (app.screen === "mission") {
-    if (debugState.showMissionHud && app.missionResult === null) {
-      screenRoot.appendChild(gameplayHud.getElement());
-    }
-
     const tutorialModal = app.tutorialController
       ? createTutorialModal({
           controller: app.tutorialController,
@@ -2615,6 +2837,20 @@ function renderCurrentScreen(
         })
       : null;
     const tutorialBlocking = tutorialModal !== null;
+    const blockingMissionOverlay =
+      tutorialBlocking ||
+      (app.missionPaused && app.missionResult === null) ||
+      app.missionResult !== null;
+
+    gameplayHud.setSuspended(blockingMissionOverlay);
+
+    if (debugState.showMissionHud && app.missionResult === null && !blockingMissionOverlay) {
+      screenRoot.appendChild(gameplayHud.getElement());
+    }
+
+    if (blockingMissionOverlay) {
+      screenRoot.classList.add("has-blocking-overlay");
+    }
     if (tutorialModal) {
       const tutorialWrapper = wrapCenteredModal(tutorialModal);
       tutorialWrapper.classList.add("tutorial-modal-backdrop");
@@ -2675,75 +2911,163 @@ function renderCurrentScreen(
         ? Math.max(0, telemetry.currentWaveIndex - (telemetry.activeWaveInProgress ? 1 : 0))
         : 0;
       const totalWaves = telemetry?.totalWaveCount ?? 0;
-
-      const resultPanel = document.createElement("div");
-      resultPanel.className = `panel ui-panel menu-panel mission-overlay-panel campaign-shell mission-result-shell ${isVictory ? "is-victory" : "is-defeat"}`;
-      resultPanel.appendChild(
-        createCampaignScreenHeader(
-          isVictory ? "Mission Victory" : "Mission Defeat",
-          isVictory ? "Operation Success" : "Operation Failed",
-        ),
-      );
-
-      const hero = document.createElement("section");
-      hero.className = "mission-result-hero";
-      const emblem = document.createElement("div");
-      emblem.className = "mission-result-emblem";
-      emblem.textContent = isVictory ? "V" : "X";
-      const heroCopy = document.createElement("div");
-      const heroTitle = document.createElement("h3");
-      heroTitle.className = "mission-result-title";
-      heroTitle.textContent = isVictory ? "Control Secured" : "Control Breached";
-      const heroSubtitle = document.createElement("p");
-      heroSubtitle.className = "mission-result-subtitle";
-      heroSubtitle.textContent = app.activeMissionContext?.mode === "campaign"
+      const modeLabel = app.activeMissionContext?.mode === "campaign"
+        ? "Campaign"
+        : app.activeMissionContext?.mode === "skirmish"
+          ? "Local Multiplayer"
+          : "Run";
+      const missionLabel = getMissionHudTitle(app);
+      const reportSubtitle = app.activeMissionContext?.mode === "campaign"
         ? "Campaign mission report complete."
         : app.activeMissionContext?.mode === "skirmish"
           ? "Skirmish combat report complete."
           : "Run mission report complete.";
-      heroCopy.append(heroTitle, heroSubtitle);
-      hero.append(emblem, heroCopy);
-      resultPanel.appendChild(hero);
-
-      const stats = document.createElement("div");
-      stats.className = "mission-result-stats";
-      stats.append(
-        createMissionResultStat(
-          "Mode",
-          app.activeMissionContext?.mode === "campaign"
-            ? "Campaign"
-            : app.activeMissionContext?.mode === "skirmish"
-              ? "Local Multiplayer"
-              : "Run",
-        ),
-        createMissionResultStat("Outcome", isVictory ? "Victory" : "Defeat"),
-        createMissionResultStat("Wave Progress", totalWaves > 0 ? `${completedWaves}/${totalWaves}` : "--"),
-        createMissionResultStat(
-          "Gold Reward",
-          app.activeMissionContext?.mode === "campaign"
-            ? "Progress Unlocks"
-            : app.activeMissionContext?.mode === "skirmish"
-              ? "--"
-              : `${rewardValue}`,
-        ),
-      );
-      resultPanel.appendChild(stats);
-
-      const notes = document.createElement("section");
-      notes.className = "mission-result-notes";
-      notes.appendChild(createMissionHudLabel("Mission Notes"));
-      const noteLine = document.createElement("p");
-      noteLine.className = "mission-result-note-line";
-      noteLine.textContent = isVictory
+      const waveProgressValue = totalWaves > 0 ? `${completedWaves}/${totalWaves}` : "--";
+      const waveProgressMeta = totalWaves > 0
+        ? completedWaves >= totalWaves
+          ? "All waves cleared."
+          : `${Math.max(totalWaves - completedWaves, 0)} remaining.`
+        : "Wave telemetry unavailable.";
+      const waveProgressPercent = totalWaves > 0
+        ? clamp((completedWaves / totalWaves) * 100, 0, 100)
+        : 0;
+      const rewardLabel = app.activeMissionContext?.mode === "campaign"
+        ? "Progress Unlocks"
+        : app.activeMissionContext?.mode === "skirmish"
+          ? "--"
+          : `${rewardValue}`;
+      const rewardMeta = app.activeMissionContext?.mode === "campaign"
+        ? "Campaign rewards resolve on the operation map."
+        : app.activeMissionContext?.mode === "skirmish"
+          ? "Skirmish matches do not award run gold."
+          : isVictory
+            ? "Mission payout secured."
+            : "Mission payout archived with this result.";
+      const noteText = isVictory
         ? "Commander update: objective complete. Reposition for the next operation."
         : "Commander update: regroup, tune links, and redeploy.";
-      notes.appendChild(noteLine);
-      resultPanel.appendChild(notes);
+
+      const resultPanel = document.createElement("div");
+      resultPanel.className = `panel ui-panel menu-panel mission-overlay-panel campaign-shell mission-result-shell ${isVictory ? "is-victory" : "is-defeat"}`;
+
+      if (isVictory) {
+        const hero = document.createElement("section");
+        hero.className = "mission-result-hero";
+        const heroKicker = document.createElement("p");
+        heroKicker.className = "mission-result-kicker";
+        heroKicker.textContent = modeLabel;
+        const heroDisplay = document.createElement("h1");
+        heroDisplay.className = "mission-result-display";
+        heroDisplay.textContent = "Victory";
+        const heroSubtitle = document.createElement("p");
+        heroSubtitle.className = "mission-result-subtitle";
+        heroSubtitle.textContent = reportSubtitle;
+        hero.append(heroKicker, heroDisplay, createMissionResultPill(missionLabel), heroSubtitle);
+        resultPanel.appendChild(hero);
+
+        const reportCard = document.createElement("section");
+        reportCard.className = "mission-result-card";
+
+        const reportBody = document.createElement("div");
+        reportBody.className = "mission-result-card-body";
+        reportBody.append(
+          createMissionResultRow("Mission", missionLabel, {
+            badge: "M",
+            meta: "Operational focus",
+          }),
+          createMissionResultRow("Wave Progress", waveProgressValue, {
+            badge: "W",
+            meta: waveProgressMeta,
+            progressPercent: waveProgressPercent,
+          }),
+          createMissionResultRow("Gold Reward", rewardLabel, {
+            badge: "G",
+            meta: rewardMeta,
+          }),
+        );
+        reportCard.appendChild(reportBody);
+
+        const reportFooter = document.createElement("div");
+        reportFooter.className = "mission-result-card-footer";
+        const reportFooterText = document.createElement("p");
+        reportFooterText.className = "mission-result-card-footer-text";
+        reportFooterText.textContent = "Objective complete";
+        reportFooter.appendChild(reportFooterText);
+        reportCard.appendChild(reportFooter);
+        resultPanel.appendChild(reportCard);
+
+        const stats = document.createElement("div");
+        stats.className = "mission-result-summary-grid";
+        stats.append(
+          createMissionResultStat("Mode", modeLabel),
+          createMissionResultStat("Outcome", "Victory"),
+        );
+        resultPanel.appendChild(stats);
+
+        const notes = document.createElement("section");
+        notes.className = "mission-result-notes";
+        notes.appendChild(createMissionHudLabel("Mission Notes"));
+        const noteLine = document.createElement("p");
+        noteLine.className = "mission-result-note-line";
+        noteLine.textContent = noteText;
+        notes.appendChild(noteLine);
+        resultPanel.appendChild(notes);
+      } else {
+        const topBar = document.createElement("section");
+        topBar.className = "mission-defeat-topbar";
+        const topBarIcon = document.createElement("div");
+        topBarIcon.className = "mission-defeat-topbar-icon";
+        topBarIcon.textContent = "X";
+        const topBarTitle = document.createElement("p");
+        topBarTitle.className = "mission-defeat-topbar-title";
+        topBarTitle.textContent = "Game Over";
+        const topBarSpacer = document.createElement("div");
+        topBarSpacer.className = "mission-defeat-topbar-spacer";
+        topBar.append(topBarIcon, topBarTitle, topBarSpacer);
+        resultPanel.appendChild(topBar);
+
+        const hero = document.createElement("section");
+        hero.className = "mission-defeat-hero";
+        const heroDisplay = document.createElement("h1");
+        heroDisplay.className = "mission-defeat-display";
+        heroDisplay.textContent = "Defeat";
+        const heroRule = document.createElement("div");
+        heroRule.className = "mission-defeat-rule";
+        hero.append(heroDisplay, heroRule);
+        resultPanel.appendChild(hero);
+
+        const stats = document.createElement("div");
+        stats.className = "mission-defeat-stat-grid";
+        stats.append(
+          createMissionResultStat("Wave Progress", waveProgressValue, "compact"),
+          createMissionResultStat("Gold Reward", rewardLabel, "compact"),
+        );
+        resultPanel.appendChild(stats);
+
+        const hint = document.createElement("section");
+        hint.className = "mission-defeat-hint";
+        const hintHeader = document.createElement("div");
+        hintHeader.className = "mission-defeat-hint-header";
+        const hintBadge = document.createElement("div");
+        hintBadge.className = "mission-defeat-hint-badge";
+        hintBadge.textContent = "!";
+        const hintTitle = document.createElement("p");
+        hintTitle.className = "mission-defeat-hint-title";
+        hintTitle.textContent = "Tactical Note";
+        hintHeader.append(hintBadge, hintTitle);
+        const hintBody = document.createElement("p");
+        hintBody.className = "mission-defeat-hint-body";
+        hintBody.textContent = noteText;
+        hint.append(hintHeader, hintBody);
+        resultPanel.appendChild(hint);
+      }
 
       const actionRow = document.createElement("div");
       actionRow.className = "menu-footer campaign-footer mission-result-actions";
 
       if (app.activeMissionContext?.mode === "campaign") {
+        const retryBtn = createButton("Retry Mission", restartCurrentMission, { variant: "secondary" });
+        retryBtn.classList.add("campaign-footer-btn");
         const backToMissions = createButton("Back To Missions", () => {
           if (app.activeMissionContext?.mode !== "campaign") {
             openStageSelect();
@@ -2753,11 +3077,16 @@ function renderCurrentScreen(
           openMissionSelect(app.activeMissionContext.levelId);
         }, { variant: "primary", primaryAction: true, hotkey: "Enter" });
         backToMissions.classList.add("campaign-footer-btn");
-        actionRow.appendChild(backToMissions);
 
-        const retryBtn = createButton("Retry Mission", restartCurrentMission, { variant: "secondary" });
-        retryBtn.classList.add("campaign-footer-btn");
-        actionRow.appendChild(retryBtn);
+        if (isVictory) {
+          actionRow.append(backToMissions, retryBtn);
+        } else {
+          retryBtn.classList.add("mission-result-action-primary");
+          const upgradeBtn = createButton("Upgrade Shop", openMetaScreenFromDefeat, { variant: "secondary" });
+          upgradeBtn.classList.add("campaign-footer-btn", "mission-result-action-secondary");
+          backToMissions.classList.add("mission-result-action-secondary");
+          actionRow.append(retryBtn, upgradeBtn, backToMissions);
+        }
 
         const stageBtn = createButton("Stage Select", openStageSelect, { variant: "ghost", escapeAction: true, hotkey: "Esc" });
         stageBtn.classList.add("campaign-footer-btn");
@@ -2769,14 +3098,21 @@ function renderCurrentScreen(
           hotkey: "Enter",
         });
         retryBtn.classList.add("campaign-footer-btn");
-        actionRow.appendChild(retryBtn);
         const mainMenuBtn = createButton("Main Menu", openMainMenu, {
           variant: "ghost",
           escapeAction: true,
           hotkey: "Esc",
         });
         mainMenuBtn.classList.add("campaign-footer-btn");
-        actionRow.appendChild(mainMenuBtn);
+        if (!isVictory) {
+          retryBtn.classList.add("mission-result-action-primary");
+          const upgradeBtn = createButton("Upgrade Shop", openMetaScreenFromDefeat, { variant: "secondary" });
+          upgradeBtn.classList.add("campaign-footer-btn", "mission-result-action-secondary");
+          mainMenuBtn.classList.add("mission-result-action-secondary");
+          actionRow.append(retryBtn, upgradeBtn, mainMenuBtn);
+        } else {
+          actionRow.append(retryBtn, mainMenuBtn);
+        }
       } else {
         if (isVictory && app.runState && app.runState.currentMissionIndex < app.runState.missions.length) {
           const continueBtn = createButton("Continue To Run Map", openRunMap, {
@@ -2801,14 +3137,25 @@ function renderCurrentScreen(
         if (canRestartMission) {
           const restartBtn = createButton("Restart Mission", restartCurrentMission, { variant: "secondary" });
           restartBtn.classList.add("campaign-footer-btn");
+          if (!isVictory) {
+            restartBtn.classList.add("mission-result-action-primary");
+            const upgradeBtn = createButton("Upgrade Shop", openMetaScreenFromDefeat, { variant: "secondary" });
+            upgradeBtn.classList.add("campaign-footer-btn", "mission-result-action-secondary");
+            actionRow.appendChild(upgradeBtn);
+          }
           actionRow.appendChild(restartBtn);
         }
         const mainMenuBtn = createButton("Main Menu", openMainMenu, { variant: "ghost", escapeAction: true, hotkey: "Esc" });
         mainMenuBtn.classList.add("campaign-footer-btn");
+        if (!isVictory) {
+          mainMenuBtn.classList.add("mission-result-action-secondary");
+        }
         actionRow.appendChild(mainMenuBtn);
       }
       resultPanel.appendChild(actionRow);
-      screenRoot.appendChild(wrapCentered(resultPanel));
+      const resultWrapper = wrapCenteredModal(resultPanel);
+      resultWrapper.classList.add("mission-result-backdrop");
+      screenRoot.appendChild(resultWrapper);
     }
     return;
   }
@@ -2870,9 +3217,19 @@ function renderCurrentScreen(
 
 function syncMissionHud(app: AppState, debugState: DebugUiState, gameplayHud: GameplayHUD): void {
   if (app.screen !== "mission" || !app.game || app.missionResult || !debugState.showMissionHud) {
+    gameplayHud.setAuxiliaryVisibility({
+      waveIntelVisible: false,
+      alertsVisible: false,
+    });
     gameplayHud.clearOverlays();
     return;
   }
+
+  const isSkirmish = app.activeMissionContext?.mode === "skirmish";
+  gameplayHud.setAuxiliaryVisibility({
+    waveIntelVisible: !isSkirmish,
+    alertsVisible: !isSkirmish,
+  });
 
   const telemetry = app.game.getWaveTelemetry();
   const world = app.game.getWorld();
@@ -3326,6 +3683,9 @@ function resolveTowerArchetypesFromEditorSnapshot(defaultCatalog: TowerArchetype
 }
 
 function parseTowerArchetypeCatalogFromEditorSnapshot(): TowerArchetypeCatalog | null {
+  if (!LEVEL_EDITOR_ENABLED) {
+    return null;
+  }
   if (typeof localStorage === "undefined") {
     return null;
   }
@@ -3457,6 +3817,9 @@ function resolveWaveContentFromEditorSnapshot(defaultContent: LoadedWaveContent)
 }
 
 function parseCampaignSpecFromEditorSnapshot(): CampaignSpecV2 | null {
+  if (!LEVEL_EDITOR_ENABLED) {
+    return null;
+  }
   if (typeof localStorage === "undefined") {
     return null;
   }
@@ -3490,6 +3853,9 @@ function parseCampaignSpecFromEditorSnapshot(): CampaignSpecV2 | null {
 }
 
 function parseEnemyCatalogFromEditorSnapshot(): EnemyCatalog | null {
+  if (!LEVEL_EDITOR_ENABLED) {
+    return null;
+  }
   if (typeof localStorage === "undefined") {
     return null;
   }
@@ -3694,6 +4060,22 @@ function createMissionLevel(
   level.rules.linkDecayCanBreak = difficultyContext.simulation.linkDecayCanBreak;
 
   level.ai.aiMinTroopsToAttack = Math.max(5, level.ai.aiMinTroopsToAttack / mapDifficultyScalar);
+  return level;
+}
+
+function createSkirmishLevel(
+  baseLevel: LoadedLevel,
+  towerArchetypes: TowerArchetypeCatalog,
+): LoadedLevel {
+  const level = cloneLoadedLevel(baseLevel);
+  for (const tower of level.towers) {
+    applyTowerArchetypeModifiers(tower, towerArchetypes);
+    tower.maxTroops = Math.max(1, tower.maxTroops);
+    tower.troops = Math.min(tower.maxTroops, tower.troops);
+    tower.baseMaxTroops = tower.maxTroops;
+    tower.baseRegen = tower.regenRate;
+    tower.baseRegenRate = tower.regenRate;
+  }
   return level;
 }
 
@@ -4078,6 +4460,135 @@ function getMetaTreeAccent(index: number): { primary: string; soft: string; halo
   return palette[index % palette.length];
 }
 
+function getMetaTreePresentation(
+  treeId: string,
+  index: number,
+): {
+  navLabel: string;
+  navIcon: string;
+  iconGlyph: string;
+  titleLead: string;
+  titleAccent: string;
+  accent: { primary: string; soft: string; halo: string; softRgb: string };
+} {
+  const accent = getMetaTreeAccent(index);
+  const withRgb = {
+    ...accent,
+    softRgb: accent.primary === "#6ea8ff"
+      ? "110, 168, 255"
+      : accent.primary === "#34d399"
+        ? "52, 211, 153"
+        : accent.primary === "#f59e0b"
+          ? "245, 158, 11"
+          : "192, 132, 252",
+  };
+  switch (treeId) {
+    case "OFFENSE":
+      return {
+        navLabel: "Offense",
+        navIcon: "R",
+        iconGlyph: "N",
+        titleLead: "Offensive",
+        titleAccent: "Systems",
+        accent: withRgb,
+      };
+    case "ECONOMY":
+      return {
+        navLabel: "Economy",
+        navIcon: "$",
+        iconGlyph: "$",
+        titleLead: "Economy",
+        titleAccent: "Systems",
+        accent: withRgb,
+      };
+    case "TACTICAL":
+      return {
+        navLabel: "Tactical",
+        navIcon: "T",
+        iconGlyph: "T",
+        titleLead: "Tactical",
+        titleAccent: "Systems",
+        accent: withRgb,
+      };
+    default:
+      return {
+        navLabel: treeId,
+        navIcon: treeId.charAt(0).toUpperCase(),
+        iconGlyph: treeId.charAt(0).toUpperCase(),
+        titleLead: treeId,
+        titleAccent: "Systems",
+        accent: withRgb,
+      };
+  }
+}
+
+function summarizeMetaTree(
+  profile: MetaProfile,
+  tree: { nodes: readonly MetaUpgradeNodeDefinition[] },
+): { earnedRanks: number; maxRanks: number; unlockedNodes: number; progressPercent: number } {
+  let earnedRanks = 0;
+  let maxRanks = 0;
+  let unlockedNodes = 0;
+  for (const node of tree.nodes) {
+    const rank = getPurchasedRank(profile, node.id);
+    earnedRanks += rank;
+    maxRanks += node.maxRank;
+    if (rank > 0) {
+      unlockedNodes += 1;
+    }
+  }
+  return {
+    earnedRanks,
+    maxRanks,
+    unlockedNodes,
+    progressPercent: maxRanks > 0 ? Math.round((earnedRanks / maxRanks) * 100) : 0,
+  };
+}
+
+function areMetaNodePrereqsMet(profile: MetaProfile, node: MetaUpgradeNodeDefinition): boolean {
+  for (const prereq of node.prereqs) {
+    if (getPurchasedRank(profile, prereq.nodeId) < prereq.minRank) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function getMetaNodeIcon(treeId: string, node: MetaUpgradeNodeDefinition): string {
+  const effectType = node.effects[0]?.type ?? "";
+  if (effectType.includes("DAMAGE")) {
+    return "B";
+  }
+  if (effectType.includes("SPEED")) {
+    return "S";
+  }
+  if (effectType.includes("ARMOR")) {
+    return "A";
+  }
+  if (effectType.includes("REGEN")) {
+    return "+";
+  }
+  if (effectType.includes("LINK")) {
+    return "L";
+  }
+  if (effectType.includes("SKILL")) {
+    return "*";
+  }
+  if (effectType.includes("GLORY")) {
+    return "$";
+  }
+  if (effectType.includes("CAPTURE")) {
+    return "C";
+  }
+  if (treeId === "ECONOMY") {
+    return "$";
+  }
+  if (treeId === "TACTICAL") {
+    return "T";
+  }
+  return "O";
+}
+
 function formatMetaNodeLabel(nodeId: string): string {
   return nodeId
     .split("-")
@@ -4134,9 +4645,12 @@ function createMissionHudLabel(text: string): HTMLParagraphElement {
   return label;
 }
 
-function createMissionResultStat(label: string, value: string): HTMLDivElement {
+function createMissionResultStat(label: string, value: string, variant: "default" | "compact" = "default"): HTMLDivElement {
   const card = document.createElement("div");
   card.className = "mission-result-stat";
+  if (variant === "compact") {
+    card.classList.add("is-compact");
+  }
 
   const title = document.createElement("p");
   title.className = "mission-result-stat-label";
@@ -4148,6 +4662,69 @@ function createMissionResultStat(label: string, value: string): HTMLDivElement {
 
   card.append(title, body);
   return card;
+}
+
+function createMissionResultPill(text: string): HTMLParagraphElement {
+  const pill = document.createElement("p");
+  pill.className = "mission-result-context";
+  pill.textContent = text;
+  return pill;
+}
+
+function createMissionResultRow(
+  label: string,
+  value: string,
+  options: {
+    badge?: string;
+    meta?: string;
+    progressPercent?: number;
+  } = {},
+): HTMLDivElement {
+  const row = document.createElement("div");
+  row.className = "mission-result-row";
+
+  if (options.badge) {
+    const badge = document.createElement("div");
+    badge.className = "mission-result-row-badge";
+    badge.textContent = options.badge;
+    row.appendChild(badge);
+  }
+
+  const copy = document.createElement("div");
+  copy.className = "mission-result-row-copy";
+
+  const title = document.createElement("p");
+  title.className = "mission-result-row-label";
+  title.textContent = label;
+
+  const body = document.createElement("p");
+  body.className = "mission-result-row-value";
+  body.textContent = value;
+
+  copy.append(title, body);
+
+  if (options.meta) {
+    const meta = document.createElement("p");
+    meta.className = "mission-result-row-meta";
+    meta.textContent = options.meta;
+    copy.appendChild(meta);
+  }
+
+  row.appendChild(copy);
+
+  if (typeof options.progressPercent === "number") {
+    const progress = document.createElement("div");
+    progress.className = "mission-result-progress";
+
+    const fill = document.createElement("div");
+    fill.className = "mission-result-progress-bar";
+    fill.style.width = `${clamp(options.progressPercent, 0, 100)}%`;
+
+    progress.appendChild(fill);
+    row.appendChild(progress);
+  }
+
+  return row;
 }
 
 function getMissionHudTitle(app: AppState): string {

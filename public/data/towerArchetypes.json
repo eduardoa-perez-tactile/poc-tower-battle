@@ -26,7 +26,15 @@
       "auraRegenBonusPct": 0,
       "captureSpeedTakenMultiplierAdd": 0,
       "goldPerSecond": 0,
-      "recaptureBonusGold": 0
+      "recaptureBonusGold": 0,
+      "art": {
+        "atlasId": "buildings",
+        "spriteKey": "keep",
+        "frameIndex": 0,
+        "scale": 1,
+        "offsetX": 0,
+        "offsetY": 0
+      }
     },
     "BARRACKS": {
       "icon": "B",
@@ -40,7 +48,15 @@
       "auraRegenBonusPct": 0,
       "captureSpeedTakenMultiplierAdd": 0,
       "goldPerSecond": 0,
-      "recaptureBonusGold": 0
+      "recaptureBonusGold": 0,
+      "art": {
+        "atlasId": "buildings",
+        "spriteKey": "barracks",
+        "frameIndex": 0,
+        "scale": 1,
+        "offsetX": 0,
+        "offsetY": 0
+      }
     },
     "FORTRESS": {
       "icon": "F",
@@ -54,7 +70,15 @@
       "auraRegenBonusPct": 0,
       "captureSpeedTakenMultiplierAdd": -0.25,
       "goldPerSecond": 0,
-      "recaptureBonusGold": 0
+      "recaptureBonusGold": 0,
+      "art": {
+        "atlasId": "buildings",
+        "spriteKey": "guard_tower",
+        "frameIndex": 0,
+        "scale": 1,
+        "offsetX": 0,
+        "offsetY": 0
+      }
     },
     "RELAY": {
       "icon": "R",
@@ -68,7 +92,15 @@
       "auraRegenBonusPct": 0,
       "captureSpeedTakenMultiplierAdd": 0,
       "goldPerSecond": 0,
-      "recaptureBonusGold": 0
+      "recaptureBonusGold": 0,
+      "art": {
+        "atlasId": "buildings",
+        "spriteKey": "scout_tower",
+        "frameIndex": 0,
+        "scale": 1,
+        "offsetX": 0,
+        "offsetY": 0
+      }
     },
     "BANK": {
       "icon": "$",
@@ -82,7 +114,15 @@
       "auraRegenBonusPct": 0,
       "captureSpeedTakenMultiplierAdd": 0,
       "goldPerSecond": 2.5,
-      "recaptureBonusGold": 25
+      "recaptureBonusGold": 25,
+      "art": {
+        "atlasId": "buildings",
+        "spriteKey": "foundry",
+        "frameIndex": 0,
+        "scale": 1,
+        "offsetX": 0,
+        "offsetY": 0
+      }
     },
     "OBELISK": {
       "icon": "O",
@@ -96,7 +136,15 @@
       "auraRegenBonusPct": 0.1,
       "captureSpeedTakenMultiplierAdd": 0,
       "goldPerSecond": 0,
-      "recaptureBonusGold": 0
+      "recaptureBonusGold": 0,
+      "art": {
+        "atlasId": "buildings",
+        "spriteKey": "mage_tower",
+        "frameIndex": 0,
+        "scale": 1,
+        "offsetX": 0,
+        "offsetY": 0
+      }
     }
   }
 }
