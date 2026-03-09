@@ -240,7 +240,6 @@ const LEVEL_EDITOR_WORKSPACE_STORAGE_KEY = "tower-battle.level-editor.workspace.
 const TOWER_ARCHETYPE_DOC_PATH = "/data/towerArchetypes.json";
 const CAMPAIGN_DOC_PATH = "/data/campaign/campaign_v2.json";
 const SKIRMISH_MODE_ID = "skirmish";
-const EDITOR_SNAPSHOT_OVERRIDE_QUERY = "editorSnapshot";
 void bootstrap();
 
 async function bootstrap(): Promise<void> {
@@ -3684,7 +3683,7 @@ function resolveTowerArchetypesFromEditorSnapshot(defaultCatalog: TowerArchetype
 }
 
 function parseTowerArchetypeCatalogFromEditorSnapshot(): TowerArchetypeCatalog | null {
-  if (!isEditorSnapshotOverrideEnabled()) {
+  if (!LEVEL_EDITOR_ENABLED) {
     return null;
   }
   if (typeof localStorage === "undefined") {
@@ -3818,7 +3817,7 @@ function resolveWaveContentFromEditorSnapshot(defaultContent: LoadedWaveContent)
 }
 
 function parseCampaignSpecFromEditorSnapshot(): CampaignSpecV2 | null {
-  if (!isEditorSnapshotOverrideEnabled()) {
+  if (!LEVEL_EDITOR_ENABLED) {
     return null;
   }
   if (typeof localStorage === "undefined") {
@@ -3854,7 +3853,7 @@ function parseCampaignSpecFromEditorSnapshot(): CampaignSpecV2 | null {
 }
 
 function parseEnemyCatalogFromEditorSnapshot(): EnemyCatalog | null {
-  if (!isEditorSnapshotOverrideEnabled()) {
+  if (!LEVEL_EDITOR_ENABLED) {
     return null;
   }
   if (typeof localStorage === "undefined") {
@@ -3886,17 +3885,6 @@ function parseEnemyCatalogFromEditorSnapshot(): EnemyCatalog | null {
     return catalog;
   } catch {
     return null;
-  }
-}
-
-function isEditorSnapshotOverrideEnabled(): boolean {
-  if (!LEVEL_EDITOR_ENABLED || typeof window === "undefined") {
-    return false;
-  }
-  try {
-    return new URLSearchParams(window.location.search).get(EDITOR_SNAPSHOT_OVERRIDE_QUERY) === "1";
-  } catch {
-    return false;
   }
 }
 

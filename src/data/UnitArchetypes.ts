@@ -6,7 +6,6 @@ export const UNIT_ARCHETYPES_UPDATED_EVENT = "tower-battle:unit-archetypes-updat
 
 const LEVEL_EDITOR_WORKSPACE_STORAGE_KEY = "tower-battle.level-editor.workspace.v1";
 const FACINGS: UnitSpriteFacing[] = ["up", "down", "left", "right"];
-const EDITOR_SNAPSHOT_OVERRIDE_QUERY = "editorSnapshot";
 
 export interface UnitWalkAnimationOverride {
   spriteKey: string;
@@ -234,9 +233,6 @@ function parseOptionalFrames(value: unknown, field: string): number[] | undefine
 }
 
 export function parseUnitArchetypeCatalogFromEditorSnapshot(): UnitArchetypeCatalog | null {
-  if (!isEditorSnapshotOverrideEnabled()) {
-    return null;
-  }
   if (typeof localStorage === "undefined") {
     return null;
   }
@@ -264,17 +260,6 @@ export function parseUnitArchetypeCatalogFromEditorSnapshot(): UnitArchetypeCata
     return parseUnitArchetypeCatalog(JSON.parse(unitDoc.currentRaw) as unknown, "editor-snapshot");
   } catch {
     return null;
-  }
-}
-
-function isEditorSnapshotOverrideEnabled(): boolean {
-  if (!import.meta.env.DEV || typeof window === "undefined") {
-    return false;
-  }
-  try {
-    return new URLSearchParams(window.location.search).get(EDITOR_SNAPSHOT_OVERRIDE_QUERY) === "1";
-  } catch {
-    return false;
   }
 }
 
