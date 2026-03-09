@@ -7,6 +7,7 @@
 import { cloneTilePalette, computeShorelineMask, hasTilePaletteOverrides, normalizeShorelineMaskMap } from "../levels/TilePalette";
 import type { LevelTilePalette } from "../levels/types";
 import type { LevelJson, LevelNode, LevelSizePreset, LevelSourceEntry, StageRegistryEntry } from "../levels/types";
+import { TowerArchetype } from "../sim/DepthTypes";
 import { toPublicPath } from "../utils/publicPath";
 import type {
   CampaignMapDefinition,
@@ -35,13 +36,12 @@ const TILE_SHORE_CORNER_NE = TILE_SHORE_NORTH;
 const TILE_SHORE_CORNER_SW = TILE_SHORE_SOUTH;
 const TILE_SHORE_CORNER_SE = 373;
 const TILE_FLOWER = 74;
-const NEUTRAL_SPRITE_CYCLE = [
-  "barracks",
-  "guard_tower",
-  "scout_tower",
-  "foundry",
-  "mage_tower",
-] as const;
+const NEUTRAL_ARCHETYPE_CYCLE: readonly TowerArchetype[] = [
+  TowerArchetype.BARRACKS,
+  TowerArchetype.RELAY,
+  TowerArchetype.BANK,
+  TowerArchetype.OBELISK,
+];
 
 export interface CampaignRegistryV2 {
   stages: StageRegistryEntry[];
@@ -167,6 +167,7 @@ export function buildLevelJsonFromCampaignMap(
 
   const nodes: LevelNode[] = map.nodes.map((node) => {
     const isStronghold = node.id === playerAnchor || node.id === enemyAnchor;
+    const archetype = resolveCampaignNodeArchetype(node, playerAnchor, enemyAnchor);
     return {
       id: node.id,
       x: Math.max(0, Math.min(width - 1, Math.round(node.x))),
@@ -176,6 +177,7 @@ export function buildLevelJsonFromCampaignMap(
       regen: node.regen,
       cap: node.cap,
       troops: defaultTroops(node.owner, isStronghold),
+      archetype,
     };
   });
 
@@ -233,7 +235,6 @@ export function buildLevelJsonFromCampaignMap(
       },
     },
     terrain: createCampaignTerrain(map, tilePalette),
-    visuals: createCampaignVisuals(map, playerAnchor, enemyAnchor),
     ...(tilePalette ? { tilePalette: cloneTilePalette(tilePalette) } : {}),
   };
 }
@@ -268,6 +269,23 @@ function defaultTroops(owner: "player" | "enemy" | "neutral", stronghold: boolea
     return stronghold ? 34 : 22;
   }
   return 16;
+}
+
+function resolveCampaignNodeArchetype(
+  node: CampaignMapDefinition["nodes"][number],
+  playerAnchor: string,
+  enemyAnchor: string,
+): TowerArchetype {
+  if (node.id === playerAnchor || node.id === enemyAnchor) {
+    return TowerArchetype.STRONGHOLD;
+  }
+  if (node.owner === "player" || node.owner === "enemy") {
+    return node.tier >= 2 ? TowerArchetype.FORTRESS : TowerArchetype.BARRACKS;
+  }
+  if (node.tier >= 2) {
+    return TowerArchetype.OBELISK;
+  }
+  return NEUTRAL_ARCHETYPE_CYCLE[hashSeed(node.id) % NEUTRAL_ARCHETYPE_CYCLE.length];
 }
 
 function toMissionKey(stageId: string, levelId: string, missionId: string): string {
@@ -511,53 +529,6 @@ function createCampaignTerrain(
       deco,
     },
   };
-}
-
-function createCampaignVisuals(
-  map: CampaignMapDefinition,
-  playerAnchor: string,
-  enemyAnchor: string,
-): LevelJson["visuals"] {
-  const towers: NonNullable<LevelJson["visuals"]>["towers"] = {};
-
-  for (const node of map.nodes) {
-    towers[node.id] = {
-      spriteKey: resolveSpriteKey(node, playerAnchor, enemyAnchor),
-      frameIndex: 0,
-      scale: 1,
-    };
-  }
-
-  return {
-    towerDefaults: {
-      spriteKey: "barracks",
-      frameIndex: 0,
-    },
-    towers,
-  };
-}
-
-function resolveSpriteKey(
-  node: CampaignMapDefinition["nodes"][number],
-  playerAnchor: string,
-  enemyAnchor: string,
-): string {
-  if (node.id === playerAnchor) {
-    return "keep";
-  }
-  if (node.id === enemyAnchor) {
-    return "keep";
-  }
-  if (node.owner === "player") {
-    return node.tier >= 2 ? "guard_tower" : "barracks";
-  }
-  if (node.owner === "enemy") {
-    return node.tier >= 2 ? "guard_tower" : "barracks";
-  }
-  if (node.tier >= 2) {
-    return "mage_tower";
-  }
-  return NEUTRAL_SPRITE_CYCLE[hashSeed(node.id) % NEUTRAL_SPRITE_CYCLE.length];
 }
 
 type RoadShape = "straight" | "corner" | "t" | "cross";
