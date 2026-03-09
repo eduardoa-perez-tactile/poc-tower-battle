@@ -36,12 +36,6 @@ const TILE_SHORE_CORNER_NE = TILE_SHORE_NORTH;
 const TILE_SHORE_CORNER_SW = TILE_SHORE_SOUTH;
 const TILE_SHORE_CORNER_SE = 373;
 const TILE_FLOWER = 74;
-const NEUTRAL_ARCHETYPE_CYCLE: readonly TowerArchetype[] = [
-  TowerArchetype.BARRACKS,
-  TowerArchetype.RELAY,
-  TowerArchetype.BANK,
-  TowerArchetype.OBELISK,
-];
 
 export interface CampaignRegistryV2 {
   stages: StageRegistryEntry[];
@@ -285,7 +279,7 @@ function resolveCampaignNodeArchetype(
   if (node.tier >= 2) {
     return TowerArchetype.OBELISK;
   }
-  return NEUTRAL_ARCHETYPE_CYCLE[hashSeed(node.id) % NEUTRAL_ARCHETYPE_CYCLE.length];
+  return TowerArchetype.BARRACKS;
 }
 
 function toMissionKey(stageId: string, levelId: string, missionId: string): string {
