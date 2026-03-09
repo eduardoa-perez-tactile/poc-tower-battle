@@ -1304,8 +1304,8 @@
           grid-template-columns: 1fr;
         }
 
-        .mission-result-stats {
-          grid-template-columns: repeat(2, minmax(0, 1fr));
+        .mission-result-summary-grid {
+          grid-template-columns: 1fr;
         }
 
         .campaign-footer-btn {
@@ -2812,6 +2812,11 @@
         justify-items: center;
       }
 
+      .centered-modal > .mission-result-shell {
+        align-self: start;
+        margin: 8px 0;
+      }
+
       .tutorial-modal-backdrop {
         background: rgba(3, 9, 18, 0.76);
         backdrop-filter: blur(2px);
@@ -3205,112 +3210,447 @@
       }
 
       .mission-result-shell {
-        width: min(92vw, 760px);
+        width: min(92vw, 540px);
         display: grid;
-        gap: 10px;
+        gap: 12px;
+        position: relative;
+        overflow: hidden auto;
+        overflow-y: auto;
+        max-height: calc(100vh - 28px);
+        padding: 20px 18px 18px;
+        font-family: "Space Grotesk", "Avenir Next", "Trebuchet MS", "Segoe UI", sans-serif;
         background:
-          radial-gradient(420px 220px at 16% -14%, rgba(43, 108, 238, 0.2), transparent),
-          linear-gradient(160deg, rgba(10, 20, 34, 0.95), rgba(7, 14, 26, 0.96));
+          radial-gradient(320px 180px at 50% 0%, rgba(58, 130, 246, 0.1), transparent),
+          linear-gradient(180deg, rgba(9, 18, 34, 0.96), rgba(7, 14, 28, 0.98));
+        border: 1px solid rgba(74, 132, 220, 0.26);
+        box-shadow: 0 30px 80px rgba(2, 9, 19, 0.6);
+      }
+
+      .mission-result-shell::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        background:
+          linear-gradient(to right, rgba(43, 108, 238, 0.07) 1px, transparent 1px),
+          linear-gradient(to bottom, rgba(43, 108, 238, 0.07) 1px, transparent 1px);
+        background-size: 32px 32px;
+        opacity: 0.45;
       }
 
       .mission-result-shell.is-victory {
-        border-color: rgba(74, 222, 128, 0.35);
+        border-color: rgba(70, 202, 214, 0.42);
       }
 
       .mission-result-shell.is-defeat {
-        border-color: rgba(248, 113, 113, 0.35);
+        border-color: rgba(248, 113, 113, 0.4);
       }
 
       .mission-result-hero {
-        border-radius: 12px;
-        border: 1px solid rgba(143, 181, 248, 0.24);
-        background: rgba(11, 21, 35, 0.78);
-        padding: 10px;
         display: grid;
-        grid-template-columns: auto 1fr;
-        gap: 10px;
-        align-items: center;
+        justify-items: center;
+        gap: 8px;
+        padding: 4px 10px 2px;
+        position: relative;
+        z-index: 1;
       }
 
-      .mission-result-emblem {
-        width: 42px;
-        height: 42px;
-        border-radius: 12px;
-        display: grid;
-        place-items: center;
-        font-size: 1rem;
-        font-weight: 800;
-        letter-spacing: 0.04em;
-        color: #f8fbff;
-        background: linear-gradient(150deg, rgba(43, 108, 238, 0.9), rgba(18, 45, 106, 0.95));
-      }
-
-      .mission-result-shell.is-victory .mission-result-emblem {
-        background: linear-gradient(150deg, rgba(34, 197, 94, 0.9), rgba(13, 85, 48, 0.95));
-      }
-
-      .mission-result-shell.is-defeat .mission-result-emblem {
-        background: linear-gradient(150deg, rgba(239, 68, 68, 0.92), rgba(120, 28, 28, 0.95));
-      }
-
-      .mission-result-title {
+      .mission-result-kicker {
         margin: 0;
-        font-size: 1.04rem;
+        font-size: 0.72rem;
+        font-weight: 700;
+        letter-spacing: 0.28em;
+        text-transform: uppercase;
+        color: rgba(120, 188, 242, 0.86);
+      }
+
+      .mission-result-display {
+        margin: 0;
+        font-size: clamp(3.25rem, 12vw, 5.2rem);
+        line-height: 0.88;
+        letter-spacing: -0.06em;
+        text-transform: uppercase;
+        color: rgba(238, 247, 255, 0.98);
+        text-align: center;
+      }
+
+      .mission-result-context {
+        margin: 0;
+        font-size: 1.02rem;
+        font-weight: 700;
+        color: rgba(239, 245, 255, 0.94);
+        text-align: center;
       }
 
       .mission-result-subtitle {
-        margin: 3px 0 0;
-        font-size: 0.79rem;
-        color: rgba(209, 224, 248, 0.84);
+        margin: -2px 0 0;
+        font-size: 0.9rem;
+        line-height: 1.42;
+        color: rgba(209, 224, 248, 0.78);
+        text-align: center;
       }
 
-      .mission-result-stats {
+      .mission-result-card {
+        border-radius: 22px;
+        overflow: hidden;
+        border: 1px solid rgba(143, 181, 248, 0.14);
+        background:
+          linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.02)),
+          rgba(10, 18, 31, 0.78);
+        position: relative;
+        z-index: 1;
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.02);
+      }
+
+      .mission-result-card-body {
         display: grid;
-        grid-template-columns: repeat(4, minmax(0, 1fr));
-        gap: 8px;
+        gap: 10px;
+        padding: 14px;
+      }
+
+      .mission-result-row {
+        display: grid;
+        grid-template-columns: 46px minmax(0, 1fr);
+        gap: 12px 14px;
+        align-items: center;
+        padding: 14px;
+        border-radius: 18px;
+        border: 1px solid rgba(143, 181, 248, 0.12);
+        background:
+          linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.01)),
+          rgba(11, 21, 35, 0.52);
+      }
+
+      .mission-result-row-badge {
+        width: 46px;
+        height: 46px;
+        border-radius: 14px;
+        display: grid;
+        place-items: center;
+        font-size: 0.92rem;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        color: rgba(235, 247, 255, 0.98);
+        border: 1px solid rgba(132, 215, 227, 0.28);
+        background:
+          radial-gradient(circle at 30% 28%, rgba(255, 255, 255, 0.16), transparent 34%),
+          linear-gradient(160deg, rgba(72, 212, 215, 0.88), rgba(17, 130, 173, 0.85));
+      }
+
+      .mission-result-row-copy {
+        display: grid;
+        gap: 4px;
+      }
+
+      .mission-result-row-label {
+        margin: 0;
+        font-size: 0.72rem;
+        font-weight: 700;
+        letter-spacing: 0.22em;
+        text-transform: uppercase;
+        color: rgba(176, 214, 249, 0.74);
+      }
+
+      .mission-result-row-value {
+        margin: 0;
+        font-size: 1.8rem;
+        line-height: 1;
+        font-weight: 700;
+        color: rgba(240, 247, 255, 0.98);
+      }
+
+      .mission-result-row-meta {
+        margin: 0;
+        font-size: 0.88rem;
+        line-height: 1.38;
+        color: rgba(191, 210, 240, 0.74);
+      }
+
+      .mission-result-progress {
+        grid-column: 1 / -1;
+        height: 8px;
+        border-radius: 999px;
+        overflow: hidden;
+        background: rgba(138, 163, 201, 0.16);
+      }
+
+      .mission-result-progress-bar {
+        height: 100%;
+        border-radius: inherit;
+        background: linear-gradient(90deg, rgba(43, 108, 238, 0.96), rgba(45, 212, 191, 0.96));
+        box-shadow: 0 0 16px rgba(45, 212, 191, 0.2);
+      }
+
+      .mission-result-card-footer {
+        padding: 12px 14px;
+        border-top: 1px solid rgba(143, 181, 248, 0.14);
+        background: rgba(70, 202, 214, 0.08);
+      }
+
+      .mission-result-card-footer-text {
+        margin: 0;
+        font-size: 0.74rem;
+        font-weight: 700;
+        letter-spacing: 0.3em;
+        text-transform: uppercase;
+        text-align: center;
+        color: rgba(125, 227, 255, 0.9);
+      }
+
+      .mission-result-summary-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+        position: relative;
+        z-index: 1;
       }
 
       .mission-result-stat {
-        border-radius: 10px;
-        border: 1px solid rgba(142, 180, 246, 0.2);
-        background: rgba(11, 21, 35, 0.76);
-        padding: 8px;
+        border-radius: 18px;
+        border: 1px solid rgba(142, 180, 246, 0.14);
+        background:
+          linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.01)),
+          rgba(10, 20, 34, 0.7);
+        padding: 14px;
         display: grid;
-        gap: 3px;
+        gap: 4px;
       }
 
       .mission-result-stat-label {
         margin: 0;
-        font-size: 0.63rem;
-        letter-spacing: 0.08em;
+        font-size: 0.72rem;
+        font-weight: 700;
+        letter-spacing: 0.18em;
         text-transform: uppercase;
-        color: rgba(191, 210, 240, 0.75);
+        color: rgba(191, 210, 240, 0.72);
       }
 
       .mission-result-stat-value {
         margin: 0;
-        font-size: 0.83rem;
-        color: rgba(235, 244, 255, 0.96);
+        font-size: 1.18rem;
+        font-weight: 700;
+        color: rgba(240, 247, 255, 0.98);
       }
 
       .mission-result-notes {
-        border-radius: 10px;
-        border: 1px solid rgba(142, 180, 246, 0.2);
-        background: rgba(10, 20, 34, 0.78);
-        padding: 9px;
+        border-radius: 18px;
+        border: 1px solid rgba(142, 180, 246, 0.14);
+        background:
+          linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.01)),
+          rgba(8, 17, 30, 0.72);
+        padding: 14px;
         display: grid;
-        gap: 5px;
+        gap: 8px;
+        position: relative;
+        z-index: 1;
       }
 
       .mission-result-note-line {
         margin: 0;
-        font-size: 0.8rem;
-        line-height: 1.34;
-        color: rgba(211, 226, 251, 0.84);
+        font-size: 0.88rem;
+        line-height: 1.45;
+        color: rgba(211, 226, 251, 0.82);
       }
 
       .mission-result-actions {
-        margin-top: 2px;
+        margin-top: 4px;
+        display: grid;
+        gap: 10px;
+        position: relative;
+        z-index: 1;
+      }
+
+      .mission-result-actions .campaign-footer-btn {
+        width: 100%;
+        min-height: 50px;
+        justify-content: center;
+        text-transform: uppercase;
+        letter-spacing: 0.16em;
+        font-size: 0.74rem;
+        font-weight: 700;
+        border-radius: 16px;
+      }
+
+      .mission-result-shell .ui-button-primary {
+        color: rgba(10, 20, 34, 0.98);
+        background: linear-gradient(135deg, rgba(114, 234, 255, 1), rgba(61, 201, 211, 1));
+        box-shadow: 0 10px 26px rgba(20, 184, 166, 0.18);
+      }
+
+      .mission-result-shell .ui-button-secondary {
+        background: rgba(255, 255, 255, 0.05);
+        border-color: rgba(141, 188, 255, 0.18);
+      }
+
+      .mission-result-shell .ui-button-ghost {
+        background: rgba(255, 255, 255, 0.03);
+        border-color: rgba(176, 201, 241, 0.12);
+      }
+
+      @media (max-width: 560px) {
+        .mission-result-shell {
+          width: min(94vw, 520px);
+          padding: 18px 14px 14px;
+        }
+
+        .mission-result-display {
+          font-size: clamp(2.7rem, 14vw, 4.3rem);
+        }
+
+        .mission-result-row-value {
+          font-size: 1.42rem;
+        }
+      }
+
+      @media (max-height: 900px) {
+        .mission-result-shell {
+          gap: 10px;
+          padding: 16px 14px 14px;
+          max-height: calc(100vh - 18px);
+        }
+
+        .mission-result-hero {
+          gap: 6px;
+          padding: 2px 8px 0;
+        }
+
+        .mission-result-display {
+          font-size: clamp(2.6rem, 9vw, 4rem);
+        }
+
+        .mission-result-card-body,
+        .mission-result-notes,
+        .mission-result-stat {
+          padding: 12px;
+        }
+
+        .mission-result-row {
+          grid-template-columns: 40px minmax(0, 1fr);
+          gap: 10px 12px;
+          padding: 12px;
+        }
+
+        .mission-result-row-badge {
+          width: 40px;
+          height: 40px;
+          border-radius: 12px;
+          font-size: 0.78rem;
+        }
+
+        .mission-result-row-label,
+        .mission-result-stat-label {
+          font-size: 0.64rem;
+        }
+
+        .mission-result-row-value {
+          font-size: 1.3rem;
+        }
+
+        .mission-result-row-meta,
+        .mission-result-note-line,
+        .mission-result-subtitle {
+          font-size: 0.8rem;
+        }
+
+        .mission-result-actions .campaign-footer-btn {
+          min-height: 44px;
+          font-size: 0.68rem;
+        }
+      }
+
+      @media (max-height: 820px) {
+        .centered-modal > .mission-result-shell {
+          margin: 4px 0;
+        }
+
+        .mission-result-shell {
+          gap: 8px;
+          max-height: calc(100vh - 8px);
+          padding: 12px 12px 10px;
+        }
+
+        .mission-result-kicker {
+          font-size: 0.64rem;
+          letter-spacing: 0.22em;
+        }
+
+        .mission-result-display {
+          font-size: clamp(2.15rem, 8vw, 3.15rem);
+        }
+
+        .mission-result-context {
+          font-size: 0.9rem;
+        }
+
+        .mission-result-subtitle {
+          margin-top: -4px;
+          font-size: 0.78rem;
+          line-height: 1.3;
+        }
+
+        .mission-result-card-body {
+          gap: 8px;
+          padding: 10px;
+        }
+
+        .mission-result-row {
+          grid-template-columns: 34px minmax(0, 1fr);
+          gap: 8px 10px;
+          padding: 10px;
+          border-radius: 14px;
+        }
+
+        .mission-result-row-badge {
+          width: 34px;
+          height: 34px;
+          border-radius: 10px;
+          font-size: 0.7rem;
+        }
+
+        .mission-result-row-label,
+        .mission-result-stat-label,
+        .mission-result-card-footer-text {
+          font-size: 0.58rem;
+          letter-spacing: 0.14em;
+        }
+
+        .mission-result-row-value {
+          font-size: 1.08rem;
+        }
+
+        .mission-result-row-meta,
+        .mission-result-note-line {
+          font-size: 0.72rem;
+          line-height: 1.28;
+        }
+
+        .mission-result-card-footer {
+          padding: 8px 10px;
+        }
+
+        .mission-result-summary-grid {
+          gap: 8px;
+        }
+
+        .mission-result-stat,
+        .mission-result-notes {
+          padding: 10px;
+          border-radius: 14px;
+        }
+
+        .mission-result-stat-value {
+          font-size: 0.96rem;
+        }
+
+        .mission-result-actions {
+          gap: 8px;
+        }
+
+        .mission-result-actions .campaign-footer-btn {
+          min-height: 40px;
+          font-size: 0.64rem;
+          letter-spacing: 0.12em;
+        }
       }
 
       .pause-panel {

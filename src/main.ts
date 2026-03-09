@@ -2704,57 +2704,92 @@ function renderCurrentScreen(
         ? Math.max(0, telemetry.currentWaveIndex - (telemetry.activeWaveInProgress ? 1 : 0))
         : 0;
       const totalWaves = telemetry?.totalWaveCount ?? 0;
-
-      const resultPanel = document.createElement("div");
-      resultPanel.className = `panel ui-panel menu-panel mission-overlay-panel campaign-shell mission-result-shell ${isVictory ? "is-victory" : "is-defeat"}`;
-      resultPanel.appendChild(
-        createCampaignScreenHeader(
-          isVictory ? "Mission Victory" : "Mission Defeat",
-          isVictory ? "Operation Success" : "Operation Failed",
-        ),
-      );
-
-      const hero = document.createElement("section");
-      hero.className = "mission-result-hero";
-      const emblem = document.createElement("div");
-      emblem.className = "mission-result-emblem";
-      emblem.textContent = isVictory ? "V" : "X";
-      const heroCopy = document.createElement("div");
-      const heroTitle = document.createElement("h3");
-      heroTitle.className = "mission-result-title";
-      heroTitle.textContent = isVictory ? "Control Secured" : "Control Breached";
-      const heroSubtitle = document.createElement("p");
-      heroSubtitle.className = "mission-result-subtitle";
-      heroSubtitle.textContent = app.activeMissionContext?.mode === "campaign"
+      const modeLabel = app.activeMissionContext?.mode === "campaign"
+        ? "Campaign"
+        : app.activeMissionContext?.mode === "skirmish"
+          ? "Local Multiplayer"
+          : "Run";
+      const missionLabel = getMissionHudTitle(app);
+      const reportSubtitle = app.activeMissionContext?.mode === "campaign"
         ? "Campaign mission report complete."
         : app.activeMissionContext?.mode === "skirmish"
           ? "Skirmish combat report complete."
           : "Run mission report complete.";
-      heroCopy.append(heroTitle, heroSubtitle);
-      hero.append(emblem, heroCopy);
+      const waveProgressValue = totalWaves > 0 ? `${completedWaves}/${totalWaves}` : "--";
+      const waveProgressMeta = totalWaves > 0
+        ? completedWaves >= totalWaves
+          ? "All waves cleared."
+          : `${Math.max(totalWaves - completedWaves, 0)} remaining.`
+        : "Wave telemetry unavailable.";
+      const waveProgressPercent = totalWaves > 0
+        ? clamp((completedWaves / totalWaves) * 100, 0, 100)
+        : 0;
+      const rewardLabel = app.activeMissionContext?.mode === "campaign"
+        ? "Progress Unlocks"
+        : app.activeMissionContext?.mode === "skirmish"
+          ? "--"
+          : `${rewardValue}`;
+      const rewardMeta = app.activeMissionContext?.mode === "campaign"
+        ? "Campaign rewards resolve on the operation map."
+        : app.activeMissionContext?.mode === "skirmish"
+          ? "Skirmish matches do not award run gold."
+          : isVictory
+            ? "Mission payout secured."
+            : "Mission payout archived with this result.";
+
+      const resultPanel = document.createElement("div");
+      resultPanel.className = `panel ui-panel menu-panel mission-overlay-panel campaign-shell mission-result-shell ${isVictory ? "is-victory" : "is-defeat"}`;
+
+      const hero = document.createElement("section");
+      hero.className = "mission-result-hero";
+      const heroKicker = document.createElement("p");
+      heroKicker.className = "mission-result-kicker";
+      heroKicker.textContent = modeLabel;
+      const heroDisplay = document.createElement("h1");
+      heroDisplay.className = "mission-result-display";
+      heroDisplay.textContent = isVictory ? "Victory" : "Defeat";
+      const heroSubtitle = document.createElement("p");
+      heroSubtitle.className = "mission-result-subtitle";
+      heroSubtitle.textContent = reportSubtitle;
+      hero.append(heroKicker, heroDisplay, createMissionResultPill(missionLabel), heroSubtitle);
       resultPanel.appendChild(hero);
 
+      const reportCard = document.createElement("section");
+      reportCard.className = "mission-result-card";
+
+      const reportBody = document.createElement("div");
+      reportBody.className = "mission-result-card-body";
+      reportBody.append(
+        createMissionResultRow("Mission", missionLabel, {
+          badge: "M",
+          meta: "Operational focus",
+        }),
+        createMissionResultRow("Wave Progress", waveProgressValue, {
+          badge: "W",
+          meta: waveProgressMeta,
+          progressPercent: waveProgressPercent,
+        }),
+        createMissionResultRow("Gold Reward", rewardLabel, {
+          badge: "G",
+          meta: rewardMeta,
+        }),
+      );
+      reportCard.appendChild(reportBody);
+
+      const reportFooter = document.createElement("div");
+      reportFooter.className = "mission-result-card-footer";
+      const reportFooterText = document.createElement("p");
+      reportFooterText.className = "mission-result-card-footer-text";
+      reportFooterText.textContent = isVictory ? "Objective complete" : "Regroup and redeploy";
+      reportFooter.appendChild(reportFooterText);
+      reportCard.appendChild(reportFooter);
+      resultPanel.appendChild(reportCard);
+
       const stats = document.createElement("div");
-      stats.className = "mission-result-stats";
+      stats.className = "mission-result-summary-grid";
       stats.append(
-        createMissionResultStat(
-          "Mode",
-          app.activeMissionContext?.mode === "campaign"
-            ? "Campaign"
-            : app.activeMissionContext?.mode === "skirmish"
-              ? "Local Multiplayer"
-              : "Run",
-        ),
+        createMissionResultStat("Mode", modeLabel),
         createMissionResultStat("Outcome", isVictory ? "Victory" : "Defeat"),
-        createMissionResultStat("Wave Progress", totalWaves > 0 ? `${completedWaves}/${totalWaves}` : "--"),
-        createMissionResultStat(
-          "Gold Reward",
-          app.activeMissionContext?.mode === "campaign"
-            ? "Progress Unlocks"
-            : app.activeMissionContext?.mode === "skirmish"
-              ? "--"
-              : `${rewardValue}`,
-        ),
       );
       resultPanel.appendChild(stats);
 
@@ -2837,7 +2872,7 @@ function renderCurrentScreen(
         actionRow.appendChild(mainMenuBtn);
       }
       resultPanel.appendChild(actionRow);
-      screenRoot.appendChild(wrapCentered(resultPanel));
+      screenRoot.appendChild(wrapCenteredModal(resultPanel));
     }
     return;
   }
@@ -4203,6 +4238,69 @@ function createMissionResultStat(label: string, value: string): HTMLDivElement {
 
   card.append(title, body);
   return card;
+}
+
+function createMissionResultPill(text: string): HTMLParagraphElement {
+  const pill = document.createElement("p");
+  pill.className = "mission-result-context";
+  pill.textContent = text;
+  return pill;
+}
+
+function createMissionResultRow(
+  label: string,
+  value: string,
+  options: {
+    badge?: string;
+    meta?: string;
+    progressPercent?: number;
+  } = {},
+): HTMLDivElement {
+  const row = document.createElement("div");
+  row.className = "mission-result-row";
+
+  if (options.badge) {
+    const badge = document.createElement("div");
+    badge.className = "mission-result-row-badge";
+    badge.textContent = options.badge;
+    row.appendChild(badge);
+  }
+
+  const copy = document.createElement("div");
+  copy.className = "mission-result-row-copy";
+
+  const title = document.createElement("p");
+  title.className = "mission-result-row-label";
+  title.textContent = label;
+
+  const body = document.createElement("p");
+  body.className = "mission-result-row-value";
+  body.textContent = value;
+
+  copy.append(title, body);
+
+  if (options.meta) {
+    const meta = document.createElement("p");
+    meta.className = "mission-result-row-meta";
+    meta.textContent = options.meta;
+    copy.appendChild(meta);
+  }
+
+  row.appendChild(copy);
+
+  if (typeof options.progressPercent === "number") {
+    const progress = document.createElement("div");
+    progress.className = "mission-result-progress";
+
+    const fill = document.createElement("div");
+    fill.className = "mission-result-progress-bar";
+    fill.style.width = `${clamp(options.progressPercent, 0, 100)}%`;
+
+    progress.appendChild(fill);
+    row.appendChild(progress);
+  }
+
+  return row;
 }
 
 function getMissionHudTitle(app: AppState): string {
