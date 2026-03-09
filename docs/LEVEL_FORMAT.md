@@ -143,6 +143,14 @@ A mission is the playable session config for that level.
 - `objectiveText`: UI objective copy
 - `difficulty`: optional mission scalar, defaults to `1`
 
+## Visuals overrides (optional)
+
+Level files may include a top-level `visuals` block with tower sprite overrides, but this is optional.
+
+- Preferred default: omit `visuals` so tower art resolves from shared archetype defaults.
+- Use `visuals` only for intentional, level-specific art exceptions.
+- Keeping `visuals` omitted across missions prevents sprite mismatches between campaign/skirmish and GitHub Pages builds.
+
 ## Validation behavior
 
 Loader validation fails with clear errors when:
