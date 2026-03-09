@@ -718,13 +718,16 @@ async function bootstrap(): Promise<void> {
     try {
       stopMission();
       const baseLevel = await getLevelByPath(mode.skirmish.levelPath, levelCache);
+      activeTowerArchetypes = resolveTowerArchetypesFromEditorSnapshot(depthContent.towerArchetypes);
+      renderer.setTowerArchetypeArt(buildTowerArchetypeArtMap(activeTowerArchetypes));
+      const skirmishLevel = createSkirmishLevel(baseLevel, activeTowerArchetypes);
       const world = new World(
-        baseLevel.towers,
-        baseLevel.rules.maxOutgoingLinksPerTower,
+        skirmishLevel.towers,
+        skirmishLevel.rules.maxOutgoingLinksPerTower,
         depthContent.linkLevels,
-        baseLevel.initialLinks,
+        skirmishLevel.initialLinks,
         1,
-        baseLevel.graphEdges,
+        skirmishLevel.graphEdges,
       );
       const inputController = new InputController(canvas, world);
       app.inputController = inputController;
@@ -732,8 +735,8 @@ async function bootstrap(): Promise<void> {
         world,
         renderer,
         inputController,
-        baseLevel.rules,
-        baseLevel.ai,
+        skirmishLevel.rules,
+        skirmishLevel.ai,
         null,
         null,
         {
@@ -764,8 +767,8 @@ async function bootstrap(): Promise<void> {
         "neutral",
         (toast) => gameplayHud.pushToast(toast),
       );
-      renderer.setMapRenderData(baseLevel.mapRenderData ?? null);
-      renderer.setMapArtData(baseLevel.terrain ?? null, baseLevel.visuals ?? null);
+      renderer.setMapRenderData(skirmishLevel.mapRenderData ?? null);
+      renderer.setMapArtData(skirmishLevel.terrain ?? null, skirmishLevel.visuals ?? null);
       app.screen = "mission";
       syncMissionInputEnabled();
       if (!ensureMissionOverlayDefaults()) {
@@ -3694,6 +3697,22 @@ function createMissionLevel(
   level.rules.linkDecayCanBreak = difficultyContext.simulation.linkDecayCanBreak;
 
   level.ai.aiMinTroopsToAttack = Math.max(5, level.ai.aiMinTroopsToAttack / mapDifficultyScalar);
+  return level;
+}
+
+function createSkirmishLevel(
+  baseLevel: LoadedLevel,
+  towerArchetypes: TowerArchetypeCatalog,
+): LoadedLevel {
+  const level = cloneLoadedLevel(baseLevel);
+  for (const tower of level.towers) {
+    applyTowerArchetypeModifiers(tower, towerArchetypes);
+    tower.maxTroops = Math.max(1, tower.maxTroops);
+    tower.troops = Math.min(tower.maxTroops, tower.troops);
+    tower.baseMaxTroops = tower.maxTroops;
+    tower.baseRegen = tower.regenRate;
+    tower.baseRegenRate = tower.regenRate;
+  }
   return level;
 }
 
