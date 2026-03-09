@@ -1915,6 +1915,7 @@ function renderCurrentScreen(
   renderLevelEditorScreenFn: ((props: { onBack: () => void }) => HTMLDivElement) | null,
 ): void {
   screenRoot.replaceChildren();
+  screenRoot.classList.remove("has-blocking-overlay");
 
   if (app.screen === "title") {
     const wrapper = document.createElement("div");
@@ -2618,6 +2619,9 @@ function renderCurrentScreen(
         })
       : null;
     const tutorialBlocking = tutorialModal !== null;
+    if (tutorialBlocking || (app.missionPaused && app.missionResult === null) || app.missionResult !== null) {
+      screenRoot.classList.add("has-blocking-overlay");
+    }
     if (tutorialModal) {
       const tutorialWrapper = wrapCenteredModal(tutorialModal);
       tutorialWrapper.classList.add("tutorial-modal-backdrop");
