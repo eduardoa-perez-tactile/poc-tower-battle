@@ -33,6 +33,7 @@ export class GameplayHUD {
   private readonly alerts = new AlertLogManager();
   private lastOverlayVm: OverlayVM | null = null;
   private currentLayout: HudLayoutRuntime | null;
+  private suspended: boolean;
   private overlayToggles: HudOverlayToggles = {
     regenNumbers: false,
     captureRings: false,
@@ -65,6 +66,7 @@ export class GameplayHUD {
       this.towerInspector.element,
     );
     this.currentLayout = null;
+    this.suspended = false;
     this.applyLayout();
     window.addEventListener("resize", this.onWindowResize);
   }
@@ -75,6 +77,21 @@ export class GameplayHUD {
 
   setOverlayToggles(toggles: HudOverlayToggles): void {
     this.overlayToggles = { ...toggles };
+    if (this.lastOverlayVm && !this.suspended) {
+      this.overlays.update(this.lastOverlayVm, this.overlayToggles);
+    }
+  }
+
+  setSuspended(suspended: boolean): void {
+    this.suspended = suspended;
+    this.root.style.display = suspended ? "none" : "";
+    if (suspended) {
+      this.alerts.setVisible(false);
+      this.closeAlertsLog();
+      this.overlays.clear();
+      return;
+    }
+
     if (this.lastOverlayVm) {
       this.overlays.update(this.lastOverlayVm, this.overlayToggles);
     }
@@ -82,6 +99,15 @@ export class GameplayHUD {
 
   update(vm: HudVM, options: TowerInspectorUpdateOptions): void {
     this.applyLayout();
+    this.lastOverlayVm = vm.overlays;
+    if (this.suspended) {
+      this.root.style.display = "none";
+      this.alerts.setVisible(false);
+      this.overlays.clear();
+      return;
+    }
+
+    this.root.style.display = "";
     const uiPanelsHidden = vm.topBar.uiPanelsHidden;
     this.root.classList.toggle("is-panels-hidden", uiPanelsHidden);
     this.alerts.setVisible(!uiPanelsHidden);
@@ -92,7 +118,6 @@ export class GameplayHUD {
     if (!uiPanelsHidden && this.currentLayout) {
       this.alerts.setLayout(this.currentLayout);
     }
-    this.lastOverlayVm = vm.overlays;
     this.overlays.update(vm.overlays, this.overlayToggles);
   }
 
@@ -118,6 +143,8 @@ export class GameplayHUD {
   }
 
   reset(): void {
+    this.suspended = false;
+    this.root.style.display = "";
     this.root.classList.remove("is-panels-hidden");
     this.alerts.setVisible(false);
     this.topBar.reset();

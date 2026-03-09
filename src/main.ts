@@ -2607,10 +2607,6 @@ function renderCurrentScreen(
   }
 
   if (app.screen === "mission") {
-    if (debugState.showMissionHud && app.missionResult === null) {
-      screenRoot.appendChild(gameplayHud.getElement());
-    }
-
     const tutorialModal = app.tutorialController
       ? createTutorialModal({
           controller: app.tutorialController,
@@ -2619,7 +2615,18 @@ function renderCurrentScreen(
         })
       : null;
     const tutorialBlocking = tutorialModal !== null;
-    if (tutorialBlocking || (app.missionPaused && app.missionResult === null) || app.missionResult !== null) {
+    const blockingMissionOverlay =
+      tutorialBlocking ||
+      (app.missionPaused && app.missionResult === null) ||
+      app.missionResult !== null;
+
+    gameplayHud.setSuspended(blockingMissionOverlay);
+
+    if (debugState.showMissionHud && app.missionResult === null && !blockingMissionOverlay) {
+      screenRoot.appendChild(gameplayHud.getElement());
+    }
+
+    if (blockingMissionOverlay) {
       screenRoot.classList.add("has-blocking-overlay");
     }
     if (tutorialModal) {
