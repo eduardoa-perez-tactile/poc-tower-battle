@@ -965,48 +965,5 @@
         -1
       ]
     }
-  },
-  "visuals": {
-    "towerDefaults": {
-      "spriteKey": "barracks",
-      "frameIndex": 0
-    },
-    "towers": {
-      "HQ": {
-        "spriteKey": "castle",
-        "frameIndex": 0,
-        "scale": 1
-      },
-      "A": {
-        "spriteKey": "barracks",
-        "frameIndex": 0,
-        "scale": 1
-      },
-      "B": {
-        "spriteKey": "gnomish_inventor",
-        "frameIndex": 0,
-        "scale": 1
-      },
-      "C": {
-        "spriteKey": "mage_tower",
-        "frameIndex": 0,
-        "scale": 1
-      },
-      "D": {
-        "spriteKey": "guard_tower",
-        "frameIndex": 0,
-        "scale": 1
-      },
-      "E": {
-        "spriteKey": "foundry",
-        "frameIndex": 0,
-        "scale": 1
-      },
-      "F": {
-        "spriteKey": "barracks",
-        "frameIndex": 0,
-        "scale": 1
-      }
-    }
   }
 }
