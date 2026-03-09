@@ -3683,6 +3683,9 @@ function resolveTowerArchetypesFromEditorSnapshot(defaultCatalog: TowerArchetype
 }
 
 function parseTowerArchetypeCatalogFromEditorSnapshot(): TowerArchetypeCatalog | null {
+  if (!LEVEL_EDITOR_ENABLED) {
+    return null;
+  }
   if (typeof localStorage === "undefined") {
     return null;
   }
@@ -3814,6 +3817,9 @@ function resolveWaveContentFromEditorSnapshot(defaultContent: LoadedWaveContent)
 }
 
 function parseCampaignSpecFromEditorSnapshot(): CampaignSpecV2 | null {
+  if (!LEVEL_EDITOR_ENABLED) {
+    return null;
+  }
   if (typeof localStorage === "undefined") {
     return null;
   }
@@ -3847,6 +3853,9 @@ function parseCampaignSpecFromEditorSnapshot(): CampaignSpecV2 | null {
 }
 
 function parseEnemyCatalogFromEditorSnapshot(): EnemyCatalog | null {
+  if (!LEVEL_EDITOR_ENABLED) {
+    return null;
+  }
   if (typeof localStorage === "undefined") {
     return null;
   }
