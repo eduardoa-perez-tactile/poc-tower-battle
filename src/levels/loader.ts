@@ -11,6 +11,7 @@ import type {
 } from "./types";
 import { parseOptionalTerrain, parseOptionalVisuals } from "./LevelVisuals";
 import { parseOptionalTilePalette } from "./TilePalette";
+import { toPublicPath } from "../utils/publicPath";
 
 export const USER_LEVELS_STORAGE_KEY = "tower-battle.user-levels.v1";
 
@@ -30,7 +31,7 @@ interface StoredUserLevel {
 export async function loadBundledLevels(paths: readonly string[] = BUNDLED_LEVEL_PATHS): Promise<LevelJson[]> {
   const results = await Promise.all(
     paths.map(async (path) => {
-      const response = await fetch(path);
+      const response = await fetch(toPublicPath(path));
       if (!response.ok) {
         throw new Error(`Failed to load ${path} (${response.status} ${response.statusText})`);
       }
@@ -43,7 +44,7 @@ export async function loadBundledLevels(paths: readonly string[] = BUNDLED_LEVEL
 }
 
 export async function loadLevelFromPath(path: string): Promise<LevelJson> {
-  const response = await fetch(path);
+  const response = await fetch(toPublicPath(path));
   if (!response.ok) {
     throw new Error(`Failed to load ${path} (${response.status} ${response.statusText})`);
   }

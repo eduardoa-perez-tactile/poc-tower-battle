@@ -123,6 +123,7 @@ import { generateDifficultyReport } from "./debug/DifficultyReport";
 import { createTutorialModal } from "./ui/tutorial/TutorialModal";
 import { getGameModeById, loadGameModeRegistry, type GameModeRegistry } from "./modes/GameModes";
 import { getFactionLabel, isNeutral } from "./sim/Factions";
+import { toPublicPath } from "./utils/publicPath";
 
 type Screen =
   | "title"
@@ -3523,7 +3524,7 @@ function parseEnemyCatalogFromEditorSnapshot(): EnemyCatalog | null {
 
 async function fetchCampaignMapDefinition(path: string): Promise<CampaignMapDefinition | null> {
   try {
-    const response = await fetch(path);
+    const response = await fetch(toPublicPath(path));
     if (!response.ok) {
       return null;
     }

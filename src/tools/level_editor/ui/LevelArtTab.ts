@@ -4,6 +4,7 @@ import { cloneTerrainData, createEmptyTerrainData, TERRAIN_EMPTY_TILE, type Terr
 import type { LevelVisualsData, TowerVisualOverride } from "../../../types/Visuals";
 import { MapRenderer } from "../../../render/MapRenderer";
 import { SpriteAtlas, type SpriteCatalog } from "../../../render/SpriteAtlas";
+import { toPublicPath } from "../../../utils/publicPath";
 
 interface LevelArtTabProps {
   level: LevelJson;
@@ -967,7 +968,7 @@ async function loadCachedImage(path: string): Promise<HTMLImageElement> {
     image.decoding = "async";
     image.onload = () => resolve(image);
     image.onerror = () => reject(new Error(`Failed to load image ${path}`));
-    image.src = path;
+    image.src = toPublicPath(path);
   });
 
   imagePromiseByPath.set(path, promise);

@@ -6,6 +6,7 @@
 import type { DifficultyTierId } from "../config/Difficulty";
 import { loadDifficultyConfig } from "./DifficultyConfig";
 import type { AscensionDifficultyCatalog, StageDifficultyCatalog } from "./DifficultyTypes";
+import { toPublicPath } from "../utils/publicPath";
 
 export interface EnemyBaseStats {
   hp: number;
@@ -383,7 +384,7 @@ export async function loadWaveContent(): Promise<LoadedWaveContent> {
 }
 
 async function fetchJson<T>(path: string): Promise<T> {
-  const response = await fetch(path);
+  const response = await fetch(toPublicPath(path));
   if (!response.ok) {
     throw new Error(`Failed to load wave data from ${path} (${response.status} ${response.statusText})`);
   }

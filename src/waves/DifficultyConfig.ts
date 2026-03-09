@@ -10,6 +10,7 @@ import type {
   StageDifficultyCatalog,
   StageDifficultyProfile,
 } from "./DifficultyTypes";
+import { toPublicPath } from "../utils/publicPath";
 
 export interface DifficultyConfigBundle {
   stageCatalog: StageDifficultyCatalog | null;
@@ -139,7 +140,7 @@ function deriveStageIndexFromId(stageId?: string): number {
 
 async function fetchOptionalJson<T>(path: string): Promise<T | null> {
   try {
-    const response = await fetch(path);
+    const response = await fetch(toPublicPath(path));
     if (!response.ok) {
       return null;
     }

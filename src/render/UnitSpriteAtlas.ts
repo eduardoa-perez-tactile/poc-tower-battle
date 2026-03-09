@@ -1,4 +1,5 @@
 import type { UnitSpriteFacing } from "../sim/World";
+import { toPublicPath } from "../utils/publicPath";
 
 interface UnitSpriteFrameInput {
   x?: number;
@@ -285,7 +286,7 @@ export class UnitSpriteAtlas {
 }
 
 async function loadUnitSpriteCatalog(path: string): Promise<UnitSpriteCatalogInput> {
-  const response = await fetch(path);
+  const response = await fetch(toPublicPath(path));
   if (!response.ok) {
     throw new Error(`Failed to load unit sprite catalog (${response.status} ${response.statusText})`);
   }
@@ -464,10 +465,6 @@ function loadImage(path: string): Promise<HTMLImageElement> {
     image.onerror = () => reject(new Error(`Failed to load image: ${path}`));
     image.src = path;
   });
-}
-
-function toPublicPath(path: string): string {
-  return path.startsWith("/") ? path : `/${path}`;
 }
 
 function isObject(value: unknown): value is Record<string, unknown> {

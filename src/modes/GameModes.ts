@@ -1,5 +1,6 @@
 import type { Owner } from "../sim/World";
 import { HUMAN_OWNER_DEFAULT, SKIRMISH_AI_OWNERS } from "../sim/Factions";
+import { toPublicPath } from "../utils/publicPath";
 
 export type GameModeId = "campaign" | "skirmish" | string;
 
@@ -52,7 +53,7 @@ const DEFAULT_GAME_MODES: GameModeRegistry = {
 
 export async function loadGameModeRegistry(path = "/data/gameModes.json"): Promise<GameModeRegistry> {
   try {
-    const response = await fetch(path, { cache: "no-store" });
+    const response = await fetch(toPublicPath(path), { cache: "no-store" });
     if (!response.ok) {
       console.warn(`[GameModes] Failed to load ${path} (${response.status} ${response.statusText}); using defaults.`);
       return cloneGameModeRegistry(DEFAULT_GAME_MODES);
@@ -174,4 +175,3 @@ function cloneMode(mode: GameModeDefinition): GameModeDefinition {
 function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
-

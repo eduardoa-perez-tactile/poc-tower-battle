@@ -1,4 +1,5 @@
 import type { UnitSpriteFacing } from "../sim/World";
+import { toPublicPath } from "../utils/publicPath";
 
 export const UNIT_ARCHETYPE_DOC_PATH = "/data/unitArchetypes.json";
 export const UNIT_ARCHETYPES_UPDATED_EVENT = "tower-battle:unit-archetypes-updated";
@@ -112,7 +113,7 @@ class UnitArchetypeRegistry {
 export const unitArchetypeRegistry = new UnitArchetypeRegistry();
 
 export async function loadUnitArchetypeCatalog(path = UNIT_ARCHETYPE_DOC_PATH): Promise<UnitArchetypeCatalog> {
-  const response = await fetch(path);
+  const response = await fetch(toPublicPath(path));
   if (!response.ok) {
     throw new Error(`Failed to load unit archetypes (${response.status} ${response.statusText})`);
   }

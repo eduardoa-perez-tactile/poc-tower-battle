@@ -5,11 +5,12 @@ import type { LoadedLevel } from "../levels/runtime";
 import { parseTowerArchetype } from "../sim/DepthConfig";
 import { TowerArchetype } from "../sim/DepthTypes";
 import type { LinkSeed, Owner, Tower } from "../sim/World";
+import { toPublicPath } from "../utils/publicPath";
 
 export type { AiRules, LevelRules, LoadedLevel } from "../levels/runtime";
 
 export async function loadLevel(path: string): Promise<LoadedLevel> {
-  const response = await fetch(path);
+  const response = await fetch(toPublicPath(path));
   if (!response.ok) {
     throw new Error(`Failed to load level (${response.status} ${response.statusText})`);
   }

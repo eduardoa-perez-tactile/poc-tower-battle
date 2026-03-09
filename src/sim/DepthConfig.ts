@@ -8,6 +8,7 @@ import type {
   TowerArchetypeState,
 } from "./DepthTypes";
 import { TowerArchetype } from "./DepthTypes";
+import { toPublicPath } from "../utils/publicPath";
 
 const ARCHETYPE_ORDER: TowerArchetype[] = [
   TowerArchetype.STRONGHOLD,
@@ -240,7 +241,7 @@ function validateAndIndexLinkLevels(catalog: LinkLevelCatalog): Map<number, Link
 }
 
 async function fetchJson<T>(path: string): Promise<T> {
-  const response = await fetch(path);
+  const response = await fetch(toPublicPath(path));
   if (!response.ok) {
     throw new Error(`Failed to load depth config from ${path} (${response.status} ${response.statusText})`);
   }

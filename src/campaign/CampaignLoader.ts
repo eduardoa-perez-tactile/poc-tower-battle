@@ -7,6 +7,7 @@
 import { cloneTilePalette, computeShorelineMask, hasTilePaletteOverrides, normalizeShorelineMaskMap } from "../levels/TilePalette";
 import type { LevelTilePalette } from "../levels/types";
 import type { LevelJson, LevelNode, LevelSizePreset, LevelSourceEntry, StageRegistryEntry } from "../levels/types";
+import { toPublicPath } from "../utils/publicPath";
 import type {
   CampaignMapDefinition,
   CampaignMissionRuntimeMeta,
@@ -726,7 +727,7 @@ function normalizeTileIndex(value: unknown): number | null {
 }
 
 async function fetchJson<T>(path: string): Promise<T> {
-  const response = await fetch(path);
+  const response = await fetch(toPublicPath(path));
   if (!response.ok) {
     throw new Error(`Failed to load ${path} (${response.status} ${response.statusText})`);
   }
