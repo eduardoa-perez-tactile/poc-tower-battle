@@ -164,6 +164,15 @@ interface SkirmishMissionContext {
 
 type MissionContext = CampaignMissionContext | RunMissionContext | SkirmishMissionContext | null;
 
+interface CampaignMetaRetryContext {
+  mode: "campaign";
+  stageId: string;
+  levelId: string;
+  missionId: string;
+}
+
+type MetaRetryContext = CampaignMetaRetryContext | null;
+
 interface MissionEventEntry {
   id: number;
   tone: "neutral" | "warning" | "success";
@@ -195,6 +204,8 @@ interface AppState {
   selectedStageId: string | null;
   selectedLevelId: string | null;
   selectedMetaTreeId: string | null;
+  metaRetryContext: MetaRetryContext;
+  metaReturnScreen: "mission" | null;
   activeMissionContext: MissionContext;
   game: Game | null;
   inputController: InputController | null;
@@ -321,6 +332,8 @@ async function bootstrap(): Promise<void> {
     selectedStageId: null,
     selectedLevelId: null,
     selectedMetaTreeId: null,
+    metaRetryContext: null,
+    metaReturnScreen: null,
     activeMissionContext: null,
     game: null,
     inputController: null,
@@ -445,6 +458,8 @@ async function bootstrap(): Promise<void> {
       ascensionCatalog,
       missionTemplates,
       openMetaScreen,
+      openMetaScreenFromDefeat,
+      returnFromMetaScreen,
       openMainMenu,
       openPlayModeSelect,
       openSkirmishSetup,
@@ -592,19 +607,33 @@ async function bootstrap(): Promise<void> {
     return buildDifficultyContext(inputs);
   };
 
+  const showMetaScreen = (): void => {
+    if (!app.selectedMetaTreeId || !upgradeCatalog.trees.some((tree) => tree.id === app.selectedMetaTreeId)) {
+      app.selectedMetaTreeId = upgradeCatalog.trees[0]?.id ?? null;
+    }
+    app.screen = "meta";
+    render();
+  };
+
   const openMainMenu = (): void => {
+    app.metaRetryContext = null;
+    app.metaReturnScreen = null;
     stopMission();
     app.screen = "main-menu";
     render();
   };
 
   const openProfileSnapshot = (): void => {
+    app.metaRetryContext = null;
+    app.metaReturnScreen = null;
     stopMission();
     app.screen = "profile-snapshot";
     render();
   };
 
   const openStageSelect = (): void => {
+    app.metaRetryContext = null;
+    app.metaReturnScreen = null;
     stopMission();
     app.selectedStageId = null;
     app.selectedLevelId = null;
@@ -613,18 +642,24 @@ async function bootstrap(): Promise<void> {
   };
 
   const openPlayModeSelect = (): void => {
+    app.metaRetryContext = null;
+    app.metaReturnScreen = null;
     stopMission();
     app.screen = "play-mode-select";
     render();
   };
 
   const openSkirmishSetup = (): void => {
+    app.metaRetryContext = null;
+    app.metaReturnScreen = null;
     stopMission();
     app.screen = "skirmish-setup";
     render();
   };
 
   const openLevelSelect = (stageId: string): void => {
+    app.metaRetryContext = null;
+    app.metaReturnScreen = null;
     stopMission();
     const stage = findStageById(app.campaignStages, stageId);
     if (!stage) {
@@ -644,6 +679,8 @@ async function bootstrap(): Promise<void> {
   };
 
   const openMissionSelect = (levelId: string): void => {
+    app.metaRetryContext = null;
+    app.metaReturnScreen = null;
     stopMission();
     if (!app.selectedStageId) {
       showToast(screenRoot, "Select a stage first.");
@@ -683,21 +720,51 @@ async function bootstrap(): Promise<void> {
       const module = await import("./tools/level_editor/ui/LevelEditorScreen");
       renderLevelEditorScreenFn = module.renderLevelEditorScreen;
     }
+    app.metaRetryContext = null;
+    app.metaReturnScreen = null;
     stopMission();
     app.screen = "level-editor";
     render();
   };
 
   const openMetaScreen = (): void => {
+    app.metaRetryContext = null;
+    app.metaReturnScreen = null;
     stopMission();
-    if (!app.selectedMetaTreeId || !upgradeCatalog.trees.some((tree) => tree.id === app.selectedMetaTreeId)) {
-      app.selectedMetaTreeId = upgradeCatalog.trees[0]?.id ?? null;
+    showMetaScreen();
+  };
+
+  const openMetaScreenFromDefeat = (): void => {
+    if (app.screen === "mission" && app.missionResult === "lose") {
+      app.metaReturnScreen = "mission";
+      if (app.activeMissionContext?.mode === "campaign") {
+        app.metaRetryContext = {
+          mode: "campaign",
+          stageId: app.activeMissionContext.stageId,
+          levelId: app.activeMissionContext.levelId,
+          missionId: app.activeMissionContext.missionId,
+        };
+      } else {
+        app.metaRetryContext = null;
+      }
+      showMetaScreen();
+      return;
     }
-    app.screen = "meta";
-    render();
+    openMetaScreen();
+  };
+
+  const returnFromMetaScreen = (): void => {
+    if (app.metaReturnScreen === "mission") {
+      app.screen = "mission";
+      render();
+      return;
+    }
+    openMainMenu();
   };
 
   const openRunMap = (): void => {
+    app.metaRetryContext = null;
+    app.metaReturnScreen = null;
     stopMission();
     if (!app.runState) {
       app.screen = "main-menu";
@@ -1910,6 +1977,8 @@ function renderCurrentScreen(
   ascensionCatalog: AscensionCatalog,
   missionTemplates: MissionTemplate[],
   openMetaScreen: () => void,
+  openMetaScreenFromDefeat: () => void,
+  returnFromMetaScreen: () => void,
   openMainMenu: () => void,
   openPlayModeSelect: () => void,
   openSkirmishSetup: () => void,
@@ -2540,13 +2609,71 @@ function renderCurrentScreen(
 
     const footerActions = document.createElement("div");
     footerActions.className = "meta-shop-footer-actions";
-    const backBtn = createButton("Back", openMainMenu, {
-      variant: "ghost",
-      escapeAction: true,
-      hotkey: "Esc",
-    });
-    backBtn.classList.add("campaign-footer-btn", "meta-shop-footer-btn");
-    footerActions.appendChild(backBtn);
+    if (app.metaReturnScreen === "mission") {
+      if (app.metaRetryContext?.mode === "campaign") {
+        const retryContext = app.metaRetryContext;
+        const retryBtn = createButton("Retry Mission", () => {
+          app.metaRetryContext = null;
+          app.metaReturnScreen = null;
+          app.selectedStageId = retryContext.stageId;
+          app.selectedLevelId = retryContext.levelId;
+          void startCampaignMissionById(retryContext.missionId);
+        }, {
+          variant: "primary",
+          primaryAction: true,
+          hotkey: "Enter",
+        });
+        retryBtn.classList.add("campaign-footer-btn", "meta-shop-footer-btn");
+        footerActions.appendChild(retryBtn);
+      }
+
+      const backBtn = createButton("Back To Defeat", () => {
+        returnFromMetaScreen();
+      }, {
+        variant: "ghost",
+        escapeAction: true,
+        hotkey: "Esc",
+      });
+      backBtn.classList.add("campaign-footer-btn", "meta-shop-footer-btn");
+      footerActions.appendChild(backBtn);
+    } else if (app.metaRetryContext?.mode === "campaign") {
+      const retryContext = app.metaRetryContext;
+      const retryBtn = createButton("Retry Mission", () => {
+        app.metaRetryContext = null;
+        app.metaReturnScreen = null;
+        app.selectedStageId = retryContext.stageId;
+        app.selectedLevelId = retryContext.levelId;
+        void startCampaignMissionById(retryContext.missionId);
+      }, {
+        variant: "primary",
+        primaryAction: true,
+        hotkey: "Enter",
+      });
+      retryBtn.classList.add("campaign-footer-btn", "meta-shop-footer-btn");
+      footerActions.appendChild(retryBtn);
+
+      const backBtn = createButton("Back To Missions", () => {
+        app.metaRetryContext = null;
+        app.metaReturnScreen = null;
+        app.selectedStageId = retryContext.stageId;
+        app.selectedLevelId = retryContext.levelId;
+        openMissionSelect(retryContext.levelId);
+      }, {
+        variant: "ghost",
+        escapeAction: true,
+        hotkey: "Esc",
+      });
+      backBtn.classList.add("campaign-footer-btn", "meta-shop-footer-btn");
+      footerActions.appendChild(backBtn);
+    } else {
+      const backBtn = createButton("Back", openMainMenu, {
+        variant: "ghost",
+        escapeAction: true,
+        hotkey: "Esc",
+      });
+      backBtn.classList.add("campaign-footer-btn", "meta-shop-footer-btn");
+      footerActions.appendChild(backBtn);
+    }
 
     footer.append(footerStat, footerCopy, footerActions);
     panel.appendChild(footer);
@@ -2955,8 +3082,10 @@ function renderCurrentScreen(
           actionRow.append(backToMissions, retryBtn);
         } else {
           retryBtn.classList.add("mission-result-action-primary");
+          const upgradeBtn = createButton("Upgrade Shop", openMetaScreenFromDefeat, { variant: "secondary" });
+          upgradeBtn.classList.add("campaign-footer-btn", "mission-result-action-secondary");
           backToMissions.classList.add("mission-result-action-secondary");
-          actionRow.append(retryBtn, backToMissions);
+          actionRow.append(retryBtn, upgradeBtn, backToMissions);
         }
 
         const stageBtn = createButton("Stage Select", openStageSelect, { variant: "ghost", escapeAction: true, hotkey: "Esc" });
@@ -2977,9 +3106,13 @@ function renderCurrentScreen(
         mainMenuBtn.classList.add("campaign-footer-btn");
         if (!isVictory) {
           retryBtn.classList.add("mission-result-action-primary");
+          const upgradeBtn = createButton("Upgrade Shop", openMetaScreenFromDefeat, { variant: "secondary" });
+          upgradeBtn.classList.add("campaign-footer-btn", "mission-result-action-secondary");
           mainMenuBtn.classList.add("mission-result-action-secondary");
+          actionRow.append(retryBtn, upgradeBtn, mainMenuBtn);
+        } else {
+          actionRow.append(retryBtn, mainMenuBtn);
         }
-        actionRow.append(retryBtn, mainMenuBtn);
       } else {
         if (isVictory && app.runState && app.runState.currentMissionIndex < app.runState.missions.length) {
           const continueBtn = createButton("Continue To Run Map", openRunMap, {
@@ -3006,6 +3139,9 @@ function renderCurrentScreen(
           restartBtn.classList.add("campaign-footer-btn");
           if (!isVictory) {
             restartBtn.classList.add("mission-result-action-primary");
+            const upgradeBtn = createButton("Upgrade Shop", openMetaScreenFromDefeat, { variant: "secondary" });
+            upgradeBtn.classList.add("campaign-footer-btn", "mission-result-action-secondary");
+            actionRow.appendChild(upgradeBtn);
           }
           actionRow.appendChild(restartBtn);
         }
