@@ -40,8 +40,6 @@ const NEUTRAL_SPRITE_CYCLE = [
   "guard_tower",
   "scout_tower",
   "foundry",
-  "gnomish_inventor",
-  "stables",
   "mage_tower",
 ] as const;
 
@@ -545,16 +543,16 @@ function resolveSpriteKey(
   enemyAnchor: string,
 ): string {
   if (node.id === playerAnchor) {
-    return "castle";
+    return "keep";
   }
   if (node.id === enemyAnchor) {
     return "keep";
   }
   if (node.owner === "player") {
-    return node.tier >= 2 ? "guard_tower" : "scout_tower";
+    return node.tier >= 2 ? "guard_tower" : "barracks";
   }
   if (node.owner === "enemy") {
-    return node.tier >= 2 ? "cannon_tower" : "guard_tower";
+    return node.tier >= 2 ? "guard_tower" : "barracks";
   }
   if (node.tier >= 2) {
     return "mage_tower";
